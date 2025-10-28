@@ -40,6 +40,22 @@ services:
     depends_on:
       - postgres
       - mongo
+      - litellm
+    networks:
+      - ttibu-network
+
+  # LiteLLM Proxy
+  litellm:
+    image: ghcr.io/berriai/litellm:main-latest
+    container_name: ttibu-litellm
+    ports:
+      - "4000:4000"
+    environment:
+      - LITELLM_MASTER_KEY=sk-1234
+      - LITELLM_LOG=INFO
+    volumes:
+      - ./litellm-config.yaml:/app/config.yaml
+    command: --config /app/config.yaml --port 4000
     networks:
       - ttibu-network
 

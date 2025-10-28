@@ -21,6 +21,12 @@ spring:
 server:
   port: 8080
 
+# LiteLLM Configuration
+litellm:
+  base-url: http://litellm:4000
+  api-key: sk-1234
+  model: gpt-3.5-turbo
+
 logging:
   level:
     org.springframework.data.mongodb.core.MongoTemplate: DEBUG
