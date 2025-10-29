@@ -4,6 +4,7 @@ import { indexRoute } from '@routes/index'
 import { signinRoute } from '@routes/signin'
 import { dashboardRoute } from '@routes/dashboard'
 
+
 const routeTree = rootRoute.addChildren([indexRoute, signinRoute, dashboardRoute])
 
 export const router = createRouter({
