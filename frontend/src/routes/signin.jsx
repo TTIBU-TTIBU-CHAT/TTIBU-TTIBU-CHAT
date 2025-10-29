@@ -1,6 +1,6 @@
 import React from 'react'
 import { createRoute, useNavigate } from '@tanstack/react-router'
-import { rootRoute } from './__root'
+import { rootRoute } from '@routes/__root'
 import { useAuthStore } from '@store/useAuthStore'
 
 export const SignInPage = () => {
