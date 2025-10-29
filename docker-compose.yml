@@ -1,0 +1,92 @@
+version: '3.8'
+
+services:
+  # PostgreSQL Database
+  postgres:
+    image: postgres:15
+    container_name: ttibu-postgres
+    environment:
+      POSTGRES_DB: ttibu_db
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - ttibu-network
+
+  # MongoDB Database
+  mongo:
+    image: mongo:7
+    container_name: ttibu-mongo
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo_data:/data/db
+    networks:
+      - ttibu-network
+
+  # Spring Boot Core API
+  core-api:
+    build:
+      context: ./core-api
+      dockerfile: Dockerfile
+    container_name: ttibu-core-api
+    environment:
+      SPRING_PROFILES_ACTIVE: docker
+    ports:
+      - "8080:8080"
+    depends_on:
+      - postgres
+      - mongo
+      - litellm
+    networks:
+      - ttibu-network
+
+  # LiteLLM Proxy
+  litellm:
+    image: ghcr.io/berriai/litellm:main-latest
+    container_name: ttibu-litellm
+    ports:
+      - "4000:4000"
+    environment:
+      - LITELLM_MASTER_KEY=sk-1234
+      - LITELLM_LOG=INFO
+    volumes:
+      - ./litellm-config.yaml:/app/config.yaml
+    command: --config /app/config.yaml --port 4000
+    networks:
+      - ttibu-network
+
+  # FastAPI Summary Service
+  summary-api:
+    build:
+      context: ./summary-api
+      dockerfile: Dockerfile
+    container_name: ttibu-summary-api
+    ports:
+      - "8000:8000"
+    networks:
+      - ttibu-network
+
+  # React Frontend
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: ttibu-frontend
+    ports:
+      - "80:80"
+    depends_on:
+      - core-api
+    networks:
+      - ttibu-network
+
+volumes:
+  postgres_data:
+  mongo_data:
+
+networks:
+  ttibu-network:
+    driver: bridge
