@@ -1,6 +1,6 @@
 import React from 'react'
 import { createRoute } from '@tanstack/react-router'
-import { rootRoute } from './__root'
+import { rootRoute } from '@routes/__root'
 
 export const HomePage = () => (
   <section>

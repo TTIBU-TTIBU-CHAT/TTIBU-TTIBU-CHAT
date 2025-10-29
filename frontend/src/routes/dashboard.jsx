@@ -1,6 +1,6 @@
 import React from 'react'
 import { createRoute, redirect } from '@tanstack/react-router'
-import { rootRoute } from './__root'
+import { rootRoute } from '@routes/__root'
 import { authSnapshot, useAuthStore } from '@store/useAuthStore'
 import { queryClient } from '@services/queryClient'
 import { userMeQuery } from '@services/userService'
