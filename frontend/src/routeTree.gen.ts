@@ -37,17 +37,13 @@ const LoginIndexRoute = LoginIndexRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
-
-  '/test': typeof TestRoute
-}
-export interface FileRoutesByTo {
-  '/': typeof IndexRoute
   '/test': typeof TestRoute
   '/login': typeof LoginIndexRoute
   '/signup': typeof SignupIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/test': typeof TestRoute
   '/login': typeof LoginIndexRoute
   '/signup': typeof SignupIndexRoute
 }
@@ -55,22 +51,15 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/test': typeof TestRoute
-}
-export interface FileRouteTypes {
-  fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/test'
-  fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/test'
-  id: '__root__' | '/' | '/test'
   '/login/': typeof LoginIndexRoute
   '/signup/': typeof SignupIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/login' | '/signup'
+  fullPaths: '/' | '/test' | '/login' | '/signup'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/login' | '/signup'
-  id: '__root__' | '/' | '/login/' | '/signup/'
+  to: '/' | '/test' | '/login' | '/signup'
+  id: '__root__' | '/' | '/test' | '/login/' | '/signup/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -78,7 +67,6 @@ export interface RootRouteChildren {
   TestRoute: typeof TestRoute
   LoginIndexRoute: typeof LoginIndexRoute
   SignupIndexRoute: typeof SignupIndexRoute
-
 }
 
 declare module '@tanstack/react-router' {
@@ -119,7 +107,6 @@ const rootRouteChildren: RootRouteChildren = {
   TestRoute: TestRoute,
   LoginIndexRoute: LoginIndexRoute,
   SignupIndexRoute: SignupIndexRoute,
-
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
