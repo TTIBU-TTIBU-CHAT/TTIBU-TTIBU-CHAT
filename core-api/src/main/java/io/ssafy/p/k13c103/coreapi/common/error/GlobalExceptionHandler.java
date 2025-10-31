@@ -53,4 +53,18 @@ public class GlobalExceptionHandler {
                 .toList();
         return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(JSend.fail(Map.of("errors", errors)));
     }
+
+    @ExceptionHandler(Exception.class)
+    public ResponseEntity<JSend> handleException(Exception ex, HttpServletRequest request) {
+        String errorId = UUID.randomUUID().toString();
+        log.error("[{}] ", errorId, ex);
+        Map<String, String> data = Map.of(
+                "errorId", errorId,
+                "path", request.getRequestURI()
+        );
+        ErrorCode error = ErrorCode.INTERNAL_ERROR;
+
+        return ResponseEntity.status(error.getStatus())
+                .body(JSend.error(error.getMessage(), error.name(), data));
+    }
 }
