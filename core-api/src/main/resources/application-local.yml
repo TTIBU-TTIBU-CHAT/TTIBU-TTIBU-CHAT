@@ -1,13 +1,13 @@
 spring:
   datasource:
-    url: jdbc:postgresql://localhost:5432/ttibu_local
+    url: jdbc:postgresql://localhost:5432/ttibu_db
     username: postgres
     password: postgres
     driver-class-name: org.postgresql.Driver
   
   data:
     mongodb:
-      uri: mongodb://localhost:27017/ttibu_mongo_local
+      uri: mongodb://localhost:27017/ttibu_mongo
   
   jpa:
     hibernate:
