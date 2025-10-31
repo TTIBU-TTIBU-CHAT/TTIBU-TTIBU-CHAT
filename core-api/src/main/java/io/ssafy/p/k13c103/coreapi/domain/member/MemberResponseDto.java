@@ -12,4 +12,14 @@ public class MemberResponseDto {
             Long memberUid
     ) {
     }
+
+    /**
+     * 로그인 응답 DTO
+     */
+    @Builder
+    public record MemberInfo(
+            String email,
+            String name
+    ) {
+    }
 }
