@@ -3,6 +3,8 @@ package io.ssafy.p.k13c103.coreapi.domain.member;
 import io.ssafy.p.k13c103.coreapi.common.jsend.JSend;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
@@ -29,6 +31,15 @@ public class MemberController {
 
         return ResponseEntity.status(HttpStatus.CREATED).body(JSend.success(info));
 
+    }
+
+    @Operation(summary = "로그인", description = "")
+    @PostMapping("/login")
+    public ResponseEntity<JSend> login(@RequestBody MemberRequestDto.LoginMember loginMember, HttpServletRequest request, HttpServletResponse response) {
+
+        MemberResponseDto.MemberInfo member = memberService.login(loginMember, request, response);
+
+        return ResponseEntity.status(HttpStatus.OK).body(JSend.success(member));
     }
 
     @Operation(summary = "csrf 토큰 발급", description = "")

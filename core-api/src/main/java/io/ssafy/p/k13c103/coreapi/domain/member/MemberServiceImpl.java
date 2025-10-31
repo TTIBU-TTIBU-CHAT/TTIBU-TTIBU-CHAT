@@ -2,9 +2,16 @@ package io.ssafy.p.k13c103.coreapi.domain.member;
 
 import io.ssafy.p.k13c103.coreapi.common.error.ApiException;
 import io.ssafy.p.k13c103.coreapi.common.error.ErrorCode;
+import io.ssafy.p.k13c103.coreapi.config.security.CustomMemberDetails;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.authentication.AuthenticationManager;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContext;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.context.SecurityContextRepository;
 import org.springframework.stereotype.Service;
@@ -17,6 +24,8 @@ public class MemberServiceImpl implements MemberService {
 
     private final MemberRepository memberRepository;
     private final PasswordEncoder passwordEncoder;
+    private final AuthenticationManager authenticationManager;
+    private final SecurityContextRepository securityContextRepository; // NPE 방지를 위해 빈 주입
 
     @Override
     @Transactional
@@ -34,5 +43,26 @@ public class MemberServiceImpl implements MemberService {
 
         return MemberResponseDto.RegisteredMemberInfo.builder()
                 .memberUid(member.getMemberUid()).build();
+    }
+
+    @Override
+    @Transactional
+    public MemberResponseDto.MemberInfo login(MemberRequestDto.LoginMember loginMember, HttpServletRequest request, HttpServletResponse response) {
+        // 로그인 검증
+        UsernamePasswordAuthenticationToken authToken = new UsernamePasswordAuthenticationToken(loginMember.email(), loginMember.password());
+        Authentication auth = authenticationManager.authenticate(authToken);
+
+        // 인증 성공 -> 세션에 정보 저장
+        SecurityContext context = SecurityContextHolder.createEmptyContext();
+        context.setAuthentication(auth);
+        SecurityContextHolder.setContext(context);
+
+        securityContextRepository.saveContext(context, request, response);
+
+        CustomMemberDetails member = (CustomMemberDetails) auth.getPrincipal();
+        return MemberResponseDto.MemberInfo.builder()
+                .email(member.getUsername())
+                .name(member.getName())
+                .build();
     }
 }
