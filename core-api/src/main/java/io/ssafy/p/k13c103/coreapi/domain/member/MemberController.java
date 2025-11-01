@@ -42,6 +42,15 @@ public class MemberController {
         return ResponseEntity.status(HttpStatus.OK).body(JSend.success(member));
     }
 
+    @Operation(summary = "로그아웃", description = "")
+    @PostMapping("/logout")
+    public ResponseEntity<JSend> logout(HttpServletRequest request, HttpServletResponse response) {
+
+        memberService.logout(request, response);
+
+        return ResponseEntity.status(HttpStatus.OK).body(JSend.success("로그아웃 완료"));
+    }
+
     @Operation(summary = "csrf 토큰 발급", description = "")
     @GetMapping("/csrf")
     public Map<String, String> getCsrfToken(CsrfToken token) {

@@ -3,6 +3,7 @@ package io.ssafy.p.k13c103.coreapi.domain.member;
 import io.ssafy.p.k13c103.coreapi.common.error.ApiException;
 import io.ssafy.p.k13c103.coreapi.common.error.ErrorCode;
 import io.ssafy.p.k13c103.coreapi.config.security.CustomMemberDetails;
+import jakarta.servlet.http.Cookie;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
@@ -13,6 +14,7 @@ import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContext;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.security.web.authentication.logout.SecurityContextLogoutHandler;
 import org.springframework.security.web.context.SecurityContextRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -64,5 +66,25 @@ public class MemberServiceImpl implements MemberService {
                 .email(member.getUsername())
                 .name(member.getName())
                 .build();
+    }
+
+    @Override
+    @Transactional
+    public void logout(HttpServletRequest request, HttpServletResponse response) {
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+
+        if (auth != null) {
+            // context 및 세션 무효화
+            new SecurityContextLogoutHandler().logout(request, response, auth);
+            log.info("logout successful: {}", auth.getName());
+        } else {
+            log.warn("Security context is null");
+        }
+
+        Cookie cookie = new Cookie("JSESSIONID", "");
+        cookie.setPath("/");
+        cookie.setHttpOnly(true);
+        cookie.setMaxAge(0);
+        response.addCookie(cookie);
     }
 }

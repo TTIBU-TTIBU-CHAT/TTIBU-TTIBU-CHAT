@@ -7,4 +7,6 @@ public interface MemberService {
     MemberResponseDto.RegisteredMemberInfo register(MemberRequestDto.RegisterMember registerMember);
 
     MemberResponseDto.MemberInfo login(MemberRequestDto.LoginMember loginMember, HttpServletRequest request, HttpServletResponse response);
+
+    void logout(HttpServletRequest request, HttpServletResponse response);
 }
