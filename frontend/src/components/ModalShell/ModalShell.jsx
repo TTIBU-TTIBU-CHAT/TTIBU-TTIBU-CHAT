@@ -175,7 +175,7 @@ export default function ModalShell({
         </S.HeaderLeft>
 
         <S.HeaderCenter>
-          <S.SearchTitle>{renderType === "search" ? "검색" : "레이어"}</S.SearchTitle>
+          <S.SearchTitle>{renderType === "search" ? "검색" : "그룹"}</S.SearchTitle>
         </S.HeaderCenter>
 
         <S.HeaderRight />
@@ -213,7 +213,7 @@ export default function ModalShell({
       >
         {/* ===== Dock (좌측 고정 버튼 3개) ===== */}
         <S.Dock>
-          <S.DockButton title="레이어" onClick={() => handleDockToggle("layers")}>
+          <S.DockButton title="그룹" onClick={() => handleDockToggle("layers")}>
             <i className="fa-solid fa-layer-group" />
           </S.DockButton>
           <S.DockButton title="검색" onClick={() => handleDockToggle("search")}>
