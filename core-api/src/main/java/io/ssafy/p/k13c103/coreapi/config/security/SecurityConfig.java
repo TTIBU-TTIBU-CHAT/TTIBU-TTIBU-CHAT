@@ -1,6 +1,7 @@
 package io.ssafy.p.k13c103.coreapi.config.security;
 
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
@@ -26,6 +27,8 @@ import java.util.List;
 @EnableWebSecurity
 @RequiredArgsConstructor
 public class SecurityConfig {
+    @Value("${app.security.csrf-mode:token}")
+    String csrfMode;
 
     @Bean
     public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
@@ -36,9 +39,12 @@ public class SecurityConfig {
                         .requestMatchers("/v3/api-docs/**", "/swagger-ui.html", "/swagger-ui/**").permitAll()
                         // 정적 리소스 허용
                         .requestMatchers("/", "/css/**", "/js/**", "/images/**").permitAll()
+                        // CSRF 토큰 발급 허용
+                        .requestMatchers(HttpMethod.GET, "/api/v1/members/csrf").permitAll()
                         // 로그인 전 허용
                         .requestMatchers(HttpMethod.POST, "/api/v1/members").permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/v1/members/login").permitAll()
+                        .requestMatchers(HttpMethod.POST, "/api/v1/members/logout").permitAll()
                         // CORS 프리플라이트
                         .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
                         // 그 외 모두 인증 필요
@@ -47,11 +53,6 @@ public class SecurityConfig {
                 // 로그인/로그아웃 비활성화 -> API로 처리
                 .formLogin(login -> login.disable())
                 .logout(logout -> logout.disable())
-                // CSRF: 쿠키 토큰 전략
-                .csrf(csrf -> csrf
-                        .ignoringRequestMatchers("/v3/api-docs/**", "/swagger-ui.html", "/swagger-ui/**")
-                        .ignoringRequestMatchers("/api/v1/members", "/api/v1/members/login") // FIXME: 운영 시 이 줄 주석 처리 필요
-                        .csrfTokenRepository(CookieCsrfTokenRepository.withHttpOnlyFalse()))
                 // 세션
                 .sessionManagement(s -> s
                         .sessionCreationPolicy(SessionCreationPolicy.IF_REQUIRED)
@@ -61,6 +62,21 @@ public class SecurityConfig {
                 .headers(h -> h.frameOptions(f -> f.sameOrigin()))
                 // CORS
                 .cors(Customizer.withDefaults());
+
+        // CSRF
+        if ("ignore".equalsIgnoreCase(csrfMode)) {
+            // 개발 모드
+            http.csrf(csrf -> csrf
+                    .ignoringRequestMatchers("/v3/api-doc/**", "/swagger-ui.html", "/swagger-ui/**")
+                    .ignoringRequestMatchers("/api/v1/members", "/api/v1/members/login", "/api/v1/members/logout")
+                    .csrfTokenRepository(CookieCsrfTokenRepository.withHttpOnlyFalse())
+            );
+        } else {
+            // 운영 모드
+            http.csrf(csrf -> csrf
+                    .csrfTokenRepository(CookieCsrfTokenRepository.withHttpOnlyFalse())
+            );
+        }
 
         return http.build();
     }
@@ -82,12 +98,12 @@ public class SecurityConfig {
 
     /**
      * CORS 설정
-     * */
+     */
     @Bean
     CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration c = new CorsConfiguration();
         c.setAllowedOrigins(List.of("http://localhost:5173"));
-        c.setAllowedMethods(List.of("GET","POST","PUT","DELETE","PATCH","OPTIONS"));
+        c.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"));
         c.setAllowedHeaders(List.of("*"));
         c.setAllowCredentials(true);
         UrlBasedCorsConfigurationSource s = new UrlBasedCorsConfigurationSource();

@@ -21,6 +21,10 @@ spring:
 server:
   port: 8080
 
+app:
+  security:
+    csrf-mode: ignore
+
 logging:
   level:
     org.springframework.data.mongodb.core.MongoTemplate: DEBUG
