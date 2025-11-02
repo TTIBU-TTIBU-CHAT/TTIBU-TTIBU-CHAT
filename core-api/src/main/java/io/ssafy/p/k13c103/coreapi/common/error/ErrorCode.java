@@ -14,6 +14,14 @@ public enum ErrorCode {
     FORBIDDEN(HttpStatus.FORBIDDEN, "접근 권한이 없습니다."),
     BAD_REQUEST(HttpStatus.BAD_REQUEST, "잘못된 요청입니다."),
 
+    /* === SSE / 인증 관련 === */
+    SSE_UNAUTHORIZED(HttpStatus.UNAUTHORIZED, "SSE 연결에는 인증이 필요합니다."),
+    SSE_FORBIDDEN(HttpStatus.FORBIDDEN, "해당 채팅방에 접근할 권한이 없습니다."),
+
+    /* === 채팅방 === */
+    ROOM_NOT_FOUND(HttpStatus.NOT_FOUND, "존재하지 않는 채팅방입니다."),
+    ROOM_FORBIDDEN(HttpStatus.FORBIDDEN, "해당 채팅방에 접근할 권한이 없습니다."),
+
     /* === 회원 === */
     MEMBER_NOT_FOUND(HttpStatus.NOT_FOUND, "존재하지 않는 회원입니다."),
     MEMBER_EMAIL_DUPLICATED(HttpStatus.CONFLICT, "이미 존재하는 이메일입니다.");
