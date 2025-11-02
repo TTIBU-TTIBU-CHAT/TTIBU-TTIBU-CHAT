@@ -14,6 +14,13 @@ public interface ChatService {
     ChatCreateResponse createChat(ChatCreateRequest request, Long memberId);
 
     /**
+     * AI 서버에 질문을 전달하고 생성된 답변을 채팅에 반영
+     * @param chatId    채팅 ID
+     * @param modelId   사용할 AI 모델 ID
+     */
+    void processAiAnswer(Long chatId, Long modelId);
+
+    /**
      * 특정 채팅을 요약 및 키워드 정보로 업데이트
      * @param chatId    채팅 아이디
      * @param summary   요약
