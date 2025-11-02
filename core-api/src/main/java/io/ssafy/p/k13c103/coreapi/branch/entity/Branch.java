@@ -5,6 +5,7 @@ import io.ssafy.p.k13c103.coreapi.common.entity.BaseTimeEntity;
 import io.ssafy.p.k13c103.coreapi.room.entity.Room;
 import jakarta.persistence.*;
 import lombok.AccessLevel;
+import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 
@@ -30,4 +31,10 @@ public class Branch extends BaseTimeEntity {
 
     @OneToMany(mappedBy = "branch", cascade = CascadeType.ALL)
     private List<Chat> chats = new ArrayList<>();
+
+    @Builder
+    private Branch(Room room, String name) {
+        this.room = room;
+        this.name = name;
+    }
 }
