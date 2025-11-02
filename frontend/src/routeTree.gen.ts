@@ -12,6 +12,7 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as TestRouteImport } from './routes/test'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as SignupIndexRouteImport } from './routes/signup/index'
+import { Route as SettingsIndexRouteImport } from './routes/settings/index'
 import { Route as LoginIndexRouteImport } from './routes/login/index'
 
 const TestRoute = TestRouteImport.update({
@@ -29,6 +30,11 @@ const SignupIndexRoute = SignupIndexRouteImport.update({
   path: '/signup/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const SettingsIndexRoute = SettingsIndexRouteImport.update({
+  id: '/settings/',
+  path: '/settings/',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const LoginIndexRoute = LoginIndexRouteImport.update({
   id: '/login/',
   path: '/login/',
@@ -39,12 +45,14 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/test': typeof TestRoute
   '/login': typeof LoginIndexRoute
+  '/settings': typeof SettingsIndexRoute
   '/signup': typeof SignupIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/test': typeof TestRoute
   '/login': typeof LoginIndexRoute
+  '/settings': typeof SettingsIndexRoute
   '/signup': typeof SignupIndexRoute
 }
 export interface FileRoutesById {
@@ -52,20 +60,22 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/test': typeof TestRoute
   '/login/': typeof LoginIndexRoute
+  '/settings/': typeof SettingsIndexRoute
   '/signup/': typeof SignupIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/test' | '/login' | '/signup'
+  fullPaths: '/' | '/test' | '/login' | '/settings' | '/signup'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/test' | '/login' | '/signup'
-  id: '__root__' | '/' | '/test' | '/login/' | '/signup/'
+  to: '/' | '/test' | '/login' | '/settings' | '/signup'
+  id: '__root__' | '/' | '/test' | '/login/' | '/settings/' | '/signup/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   TestRoute: typeof TestRoute
   LoginIndexRoute: typeof LoginIndexRoute
+  SettingsIndexRoute: typeof SettingsIndexRoute
   SignupIndexRoute: typeof SignupIndexRoute
 }
 
@@ -92,6 +102,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SignupIndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/settings/': {
+      id: '/settings/'
+      path: '/settings'
+      fullPath: '/settings'
+      preLoaderRoute: typeof SettingsIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/login/': {
       id: '/login/'
       path: '/login'
@@ -106,6 +123,7 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   TestRoute: TestRoute,
   LoginIndexRoute: LoginIndexRoute,
+  SettingsIndexRoute: SettingsIndexRoute,
   SignupIndexRoute: SignupIndexRoute,
 }
 export const routeTree = rootRouteImport
