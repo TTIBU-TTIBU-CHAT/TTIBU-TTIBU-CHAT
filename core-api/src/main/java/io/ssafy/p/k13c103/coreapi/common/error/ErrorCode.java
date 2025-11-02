@@ -22,6 +22,12 @@ public enum ErrorCode {
     ROOM_NOT_FOUND(HttpStatus.NOT_FOUND, "존재하지 않는 채팅방입니다."),
     ROOM_FORBIDDEN(HttpStatus.FORBIDDEN, "해당 채팅방에 접근할 권한이 없습니다."),
 
+    /* === 브랜치 === */
+    BRANCH_NOT_FOUND(HttpStatus.NOT_FOUND, "존재하지 않는 브랜치입니다."),
+
+    /* === 채팅 === */
+    CHAT_NOT_FOUND(HttpStatus.NOT_FOUND, "채팅을 찾을 수 없습니다."),
+
     /* === 회원 === */
     MEMBER_NOT_FOUND(HttpStatus.NOT_FOUND, "존재하지 않는 회원입니다."),
     MEMBER_EMAIL_DUPLICATED(HttpStatus.CONFLICT, "이미 존재하는 이메일입니다.");
