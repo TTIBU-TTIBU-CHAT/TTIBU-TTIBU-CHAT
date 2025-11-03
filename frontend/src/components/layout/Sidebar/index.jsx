@@ -3,9 +3,15 @@ import SidebarMenu from './SidebarMenu'
 import SidebarToggle from './SidebarToggle'
 import SidebarSetting from './SidebarSetting'
 import { useSidebarStore } from '@/store/useSidebarStore'
+import { useNavigate } from '@tanstack/react-router'
 
 export default function Sidebar() {
   const { isCollapsed } = useSidebarStore()
+  const navigate = useNavigate()
+
+  const handleNavigate = (path) => {
+    navigate({ to: path })
+  }
 
   return (
     <S.Container $collapsed={isCollapsed}>
@@ -14,11 +20,11 @@ export default function Sidebar() {
       </S.Section>
 
       <S.Middle>
-        <SidebarMenu />
+        <SidebarMenu onNavigate={handleNavigate} />
       </S.Middle>
 
       <S.Section>
-        <SidebarSetting />
+        <SidebarSetting onNavigate={handleNavigate} />
       </S.Section>
     </S.Container>
   )

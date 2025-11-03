@@ -14,6 +14,8 @@ import { Route as IndexRouteImport } from './routes/index'
 import { Route as SignupIndexRouteImport } from './routes/signup/index'
 import { Route as SettingsIndexRouteImport } from './routes/settings/index'
 import { Route as LoginIndexRouteImport } from './routes/login/index'
+import { Route as GroupsIndexRouteImport } from './routes/groups/index'
+import { Route as ChatRoomsIndexRouteImport } from './routes/chatRooms/index'
 
 const TestRoute = TestRouteImport.update({
   id: '/test',
@@ -40,10 +42,22 @@ const LoginIndexRoute = LoginIndexRouteImport.update({
   path: '/login/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const GroupsIndexRoute = GroupsIndexRouteImport.update({
+  id: '/groups/',
+  path: '/groups/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ChatRoomsIndexRoute = ChatRoomsIndexRouteImport.update({
+  id: '/chatRooms/',
+  path: '/chatRooms/',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/test': typeof TestRoute
+  '/chatRooms': typeof ChatRoomsIndexRoute
+  '/groups': typeof GroupsIndexRoute
   '/login': typeof LoginIndexRoute
   '/settings': typeof SettingsIndexRoute
   '/signup': typeof SignupIndexRoute
@@ -51,6 +65,8 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/test': typeof TestRoute
+  '/chatRooms': typeof ChatRoomsIndexRoute
+  '/groups': typeof GroupsIndexRoute
   '/login': typeof LoginIndexRoute
   '/settings': typeof SettingsIndexRoute
   '/signup': typeof SignupIndexRoute
@@ -59,21 +75,47 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/test': typeof TestRoute
+  '/chatRooms/': typeof ChatRoomsIndexRoute
+  '/groups/': typeof GroupsIndexRoute
   '/login/': typeof LoginIndexRoute
   '/settings/': typeof SettingsIndexRoute
   '/signup/': typeof SignupIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/test' | '/login' | '/settings' | '/signup'
+  fullPaths:
+    | '/'
+    | '/test'
+    | '/chatRooms'
+    | '/groups'
+    | '/login'
+    | '/settings'
+    | '/signup'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/test' | '/login' | '/settings' | '/signup'
-  id: '__root__' | '/' | '/test' | '/login/' | '/settings/' | '/signup/'
+  to:
+    | '/'
+    | '/test'
+    | '/chatRooms'
+    | '/groups'
+    | '/login'
+    | '/settings'
+    | '/signup'
+  id:
+    | '__root__'
+    | '/'
+    | '/test'
+    | '/chatRooms/'
+    | '/groups/'
+    | '/login/'
+    | '/settings/'
+    | '/signup/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   TestRoute: typeof TestRoute
+  ChatRoomsIndexRoute: typeof ChatRoomsIndexRoute
+  GroupsIndexRoute: typeof GroupsIndexRoute
   LoginIndexRoute: typeof LoginIndexRoute
   SettingsIndexRoute: typeof SettingsIndexRoute
   SignupIndexRoute: typeof SignupIndexRoute
@@ -116,12 +158,28 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof LoginIndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/groups/': {
+      id: '/groups/'
+      path: '/groups'
+      fullPath: '/groups'
+      preLoaderRoute: typeof GroupsIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/chatRooms/': {
+      id: '/chatRooms/'
+      path: '/chatRooms'
+      fullPath: '/chatRooms'
+      preLoaderRoute: typeof ChatRoomsIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   TestRoute: TestRoute,
+  ChatRoomsIndexRoute: ChatRoomsIndexRoute,
+  GroupsIndexRoute: GroupsIndexRoute,
   LoginIndexRoute: LoginIndexRoute,
   SettingsIndexRoute: SettingsIndexRoute,
   SignupIndexRoute: SignupIndexRoute,
