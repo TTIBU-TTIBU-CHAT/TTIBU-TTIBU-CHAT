@@ -1,22 +1,15 @@
 model_list:
-  - model_name: gpt-4
+  - model_name: gpt-4o
     litellm_params:
-      model: openai/gpt-4
-      api_key: os.environ/OPENAI_API_KEY
-
-  - model_name: gpt-3.5-turbo
-    litellm_params:
-      model: openai/gpt-3.5-turbo
-      api_key: os.environ/OPENAI_API_KEY
+      model: openai/gpt-4o
 
   - model_name: claude-3-5-sonnet
     litellm_params:
       model: anthropic/claude-3-5-sonnet-20241022
-      api_key: os.environ/ANTHROPIC_API_KEY
 
 general_settings:
   master_key: sk-1234
-  database_url: "sqlite:///litellm.db"
+#   database_url: "sqlite:///litellm.db"
 
 litellm_settings:
   drop_params: true
