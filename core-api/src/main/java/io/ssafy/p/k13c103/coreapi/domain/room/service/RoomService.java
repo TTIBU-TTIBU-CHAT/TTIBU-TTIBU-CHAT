@@ -1,6 +1,6 @@
-package io.ssafy.p.k13c103.coreapi.room.service;
+package io.ssafy.p.k13c103.coreapi.domain.room.service;
 
-import io.ssafy.p.k13c103.coreapi.room.entity.Room;
+import io.ssafy.p.k13c103.coreapi.domain.room.entity.Room;
 
 public interface RoomService {
 

@@ -1,7 +1,7 @@
-package io.ssafy.p.k13c103.coreapi.chat.entity;
+package io.ssafy.p.k13c103.coreapi.domain.chat.entity;
 
-import io.ssafy.p.k13c103.coreapi.branch.entity.Branch;
 import io.ssafy.p.k13c103.coreapi.common.entity.BaseTimeEntity;
+import io.ssafy.p.k13c103.coreapi.domain.branch.entity.Branch;
 import jakarta.persistence.*;
 import lombok.*;
 

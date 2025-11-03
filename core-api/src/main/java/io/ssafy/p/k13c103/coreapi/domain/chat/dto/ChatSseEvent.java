@@ -1,6 +1,6 @@
-package io.ssafy.p.k13c103.coreapi.chat.dto;
+package io.ssafy.p.k13c103.coreapi.domain.chat.dto;
 
-import io.ssafy.p.k13c103.coreapi.chat.enums.ChatSseEventType;
+import io.ssafy.p.k13c103.coreapi.domain.chat.enums.ChatSseEventType;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;

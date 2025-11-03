@@ -1,8 +1,8 @@
-package io.ssafy.p.k13c103.coreapi.chat.dto;
+package io.ssafy.p.k13c103.coreapi.domain.chat.dto;
 
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import io.ssafy.p.k13c103.coreapi.chat.entity.Chat;
+import io.ssafy.p.k13c103.coreapi.domain.chat.entity.Chat;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
@@ -15,7 +15,7 @@ import java.util.List;
 @AllArgsConstructor
 @Builder
 @Slf4j
-public class ChatCreateResponse {
+public class ChatCreateResponseDto {
 
     private Long chatId;                // 채팅 아이디
 
@@ -35,7 +35,7 @@ public class ChatCreateResponse {
 
     private LocalDateTime createdAt;    // 생성일시
 
-    public static ChatCreateResponse from(Chat chat) {
+    public static ChatCreateResponseDto from(Chat chat) {
         ObjectMapper mapper = new ObjectMapper();
         List<String> keywordsList = List.of();
 
@@ -47,7 +47,7 @@ public class ChatCreateResponse {
             log.warn("[WARN] Keyword JSON parsing failed for chatId {}: {}", chat.getChatUid(), e.getMessage());
         }
 
-        return ChatCreateResponse.builder()
+        return ChatCreateResponseDto.builder()
                 .chatId(chat.getChatUid())
                 .roomId(chat.getBranch().getRoom().getRoomUid())
                 .branchId(chat.getBranch().getBranchUid())

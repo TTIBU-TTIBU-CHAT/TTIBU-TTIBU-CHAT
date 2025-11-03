@@ -1,4 +1,4 @@
-package io.ssafy.p.k13c103.coreapi.chat.dto;
+package io.ssafy.p.k13c103.coreapi.domain.chat.dto;
 
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
@@ -7,7 +7,7 @@ import lombok.NoArgsConstructor;
 
 @Getter
 @NoArgsConstructor
-public class ChatCreateRequest {
+public class ChatCreateRequestDto {
 
     private Long roomID;        // 채팅방 ID (nullable)
 

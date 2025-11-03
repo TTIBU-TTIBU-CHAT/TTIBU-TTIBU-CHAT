@@ -1,6 +1,6 @@
 package io.ssafy.p.k13c103.coreapi.common.sse;
 
-import io.ssafy.p.k13c103.coreapi.chat.dto.ChatSseEvent;
+import io.ssafy.p.k13c103.coreapi.domain.chat.dto.ChatSseEvent;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;

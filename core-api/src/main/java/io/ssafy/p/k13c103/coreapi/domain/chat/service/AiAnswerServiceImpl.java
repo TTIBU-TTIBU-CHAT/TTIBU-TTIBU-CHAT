@@ -1,4 +1,4 @@
-package io.ssafy.p.k13c103.coreapi.chat.service;
+package io.ssafy.p.k13c103.coreapi.domain.chat.service;
 
 import org.springframework.web.reactive.function.client.WebClient;
 

@@ -1,8 +1,8 @@
-package io.ssafy.p.k13c103.coreapi.branch.entity;
+package io.ssafy.p.k13c103.coreapi.domain.branch.entity;
 
-import io.ssafy.p.k13c103.coreapi.chat.entity.Chat;
 import io.ssafy.p.k13c103.coreapi.common.entity.BaseTimeEntity;
-import io.ssafy.p.k13c103.coreapi.room.entity.Room;
+import io.ssafy.p.k13c103.coreapi.domain.chat.entity.Chat;
+import io.ssafy.p.k13c103.coreapi.domain.room.entity.Room;
 import jakarta.persistence.*;
 import lombok.AccessLevel;
 import lombok.Builder;

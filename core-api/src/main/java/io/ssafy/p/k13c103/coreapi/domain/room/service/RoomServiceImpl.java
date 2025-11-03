@@ -1,9 +1,9 @@
-package io.ssafy.p.k13c103.coreapi.room.service;
+package io.ssafy.p.k13c103.coreapi.domain.room.service;
 
 import io.ssafy.p.k13c103.coreapi.common.error.ApiException;
 import io.ssafy.p.k13c103.coreapi.common.error.ErrorCode;
-import io.ssafy.p.k13c103.coreapi.room.entity.Room;
-import io.ssafy.p.k13c103.coreapi.room.repository.RoomRepository;
+import io.ssafy.p.k13c103.coreapi.domain.room.entity.Room;
+import io.ssafy.p.k13c103.coreapi.domain.room.repository.RoomRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
