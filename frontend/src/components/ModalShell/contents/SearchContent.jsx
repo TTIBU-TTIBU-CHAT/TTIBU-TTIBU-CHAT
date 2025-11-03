@@ -1,16 +1,10 @@
 import { useMemo, useState } from "react";
 import * as S from "../ModalShell.styles";
 
-/**
- * 프로토타입 스타일의 검색 화면
- * - 상단 검색바 + 선택된 키워드 칩
- * - 결과 카드 리스트(Question / Answer, 날짜, 태그)
- */
-export function SearchContent() {
+export function SearchContent({ onSelect }) {
   const [query, setQuery] = useState("");
   const [chips, setChips] = useState(["알고리즘"]);
 
-  // 데모 데이터
   const data = useMemo(
     () =>
       Array.from({ length: 8 }).map((_, i) => ({
@@ -33,9 +27,7 @@ export function SearchContent() {
     return inText && hasAllChips;
   });
 
-  const removeChip = (label) =>
-    setChips((prev) => prev.filter((c) => c !== label));
-
+  const removeChip = (label) => setChips((prev) => prev.filter((c) => c !== label));
   const addChipFromQuery = () => {
     const t = query.trim();
     if (!t) return;
@@ -45,7 +37,6 @@ export function SearchContent() {
 
   return (
     <>
-      {/* 상단 검색 바 */}
       <S.SearchBarWrap>
         <S.SearchField
           placeholder="키워드 검색(예: 알고리즘)"
@@ -53,49 +44,41 @@ export function SearchContent() {
           onChange={(e) => setQuery(e.target.value)}
           onKeyDown={(e) => e.key === "Enter" && addChipFromQuery()}
         />
-        <S.SearchIconBtn
-          aria-label="검색"
-          title="검색"
-          onClick={addChipFromQuery}
-        >
+        <S.SearchIconBtn onClick={addChipFromQuery}>
           <i className="fa-solid fa-magnifying-glass" />
         </S.SearchIconBtn>
       </S.SearchBarWrap>
 
-      {/* 선택된 칩 */}
       {chips.length > 0 && (
         <S.ChipRow>
           {chips.map((c) => (
             <S.Chip key={c}>
               {c}
-              <button onClick={() => removeChip(c)} aria-label={`${c} 제거`}>
-                ×
-              </button>
+              <button onClick={() => removeChip(c)}>×</button>
             </S.Chip>
           ))}
         </S.ChipRow>
       )}
 
-      {/* 결과 리스트 */}
       <S.SearchScroll>
         {filtered.map((item) => (
-          <S.ResultCard key={item.id}>
+          <S.ResultCard
+            key={item.id}
+            onClick={() =>
+              onSelect?.({ id: item.id, label: item.question, type: "chat" })
+            } 
+          >
             <S.CardHeader>
               <S.Badge tone="blue">QUESTION</S.Badge>
               <S.MetaDate>{item.date}</S.MetaDate>
             </S.CardHeader>
-
             <S.CardTitle>{item.question}</S.CardTitle>
-
             <S.CardDivider />
-
             <S.CardHeader style={{ marginTop: 10 }}>
               <S.Badge tone="gray">ANSWER</S.Badge>
               <S.MetaDate>{item.date}</S.MetaDate>
             </S.CardHeader>
-
             <S.CardExcerpt>{item.answer}</S.CardExcerpt>
-
             <S.TagRow>
               {item.tags.map((t) => (
                 <S.TagPill key={t}>{t}</S.TagPill>
