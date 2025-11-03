@@ -5,7 +5,7 @@ export const ToggleButton = styled.button`
   border: none;
   outline: none;
   cursor: pointer;
-  color: #374151;
+  color: #454746;
   width: 48px;
   height: 48px;
   display: flex;
@@ -14,7 +14,7 @@ export const ToggleButton = styled.button`
   transition: color 0.2s ease;
 
   &:hover {
-    color: #3b82f6;
+    color: #406992;
   }
   &:focus {
     outline: none;

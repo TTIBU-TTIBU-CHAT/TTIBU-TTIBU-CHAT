@@ -4,16 +4,17 @@ import NewChatIcon from '@/components/icons/NewChatIcon'
 import GroupIcon from '@/components/icons/GroupIcon'
 import ChatRoomIcon from '@/components/icons/ChatRoomIcon'
 import { useEffect, useState } from 'react'
-import { useNavigate } from '@tanstack/react-router'
+import { useNavigate, useRouterState } from '@tanstack/react-router'
 
 export default function SidebarMenu() {
   const { isCollapsed } = useSidebarStore()
-  const nav = useNavigate()
+  const navigate = useNavigate()
+  const routerState = useRouterState()
+  const currentPath = routerState.location.pathname
 
   const [groups, setGroups] = useState([])
   const [chats, setChats] = useState([])
 
-  // api 연동 전 임시 목데이터 입니다!
   useEffect(() => {
     const mockGroups = [
       { id: 1, name: '자율 프로젝트 관련 그룹' },
@@ -34,19 +35,26 @@ export default function SidebarMenu() {
     setChats(mockChats)
   }, [])
 
-  const handleMoreGroups = () => nav({ to: '/groups' })
-  const handleMoreChats = () => nav({ to: '/chats' })
+  const handleNavigate = (path) => navigate({ to: path })
 
   return (
     <>
-      <S.MenuItem $collapsed={isCollapsed}>
+      <S.MenuItem
+        $collapsed={isCollapsed}
+        $active={currentPath === '/'}
+        onClick={() => handleNavigate('/')}
+      >
         <div className="icon">
           <NewChatIcon />
         </div>
         <span>새 채팅</span>
       </S.MenuItem>
 
-      <S.MenuItem $collapsed={isCollapsed}>
+      <S.MenuItem
+        $collapsed={isCollapsed}
+        $active={currentPath.startsWith('/groups')}
+        onClick={() => handleNavigate('/groups')}
+      >
         <div className="icon">
           <GroupIcon />
         </div>
@@ -57,20 +65,22 @@ export default function SidebarMenu() {
         <>
           <S.SubList>
             {groups.slice(0, 5).map((group) => (
-              <S.SubItem key={group.id}>
-                <S.SubText>{group.name}</S.SubText>
-              </S.SubItem>
+              <S.SubItem key={group.id}>{group.name}</S.SubItem>
             ))}
           </S.SubList>
           {groups.length > 5 && (
-            <S.MoreButton onClick={handleMoreGroups}>
+            <S.MoreButton onClick={() => handleNavigate('/groups')}>
               더보기 ({groups.length - 5}+)
             </S.MoreButton>
           )}
         </>
       )}
 
-      <S.MenuItem $collapsed={isCollapsed}>
+      <S.MenuItem
+        $collapsed={isCollapsed}
+        $active={currentPath.startsWith('/chatRooms')}
+        onClick={() => handleNavigate('/chatRooms')}
+      >
         <div className="icon">
           <ChatRoomIcon />
         </div>
@@ -81,13 +91,11 @@ export default function SidebarMenu() {
         <>
           <S.SubList>
             {chats.slice(0, 5).map((chat) => (
-              <S.SubItem key={chat.id}>
-                <S.SubText>{chat.name}</S.SubText>
-              </S.SubItem>
+              <S.SubItem key={chat.id}>{chat.name}</S.SubItem>
             ))}
           </S.SubList>
           {chats.length > 5 && (
-            <S.MoreButton onClick={handleMoreChats}>
+            <S.MoreButton onClick={() => handleNavigate('/chatRooms')}>
               더보기 ({chats.length - 5}+)
             </S.MoreButton>
           )}
