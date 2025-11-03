@@ -21,6 +21,8 @@ export default function ModalShell({
   onInputChange,
   onSend,
   peek = false,
+  showDock = true,
+  onSelect, 
 }) {
   const panelRef = useRef(null);
 
@@ -52,7 +54,7 @@ export default function ModalShell({
 
   /* ===== 전환 방향 + leaving 레이어 유지 ===== */
   const prevTypeRef = useRef(type);
-  const [dir, setDir] = useState("forward"); // 'forward' | 'backward'
+  const [dir, setDir] = useState("forward");
   const [leavingType, setLeavingType] = useState(null);
   const [leavingHeader, setLeavingHeader] = useState(null);
 
@@ -73,10 +75,7 @@ export default function ModalShell({
     }
   }, [type]);
 
-  /* ===== Dock 공통 토글 =====
-   * - 동일 타입이면 닫기
-   * - 다르면 전환(닫혀있으면 열고 전환)
-   */
+  /* ===== Dock 공통 토글 ===== */
   const handleDockToggle = (nextType) => {
     if (open && type === nextType) {
       onClose?.();
@@ -86,13 +85,12 @@ export default function ModalShell({
     if (!open) onOpen?.();
   };
 
-  /* ===== Header 렌더 (타입별) ===== */
+  /* ===== Header 렌더 ===== */
   const renderHeaderSlots = (renderType) => {
     if (renderType === "chat") {
       return (
         <>
           <S.HeaderLeft>
-            {/* ← 누르면 닫기 */}
             <S.IconButton onClick={onClose} title="닫기" aria-label="닫기">
               <i className="fa-solid fa-angles-left" />
             </S.IconButton>
@@ -165,7 +163,7 @@ export default function ModalShell({
       );
     }
 
-    // search / layers 공통 (좌: 닫기, 중: 타이틀, 우: 비움)
+    // search / layers 공통
     return (
       <>
         <S.HeaderLeft>
@@ -183,7 +181,7 @@ export default function ModalShell({
     );
   };
 
-  /* ===== Content 렌더 (타입별) ===== */
+  /* ===== Content 렌더 ===== */
   const renderContentByType = (renderType) => {
     if (renderType === "chat") {
       return (
@@ -195,8 +193,8 @@ export default function ModalShell({
         />
       );
     }
-    if (renderType === "search") return <SearchContent />;
-    return <GroupContent />;
+    if (renderType === "search") return <SearchContent onSelect={onSelect} />; 
+    return <GroupContent onSelect={onSelect} />; 
   };
 
   return createPortal(
@@ -211,55 +209,38 @@ export default function ModalShell({
         $peek={peek}
         onClick={stop}
       >
-        {/* ===== Dock (좌측 고정 버튼 3개) ===== */}
-        <S.Dock>
-          <S.DockButton title="그룹" onClick={() => handleDockToggle("layers")}>
-            <i className="fa-solid fa-layer-group" />
-          </S.DockButton>
-          <S.DockButton title="검색" onClick={() => handleDockToggle("search")}>
-            <i className="fa-solid fa-diagram-project" />
-          </S.DockButton>
-          <S.DockButton title="채팅" onClick={() => handleDockToggle("chat")}>
-            <i className="fa-solid fa-comments" />
-          </S.DockButton>
-        </S.Dock>
+        {showDock && (
+          <S.Dock>
+            <S.DockButton title="그룹" onClick={() => handleDockToggle("layers")}>
+              <i className="fa-solid fa-layer-group" />
+            </S.DockButton>
+            <S.DockButton title="검색" onClick={() => handleDockToggle("search")}>
+              <i className="fa-solid fa-diagram-project" />
+            </S.DockButton>
+            <S.DockButton title="채팅" onClick={() => handleDockToggle("chat")}>
+              <i className="fa-solid fa-comments" />
+            </S.DockButton>
+          </S.Dock>
+        )}
 
-        {/* ===== Header: leave + enter 레이어 ===== */}
         <S.Header>
           {leavingHeader && (
-            <S.HeaderLayer
-              $phase="leave"
-              $dir={dir}
-              key={`header-leave-${leavingHeader}`}
-            >
+            <S.HeaderLayer $phase="leave" $dir={dir} key={`header-leave-${leavingHeader}`}>
               {renderHeaderSlots(leavingHeader)}
             </S.HeaderLayer>
           )}
-          <S.HeaderLayer
-            $phase="enter"
-            $dir={dir}
-            key={`header-enter-${type}`}
-          >
+          <S.HeaderLayer $phase="enter" $dir={dir} key={`header-enter-${type}`}>
             {renderHeaderSlots(type)}
           </S.HeaderLayer>
         </S.Header>
 
-        {/* ===== Content: leave + enter 레이어 ===== */}
         <S.Body>
           {leavingType && (
-            <S.ContentLayer
-              $phase="leave"
-              $dir={dir}
-              key={`content-leave-${leavingType}`}
-            >
+            <S.ContentLayer $phase="leave" $dir={dir} key={`content-leave-${leavingType}`}>
               {renderContentByType(leavingType)}
             </S.ContentLayer>
           )}
-          <S.ContentLayer
-            $phase="enter"
-            $dir={dir}
-            key={`content-enter-${type}`}
-          >
+          <S.ContentLayer $phase="enter" $dir={dir} key={`content-enter-${type}`}>
             {renderContentByType(type)}
           </S.ContentLayer>
         </S.Body>

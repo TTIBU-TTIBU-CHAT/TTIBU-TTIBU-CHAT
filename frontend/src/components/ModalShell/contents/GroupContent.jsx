@@ -1,11 +1,9 @@
-// src/components/ModalShell/contents/GroupContent.jsx
 import { useMemo } from "react";
 import styled from "styled-components";
 import * as S from "../ModalShell.styles";
 import ReactFlow, { Background, useNodesState, useEdgesState } from "reactflow";
 import "reactflow/dist/style.css";
 
-/** ====== 미니 그래프 프리뷰 ====== */
 function MiniGraph({ title, graph, onEdit, onDelete }) {
   const [nodes, , onNodesChange] = useNodesState(graph.nodes);
   const [edges, , onEdgesChange] = useEdgesState(graph.edges);
@@ -13,8 +11,6 @@ function MiniGraph({ title, graph, onEdit, onDelete }) {
   return (
     <PreviewCardSurface>
       <PreviewWrap>
-        {/* 중앙 그룹명 오버레이 */}
-
         <ReactFlow
           nodes={nodes}
           edges={edges}
@@ -34,69 +30,29 @@ function MiniGraph({ title, graph, onEdit, onDelete }) {
           <Background gap={16} size={1} />
         </ReactFlow>
 
-        {/* 우하단 액션 버튼 */}
         <PreviewActions>
-          <ActionButton
-            $tone="blue"
-            onClick={(e) => {
-              e.stopPropagation();
-              onEdit?.();
-            }}
-          >
-            편집
-          </ActionButton>
-          <ActionButton
-            $tone="red"
-            onClick={(e) => {
-              e.stopPropagation();
-              onDelete?.();
-            }}
-          >
-            삭제
-          </ActionButton>
+          <ActionButton $tone="blue" onClick={onEdit}>편집</ActionButton>
+          <ActionButton $tone="red" onClick={onDelete}>삭제</ActionButton>
         </PreviewActions>
       </PreviewWrap>
     </PreviewCardSurface>
   );
 }
 
-/** ====== 그룹 화면 ====== */
-export function GroupContent() {
-  // 데모 데이터
+export function GroupContent({ onSelect }) {
   const groups = useMemo(
     () =>
       Array.from({ length: 4 }).map((_, gi) => {
         const x = 80;
         const y = 40;
         const nodes = [
-          {
-            id: `g${gi}-n1`,
-            position: { x, y },
-            data: { label: "다익스트라 알고리즘 설명" },
-            style: bubbleNodeStyle,
-          },
-          {
-            id: `g${gi}-n3`,
-            position: { x: x + 230, y: y + 130 },
-            data: { label: "다익스트라 알고리즘 예시" },
-            style: bubbleNodeStyle,
-          },
+          { id: `g${gi}-n1`, position: { x, y }, data: { label: "다익스트라 알고리즘 설명" }, style: bubbleNodeStyle },
+          { id: `g${gi}-n3`, position: { x: x + 230, y: y + 130 }, data: { label: "다익스트라 알고리즘 예시" }, style: bubbleNodeStyle },
         ];
         const edges = [
-          {
-            id: `g${gi}-e1`,
-            source: `g${gi}-n1`,
-            target: `g${gi}-n3`,
-            style: { stroke: "#8aa6ff" },
-            type: "smoothstep",
-          },
+          { id: `g${gi}-e1`, source: `g${gi}-n1`, target: `g${gi}-n3`, style: { stroke: "#8aa6ff" }, type: "smoothstep" },
         ];
-
-        return {
-          id: `group-${gi + 1}`,
-          title: "Group B.A",
-          graph: { nodes, edges },
-        };
+        return { id: `group-${gi + 1}`, title: `Group ${gi + 1}`, graph: { nodes, edges } };
       }),
     []
   );
@@ -104,17 +60,17 @@ export function GroupContent() {
   return (
     <>
       <HeaderHint>그룹을 선택하세요</HeaderHint>
-
       <S.SearchScroll>
         {groups.map((g) => (
           <GroupCard
             key={g.id}
-            onClick={() => console.log("open group:", g.id)}
+            onClick={() =>
+              onSelect?.({ id: g.id, label: g.title, type: "group" })
+            }
           >
             <CardTop>
               <CardTitleText>{g.title}</CardTitleText>
             </CardTop>
-
             <MiniGraph
               title={g.title}
               graph={g.graph}
@@ -128,7 +84,7 @@ export function GroupContent() {
   );
 }
 
-/* ====== 로컬 스타일 ====== */
+/* ===== 스타일 ===== */
 const bubbleNodeStyle = {
   background: "#fff",
   border: "1px solid rgba(0,0,0,.10)",
@@ -147,9 +103,7 @@ const HeaderHint = styled.div`
 `;
 
 const GroupCard = styled(S.ResultCard)`
-  background:
-    linear-gradient(0deg, rgba(139, 114, 227, 0.08), rgba(139, 114, 227, 0.08)),
-    #ffffff;
+  background: linear-gradient(0deg, rgba(139,114,227,0.08), rgba(139,114,227,0.08)), #fff;
   border-radius: 18px;
   padding-top: 12px;
 `;
@@ -170,7 +124,7 @@ const PreviewCardSurface = styled.div`
   margin-top: 6px;
   border-radius: 16px;
   background: #f3ecff;
-  border: 1px solid rgba(99, 102, 241, 0.25);
+  border: 1px solid rgba(99,102,241,0.25);
   padding: 10px;
 `;
 
@@ -180,41 +134,31 @@ const PreviewWrap = styled.div`
   border-radius: 12px;
   overflow: hidden;
   & > div {
-    height: 100%; /* ReactFlow 컨테이너 */
+    height: 100%;
   }
 `;
 
-/* 우하단 액션 버튼 영역 */
 const PreviewActions = styled.div`
-  height: auto !important;
   position: absolute;
   right: 10px;
   bottom: 10px;
   display: flex;
   gap: 8px;
-  z-index: 3; /* 항상 최상단에 */
+  z-index: 3;
 `;
 
 const ActionButton = styled.button`
-  position: relative;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-
-  height: 36px; /* ← 세로 고정 */
-  padding: 0 14px; /* ← 가로 패딩 */
+  height: 36px;
+  padding: 0 14px;
   border-radius: 9999px;
   border: none;
   color: #fff;
   font-weight: 700;
   font-size: 13px;
   cursor: pointer;
-
   background: ${({ $tone }) => ($tone === "blue" ? "#29466b" : "#cf3b35")};
   box-shadow: 0 10px 22px rgba(0, 0, 0, 0.18);
-  transition:
-    transform 0.15s ease,
-    filter 0.15s ease;
+  transition: transform 0.15s ease, filter 0.15s ease;
 
   &:hover {
     filter: brightness(1.06);
@@ -223,10 +167,4 @@ const ActionButton = styled.button`
   &:active {
     transform: translateY(0);
   }
-`;
-
-/* 제목 위에 쓰는 작은 타이틀 스타일 재활용 */
-const CardTitleTextSmall = styled.span`
-  font-size: 13px;
-  color: #6b7280;
 `;
