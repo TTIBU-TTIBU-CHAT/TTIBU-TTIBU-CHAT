@@ -1,10 +1,10 @@
-package io.ssafy.p.k13c103.coreapi.chat.controller;
+package io.ssafy.p.k13c103.coreapi.domain.chat.controller;
 
 import io.ssafy.p.k13c103.coreapi.common.error.ApiException;
 import io.ssafy.p.k13c103.coreapi.common.error.ErrorCode;
 import io.ssafy.p.k13c103.coreapi.common.sse.SseEmitterManager;
 import io.ssafy.p.k13c103.coreapi.config.security.CustomMemberDetails;
-import io.ssafy.p.k13c103.coreapi.room.service.RoomService;
+import io.ssafy.p.k13c103.coreapi.domain.room.service.RoomService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.MediaType;
@@ -15,7 +15,7 @@ import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 @Slf4j
 @RestController
 @RequiredArgsConstructor
-@RequestMapping("/chats/stream")
+@RequestMapping("/api/v1/chats/stream")
 public class ChatSseController {
 
     private final SseEmitterManager sseEmitterManager;
