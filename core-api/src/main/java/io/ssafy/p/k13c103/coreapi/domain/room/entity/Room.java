@@ -1,10 +1,11 @@
-package io.ssafy.p.k13c103.coreapi.room.entity;
+package io.ssafy.p.k13c103.coreapi.domain.room.entity;
 
-import io.ssafy.p.k13c103.coreapi.branch.entity.Branch;
 import io.ssafy.p.k13c103.coreapi.common.entity.BaseTimeEntity;
+import io.ssafy.p.k13c103.coreapi.domain.branch.entity.Branch;
 import io.ssafy.p.k13c103.coreapi.domain.member.Member;
 import jakarta.persistence.*;
 import lombok.AccessLevel;
+import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 
@@ -30,4 +31,17 @@ public class Room extends BaseTimeEntity {
 
     @OneToMany(mappedBy = "room", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<Branch> branches = new ArrayList<>();
+
+    @Builder
+    private Room(Member owner, String name) {
+        this.owner = owner;
+        this.name = name;
+    }
+
+    public static Room create(Member owner, String name) {
+        return Room.builder()
+                .owner(owner)
+                .name(name != null ? name : "새 대화방")
+                .build();
+    }
 }
