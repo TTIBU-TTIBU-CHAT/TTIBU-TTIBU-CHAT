@@ -1,8 +1,10 @@
 package io.ssafy.p.k13c103.coreapi.domain.chat.service;
 
+import io.ssafy.p.k13c103.coreapi.domain.chat.dto.AiSummaryKeywordResponseDto;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
-import org.springframework.web.reactive.function.client.WebClient;
+import org.springframework.web.client.RestClient;
+import org.springframework.web.client.RestClientException;
 
 import java.util.Map;
 
@@ -10,35 +12,23 @@ import java.util.Map;
 @Service
 public class AiSummaryServiceImpl implements AiSummaryService {
 
-    private final WebClient webClient = WebClient.create("http://localhost:8000");
+    private final RestClient restClient = RestClient.builder()
+            .baseUrl("http://localhost:8001/api/v1/ai")
+            .build();
 
     @Override
-    public String generateSummary(String answer) {
+    public AiSummaryKeywordResponseDto generateSummaryAndKeywords(String text) {
         try {
-            return webClient.post()
-                    .uri("/api/v1/ai/summary")
-                    .bodyValue(Map.of("text", answer))
+            AiSummaryKeywordResponseDto response = restClient.post()
+                    .uri("/summarize")
+                    .body(Map.of("text", text))
                     .retrieve()
-                    .bodyToMono(String.class)
-                    .block();
-        } catch (Exception e) {
-            log.error("[AI] 요약 생성 실패: {}", e.getMessage());
-            return null;
-        }
-    }
+                    .body(AiSummaryKeywordResponseDto.class);
 
-    @Override
-    public String generateKeywords(String answer) {
-        try {
-            return webClient.post()
-                    .uri("/api/v1/ai/keywords")
-                    .bodyValue(Map.of("text", answer))
-                    .retrieve()
-                    .bodyToMono(String.class)
-                    .block();
-        } catch (Exception e) {
-            log.error("[AI] 키워드 생성 실패: {}", e.getMessage());
-            return "[]";
+            return response != null ? response : new AiSummaryKeywordResponseDto();
+        } catch (RestClientException e) {
+            log.error("[AI] 요약/키워드 생성 실패: {}", e.getMessage());
+            return new AiSummaryKeywordResponseDto();
         }
     }
 }

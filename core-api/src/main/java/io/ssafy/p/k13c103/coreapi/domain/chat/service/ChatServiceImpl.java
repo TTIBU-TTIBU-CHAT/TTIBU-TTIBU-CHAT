@@ -1,10 +1,12 @@
 package io.ssafy.p.k13c103.coreapi.domain.chat.service;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import io.ssafy.p.k13c103.coreapi.common.error.ApiException;
 import io.ssafy.p.k13c103.coreapi.common.error.ErrorCode;
 import io.ssafy.p.k13c103.coreapi.common.sse.SseEmitterManager;
 import io.ssafy.p.k13c103.coreapi.domain.branch.entity.Branch;
 import io.ssafy.p.k13c103.coreapi.domain.branch.repository.BranchRepository;
+import io.ssafy.p.k13c103.coreapi.domain.chat.dto.AiSummaryKeywordResponseDto;
 import io.ssafy.p.k13c103.coreapi.domain.chat.dto.ChatCreateRequestDto;
 import io.ssafy.p.k13c103.coreapi.domain.chat.dto.ChatCreateResponseDto;
 import io.ssafy.p.k13c103.coreapi.domain.chat.dto.ChatSseEvent;
@@ -110,9 +112,8 @@ public class ChatServiceImpl implements ChatService {
             sendSse(chat, ChatSseEventType.CHAT_ANSWERED);
 
             // FastAPI 요약 및 키워드 생성
-            String summary = aiSummaryService.generateSummary(aiAnswer);
-            String keywords = aiSummaryService.generateKeywords(aiAnswer);
-            Chat.updateSummaryAndKeywords(chat, summary, keywords);
+            AiSummaryKeywordResponseDto result = aiSummaryService.generateSummaryAndKeywords(aiAnswer);
+            Chat.updateSummaryAndKeywords(chat, result.getSummary(), new ObjectMapper().writeValueAsString(result.getKeywords()));
             chatRepository.save(chat);
 
             // SSE 전송: CHAT_SUMMARIZED
