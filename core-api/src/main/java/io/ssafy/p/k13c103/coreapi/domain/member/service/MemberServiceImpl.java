@@ -1,4 +1,4 @@
-package io.ssafy.p.k13c103.coreapi.domain.member;
+package io.ssafy.p.k13c103.coreapi.domain.member.service;
 
 import io.ssafy.p.k13c103.coreapi.common.error.ApiException;
 import io.ssafy.p.k13c103.coreapi.common.error.ErrorCode;
