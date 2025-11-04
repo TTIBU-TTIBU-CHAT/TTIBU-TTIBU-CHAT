@@ -1,7 +1,7 @@
 package io.ssafy.p.k13c103.coreapi.domain.key.entity;
 
 import io.ssafy.p.k13c103.coreapi.common.entity.BaseTimeEntity;
-import io.ssafy.p.k13c103.coreapi.domain.member.Member;
+import io.ssafy.p.k13c103.coreapi.domain.member.entity.Member;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Builder;

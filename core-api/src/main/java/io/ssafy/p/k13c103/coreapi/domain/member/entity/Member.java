@@ -1,4 +1,4 @@
-package io.ssafy.p.k13c103.coreapi.domain.member;
+package io.ssafy.p.k13c103.coreapi.domain.member.entity;
 
 import io.ssafy.p.k13c103.coreapi.common.entity.BaseTimeEntity;
 import jakarta.persistence.*;

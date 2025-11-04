@@ -1,5 +1,7 @@
-package io.ssafy.p.k13c103.coreapi.domain.member;
+package io.ssafy.p.k13c103.coreapi.domain.member.service;
 
+import io.ssafy.p.k13c103.coreapi.domain.member.dto.MemberRequestDto;
+import io.ssafy.p.k13c103.coreapi.domain.member.dto.MemberResponseDto;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 

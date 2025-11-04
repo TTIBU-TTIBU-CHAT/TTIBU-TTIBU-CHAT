@@ -1,6 +1,9 @@
-package io.ssafy.p.k13c103.coreapi.domain.member;
+package io.ssafy.p.k13c103.coreapi.domain.member.controller;
 
 import io.ssafy.p.k13c103.coreapi.common.jsend.JSend;
+import io.ssafy.p.k13c103.coreapi.domain.member.dto.MemberRequestDto;
+import io.ssafy.p.k13c103.coreapi.domain.member.dto.MemberResponseDto;
+import io.ssafy.p.k13c103.coreapi.domain.member.service.MemberService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.servlet.http.HttpServletRequest;

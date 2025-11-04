@@ -8,7 +8,7 @@ import io.ssafy.p.k13c103.coreapi.domain.key.dto.KeyRequestDto;
 import io.ssafy.p.k13c103.coreapi.domain.key.dto.KeyResponseDto;
 import io.ssafy.p.k13c103.coreapi.domain.llm.LiteLlmCatalogLoader;
 import io.ssafy.p.k13c103.coreapi.domain.llm.LiteLlmClient;
-import io.ssafy.p.k13c103.coreapi.domain.member.MemberRepository;
+import io.ssafy.p.k13c103.coreapi.domain.member.repository.MemberRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;

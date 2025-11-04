@@ -1,4 +1,4 @@
-package io.ssafy.p.k13c103.coreapi.domain.member;
+package io.ssafy.p.k13c103.coreapi.domain.member.dto;
 
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
