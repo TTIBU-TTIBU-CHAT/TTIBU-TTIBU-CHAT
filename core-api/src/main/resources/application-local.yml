@@ -25,6 +25,10 @@ app:
   security:
     csrf-mode: ignore
 
+ttibu:
+  litellm:
+    config-path: file:../litellm-config.yaml
+
 logging:
   level:
     org.springframework.data.mongodb.core.MongoTemplate: DEBUG
