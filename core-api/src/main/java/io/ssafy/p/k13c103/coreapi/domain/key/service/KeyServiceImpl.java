@@ -115,6 +115,24 @@ public class KeyServiceImpl implements KeyService {
     }
 
     @Override
+    @Transactional(readOnly = true)
+    public KeyResponseDto.GetKeyInfo getOne(Long memberUid, Long keyUid) {
+        if (!memberRepository.existsById(memberUid))
+            throw new ApiException(ErrorCode.MEMBER_NOT_FOUND);
+
+        Key key = keyRepository.findByKeyUidAndMember_MemberUid(keyUid, memberUid)
+                .orElseThrow(() -> new ApiException(ErrorCode.KEY_NOT_FOUND));
+
+        return KeyResponseDto.GetKeyInfo.builder()
+                .keyUid(key.getKeyUid())
+                .provider(key.getProvider())
+                .key(decryptKey(key.getEncryptedKey()))
+                .isActive(key.getIsActive())
+                .expirationAt(key.getExpirationAt())
+                .build();
+    }
+
+    @Override
     @Transactional
     public void delete(Long memberUid, Long keyUid) {
 

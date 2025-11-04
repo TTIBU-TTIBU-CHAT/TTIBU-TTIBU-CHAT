@@ -8,5 +8,7 @@ import java.util.Optional;
 public interface KeyRepository extends JpaRepository<Key, Long> {
     Optional<Key> findByKeyUid(Long keyUid);
 
+    Optional<Key> findByKeyUidAndMember_MemberUid(Long keyUid, Long memberUid);
+
     boolean existsByMember_MemberUidAndProvider(Long memberUid, String provider);
 }

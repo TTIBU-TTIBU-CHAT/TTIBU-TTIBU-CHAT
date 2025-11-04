@@ -7,4 +7,5 @@ public interface KeyService {
     KeyResponseDto.RegisteredKeyInfo register(Long memberUid, KeyRequestDto.RegisterKey request);
     KeyResponseDto.EditKeyInfo edit(Long memberUid, KeyRequestDto.EditKey request);
     void delete(Long memberUid, Long keyUid);
+    KeyResponseDto.GetKeyInfo getOne(Long memberUid, Long keyUid);
 }

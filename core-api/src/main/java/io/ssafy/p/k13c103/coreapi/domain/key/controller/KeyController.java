@@ -41,13 +41,22 @@ public class KeyController {
         return ResponseEntity.status(HttpStatus.OK).body(JSend.success(info));
     }
 
-    @Operation(summary="키 삭제", description="")
+    @Operation(summary = "키 삭제", description = "")
     @DeleteMapping("/{keyUid}")
     public ResponseEntity<JSend> delete(@PathVariable Long keyUid, @AuthenticationPrincipal CustomMemberDetails member) {
 
         keyService.delete(member.getMemberUid(), keyUid);
 
         return ResponseEntity.status(HttpStatus.OK).body(JSend.success("키 삭제 완료"));
+    }
+
+    @Operation(summary = "키 단일 조회", description = "")
+    @GetMapping("/{keyUid}")
+    public ResponseEntity<JSend> getOne(@PathVariable Long keyUid, @AuthenticationPrincipal CustomMemberDetails member) {
+
+        KeyResponseDto.GetKeyInfo info = keyService.getOne(member.getMemberUid(), keyUid);
+
+        return ResponseEntity.status(HttpStatus.OK).body(JSend.success(info));
     }
 
 }
