@@ -20,12 +20,13 @@ export function stripRuntimeEdge(e) {
 }
 
 export function serializeNodes(ns) {
+  console.log("serializeNodes ns:", ns);
   return JSON.stringify(
     ns.map((n) => ({
       id: n.id,
       x: n.position.x,
       y: n.position.y,
-      label: n.data?.label ?? "",
+      data: n.data ?? "",
     }))
   );
 }

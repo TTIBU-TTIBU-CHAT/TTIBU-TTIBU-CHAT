@@ -24,13 +24,14 @@ import { nodeStyle, edgeStyle } from "./styles";
 import {
   edge,
   stripRuntimeEdge,
-  stripRuntimeNode,
+  // stripRuntimeNode,   // ❌ 데이터 유실 방지: 사용 안 함
   serializeEdges,
   serializeNodes,
 } from "./utils";
 import { initialNodes, initialEdges } from "./initialData";
 import DeletableEdge from "./edges/DeletableEdge";
 import SelectionOverlay from "./overlays/SelectionOverlay";
+import QaNode from "./QaNode";
 
 /* ===== 배치/충돌 관련 상수 & 유틸 ===== */
 const H_SPACING = 260;     // 부모 → 자식 가로 간격
@@ -103,10 +104,14 @@ const FlowCanvas = forwardRef(function FlowCanvas(
   },
   ref
 ) {
+  /* ===== 커스텀 노드 타입 (줌 단계별 렌더) ===== */
+  const nodeTypes = useMemo(() => ({ qa: QaNode }), []);
+
   /* ===== 상태 ===== */
   const [nodes, setNodes, onNodesChange] = useNodesState(
     withHandlesByRoot(
-      initialNodes.map(stripRuntimeNode).map((n) => ({ ...n, style: nodeStyle })),
+      // ✅ stripRuntimeNode 제거 + QaNode 타입/스타일 주입
+      initialNodes.map((n) => ({ ...n, type: "qa", style: nodeStyle })),
       initialEdges
     )
   );
@@ -119,7 +124,9 @@ const FlowCanvas = forwardRef(function FlowCanvas(
 
   // 초기 스냅샷 (리셋/변경감지)
   const initialSnapshotRef = useRef({
-    nodes: serializeNodes(initialNodes),
+    nodes: serializeNodes(
+      initialNodes.map((n) => ({ ...n, type: "qa", style: nodeStyle }))
+    ),
     edges: serializeEdges(initialEdges),
   });
 
@@ -189,10 +196,16 @@ const FlowCanvas = forwardRef(function FlowCanvas(
     const newId = `n${Date.now()}`;
     const newNode = {
       id: newId,
+      type: "qa",                          // ✅ QaNode 타입
       position: { x, y },
-      data: { label: "새 노드" },
+      data: {
+        label: "새 노드",
+        summary: "요약을 입력하세요",
+        question: "",
+        answer: "",
+      },
       style: nodeStyle,
-      sourcePosition: Position.Right, // 엣지 업데이트 후 withHandlesByRoot로 좌/우 확정
+      sourcePosition: Position.Right,      // 엣지 업데이트 후 withHandlesByRoot로 좌/우 확정
     };
 
     setNodes((nds) => [...nds, newNode]);
@@ -307,9 +320,7 @@ const FlowCanvas = forwardRef(function FlowCanvas(
   const reset = useCallback(() => {
     setNodes(
       withHandlesByRoot(
-        initialNodes
-          .map(stripRuntimeNode)
-          .map((n) => ({ ...n, style: nodeStyle })),
+        initialNodes.map((n) => ({ ...n, type: "qa", style: nodeStyle })),
         initialEdges
       )
     );
@@ -380,6 +391,7 @@ const FlowCanvas = forwardRef(function FlowCanvas(
             fitView
             proOptions={{ hideAttribution: true }}
             edgeTypes={edgeTypes}
+            nodeTypes={nodeTypes}           // ✅ QaNode 적용
             onPaneContextMenu={(e) => e.preventDefault()}
             {...rfInteractivity}
           >

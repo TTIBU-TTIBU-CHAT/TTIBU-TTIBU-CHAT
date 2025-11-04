@@ -31,8 +31,12 @@ function MiniGraph({ title, graph, onEdit, onDelete }) {
         </ReactFlow>
 
         <PreviewActions>
-          <ActionButton $tone="blue" onClick={onEdit}>편집</ActionButton>
-          <ActionButton $tone="red" onClick={onDelete}>삭제</ActionButton>
+          <ActionButton $tone="blue" onClick={onEdit}>
+            편집
+          </ActionButton>
+          <ActionButton $tone="red" onClick={onDelete}>
+            삭제
+          </ActionButton>
         </PreviewActions>
       </PreviewWrap>
     </PreviewCardSurface>
@@ -46,13 +50,33 @@ export function GroupContent({ onSelect }) {
         const x = 80;
         const y = 40;
         const nodes = [
-          { id: `g${gi}-n1`, position: { x, y }, data: { label: "다익스트라 알고리즘 설명" }, style: bubbleNodeStyle },
-          { id: `g${gi}-n3`, position: { x: x + 230, y: y + 130 }, data: { label: "다익스트라 알고리즘 예시" }, style: bubbleNodeStyle },
+          {
+            id: `g${gi}-n1`,
+            position: { x, y },
+            data: { label: "다익스트라 알고리즘 설명" },
+            style: bubbleNodeStyle,
+          },
+          {
+            id: `g${gi}-n3`,
+            position: { x: x + 230, y: y + 130 },
+            data: { label: "다익스트라 알고리즘 예시" },
+            style: bubbleNodeStyle,
+          },
         ];
         const edges = [
-          { id: `g${gi}-e1`, source: `g${gi}-n1`, target: `g${gi}-n3`, style: { stroke: "#8aa6ff" }, type: "smoothstep" },
+          {
+            id: `g${gi}-e1`,
+            source: `g${gi}-n1`,
+            target: `g${gi}-n3`,
+            style: { stroke: "#8aa6ff" },
+            type: "smoothstep",
+          },
         ];
-        return { id: `group-${gi + 1}`, title: `Group ${gi + 1}`, graph: { nodes, edges } };
+        return {
+          id: `group-${gi + 1}`,
+          title: `Group ${gi + 1}`,
+          graph: { nodes, edges },
+        };
       }),
     []
   );
@@ -103,7 +127,9 @@ const HeaderHint = styled.div`
 `;
 
 const GroupCard = styled(S.ResultCard)`
-  background: linear-gradient(0deg, rgba(139,114,227,0.08), rgba(139,114,227,0.08)), #fff;
+  background:
+    linear-gradient(0deg, rgba(139, 114, 227, 0.08), rgba(139, 114, 227, 0.08)),
+    #fff;
   border-radius: 18px;
   padding-top: 12px;
 `;
@@ -124,7 +150,7 @@ const PreviewCardSurface = styled.div`
   margin-top: 6px;
   border-radius: 16px;
   background: #f3ecff;
-  border: 1px solid rgba(99,102,241,0.25);
+  border: 1px solid rgba(99, 102, 241, 0.25);
   padding: 10px;
 `;
 
@@ -136,15 +162,25 @@ const PreviewWrap = styled.div`
   & > div {
     height: 100%;
   }
+  isolation: isolate;
+  & .react-flow {
+    position: relative;
+    z-index: 1;
+  }
 `;
 
 const PreviewActions = styled.div`
   position: absolute;
-  right: 10px;
-  bottom: 10px;
+  right: -14%;
+  bottom: -82%; /* 카드 안쪽으로 살짝 띄우기 */
+  transform: translateX(-50%); /* 🔥 가로 중앙 고정 */
   display: flex;
-  gap: 8px;
-  z-index: 3;
+  gap: 12px;
+  z-index: 20; /* ReactFlow 위 */
+  pointer-events: none; /* 캔버스 제스처 방해 X */
+  & > * {
+    pointer-events: auto;
+  } /* 버튼은 클릭 가능 */
 `;
 
 const ActionButton = styled.button`
@@ -157,8 +193,10 @@ const ActionButton = styled.button`
   font-size: 13px;
   cursor: pointer;
   background: ${({ $tone }) => ($tone === "blue" ? "#29466b" : "#cf3b35")};
-  box-shadow: 0 10px 22px rgba(0, 0, 0, 0.18);
-  transition: transform 0.15s ease, filter 0.15s ease;
+  box-shadow: 0 14px 26px rgba(0, 0, 0, 0.18);
+  transition:
+    transform 0.15s ease,
+    filter 0.15s ease;
 
   &:hover {
     filter: brightness(1.06);
@@ -167,4 +205,5 @@ const ActionButton = styled.button`
   &:active {
     transform: translateY(0);
   }
+  pointer-events: auto;
 `;

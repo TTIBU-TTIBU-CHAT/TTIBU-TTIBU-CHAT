@@ -1,46 +1,51 @@
-// /src/components/flow/styles.js
 import styled, { createGlobalStyle } from "styled-components";
 import { MarkerType } from "reactflow";
 
-/* ===== Global styles for selected node highlight ===== */
+/* 선택된 노드 강조: 내부 첫 번째 div(Box)를 타겟팅 */
 export const GlobalRFStyles = createGlobalStyle`
-  .react-flow__node.selected {
-    border: 2px solid #48b17a !important;
+  .react-flow__node.selected > div {
+    border-color: #48b17a !important;
     box-shadow:
       0 0 0 3px rgba(72, 177, 122, .15),
-      0 6px 12px rgba(0, 0, 0, .06) !important;
+      0 6px 12px rgba(0, 0, 0, .08) !important;
+  }
+
+  /* 엣지 색감 기본 */
+  .react-flow__edge-path {
+    stroke: #bfc6d2;
+    stroke-width: 2px;
+  }
+  .react-flow__edge.selected .react-flow__edge-path {
+    stroke: #8aa6ff;
   }
 `;
 
-/* ===== Canvas Wrapper ===== */
+/* 캔버스 컨테이너 */
 export const FlowWrap = styled.div`
   position: absolute;
   inset: 0;
   z-index: 1;
 `;
 
-/* ===== Node / Edge base styles ===== */
+/* ReactFlow 노드 래퍼 자체는 투명하게 (중복 보더/그림자 방지) */
 export const nodeStyle = {
-  background: "#fff",
-  border: "1px solid rgba(0,0,0,.08)",
-  borderRadius: 10,
-  padding: "8px 10px",
-  fontSize: 12,
-  boxShadow: "0 6px 12px rgba(0,0,0,.06)",
+  background: "transparent",
+  border: "none",
+  padding: 0,
+  borderRadius: 14,
+  boxShadow: "none",
 };
 
+/* 엣지: 은은한 회색 + 닫힌 화살촉 */
 export const edgeStyle = {
-  type: "deletable",
+  type: "smoothstep",
   animated: false,
-  markerEnd: { type: MarkerType.ArrowClosed, color: "#406992", width: 24, height: 24 },
-  style: { stroke: "#406992", strokeWidth: 2 },
+  markerEnd: { type: MarkerType.ArrowClosed, color: "#bfc6d2", width: 18, height: 18 },
+  style: { stroke: "#bfc6d2", strokeWidth: 2 },
   interactionWidth: 24,
 };
 
-/**
- * ✅ 그룹 노드 스타일 생성 함수
- * (필요한 곳에서 import해서 사용)
- */
+/* 그룹 노드 스타일 생성기 (필요시 사용) */
 export const makeGroupNodeStyle = ({
   bg = "#F4FAF7",
   border = "#BFEAD0",
@@ -53,7 +58,7 @@ export const makeGroupNodeStyle = ({
   padding: "12px 14px",
 });
 
-/* ===== Overlay Buttons ===== */
+/* 오버레이 버튼 공용 */
 export const AbsoluteBox = styled.div`
   position: absolute;
   z-index: 5;
