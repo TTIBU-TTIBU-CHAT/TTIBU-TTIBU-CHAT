@@ -5,6 +5,8 @@ import io.ssafy.p.k13c103.coreapi.domain.branch.entity.Branch;
 import jakarta.persistence.*;
 import lombok.*;
 
+import java.time.LocalDateTime;
+
 @Entity
 @Table(name = "chat")
 @Getter
@@ -21,6 +23,8 @@ public class Chat extends BaseTimeEntity {
     @JoinColumn(name = "branch_id")
     private Branch branch;
 
+    // TODO: 그룹 추가
+
     @Column(nullable = false)
     private String question;
 
@@ -36,6 +40,9 @@ public class Chat extends BaseTimeEntity {
     @Column
     private Long originId;
 
+    @Column
+    private LocalDateTime answeredAt;
+
     public static Chat create(Branch branch, String question, Long originId) {
         return Chat.builder()
                 .branch(branch)
@@ -45,14 +52,13 @@ public class Chat extends BaseTimeEntity {
                 .build();
     }
 
-    public static Chat updateSummaryAndKeywords(Chat existing, String summary, String keyword) {
+    public static void updateSummaryAndKeywords(Chat existing, String summary, String keyword) {
         existing.summary = summary;
         existing.keyword = keyword;
-
-        return existing;
     }
 
     public void updateAnswer(String answer) {
         this.answer = answer;
+        this.answeredAt = LocalDateTime.now();
     }
 }
