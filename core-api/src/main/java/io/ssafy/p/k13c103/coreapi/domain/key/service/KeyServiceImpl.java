@@ -88,7 +88,7 @@ public class KeyServiceImpl implements KeyService {
         if (!catalogLoader.existsProvider(request.provider()))
             throw new ApiException(ErrorCode.PROVIDER_NOT_FOUND);
 
-        Key key = keyRepository.findByKeyUid(request.keyUid())
+        Key key = keyRepository.findByKeyUidAndMember_MemberUid(request.keyUid(), memberUid)
                 .orElseThrow(() -> new ApiException(ErrorCode.KEY_NOT_FOUND));
 
         if (!key.getProvider().equals(request.provider())
@@ -139,7 +139,7 @@ public class KeyServiceImpl implements KeyService {
         if (!memberRepository.existsById(memberUid))
             throw new ApiException(ErrorCode.MEMBER_NOT_FOUND);
 
-        Key key = keyRepository.findByKeyUid(keyUid)
+        Key key = keyRepository.findByKeyUidAndMember_MemberUid(keyUid, memberUid)
                 .orElseThrow(() -> new ApiException(ErrorCode.KEY_NOT_FOUND));
 
         keyRepository.delete(key);
