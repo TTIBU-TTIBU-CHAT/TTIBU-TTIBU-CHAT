@@ -19,28 +19,34 @@ public class Key extends BaseTimeEntity {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
-    @Column(name="key_uid")
+    @Column(name = "key_uid")
     private Long keyUid;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "member_id", nullable = false)
+    @JoinColumn(name = "member_uid", nullable = false)
     private Member member;
 
-    @Column(name="provider", nullable = false)
+    @Column(name = "provider", nullable = false)
     private String provider;
 
-    @Lob
-    @Column(name="encrypted_key", nullable = false, columnDefinition = "TEXT")
+    @Column(name = "encrypted_key", nullable = false, columnDefinition = "TEXT")
     private String encryptedKey;
 
     @Builder.Default
-    @Column(name="is_active", nullable = false)
+    @Column(name = "is_active", nullable = false)
     private Boolean isActive = true;
 
     @Builder.Default
-    @Column(name="token_usage", nullable = false)
+    @Column(name = "token_usage", nullable = false)
     private Integer tokenUsage = 0;
 
-    @Column(name="expiration_at", nullable = false)
+    @Column(name = "expiration_at", nullable = false)
     private LocalDate expirationAt;
+
+    public void update(String provider, String encryptedKey, Boolean isActive, LocalDate expirationAt) {
+        if (provider!=null) this.provider = provider;
+        if (encryptedKey != null) this.encryptedKey = encryptedKey;
+        if (isActive != null) this.isActive = isActive;
+        if (expirationAt != null) this.expirationAt = expirationAt;
+    }
 }
