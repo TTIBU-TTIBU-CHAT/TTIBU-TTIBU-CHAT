@@ -1,7 +1,10 @@
 package io.ssafy.p.k13c103.coreapi.domain.chat.service;
 
+import io.ssafy.p.k13c103.coreapi.domain.branch.entity.Branch;
 import io.ssafy.p.k13c103.coreapi.domain.chat.dto.ChatCreateRequestDto;
 import io.ssafy.p.k13c103.coreapi.domain.chat.dto.ChatCreateResponseDto;
+
+import java.util.List;
 
 public interface ChatService {
 
@@ -27,4 +30,12 @@ public interface ChatService {
      * @param keywords  키워드 리스트 (JSON 문자열 형태)
      */
     void updateSummaryAndKeywords(Long chatId, String summary, String keywords);
+
+    /**
+     * 이전 대화 맥락(최근 5개)을 가져와 프롬프트용 텍스트로 가공
+     * - summary가 있으면 summary 사용
+     * - summary가 없으면 answer 사용
+     * - 둘 다 없으면 제외
+     */
+    List<String> getRecentContextForPrompt(Branch branch);
 }

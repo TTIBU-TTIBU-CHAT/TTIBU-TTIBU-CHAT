@@ -23,6 +23,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.List;
+import java.util.Objects;
 import java.util.concurrent.CompletableFuture;
 
 @Slf4j
@@ -139,6 +141,24 @@ public class ChatServiceImpl implements ChatService {
                 ChatCreateResponseDto.from(chat)
         );
         sseEmitterManager.sendEvent(chat.getBranch().getRoom().getRoomUid(), event);
+    }
+
+    @Override
+    public List<String> getRecentContextForPrompt(Branch branch) {
+        List<Chat> recentChats = chatRepository.findTop5ByBranchOrderByCreatedAtDesc(branch);
+
+        return recentChats.stream()
+                .map(chat -> {
+                    if (chat.getSummary() != null && !chat.getSummary().isBlank()) {
+                        return chat.getSummary();
+                    } else if (chat.getAnswer() != null && !chat.getAnswer().isBlank()) {
+                        return chat.getAnswer();
+                    } else {
+                        return null; // 둘 다 없으면 skip
+                    }
+                })
+                .filter(Objects::nonNull)
+                .toList();
     }
 
     private void sendSse(Chat chat, ChatSseEventType type) {
