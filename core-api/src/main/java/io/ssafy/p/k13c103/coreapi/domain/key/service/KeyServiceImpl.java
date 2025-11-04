@@ -78,6 +78,42 @@ public class KeyServiceImpl implements KeyService {
                 .build();
     }
 
+    @Override
+    @Transactional
+    public KeyResponseDto.EditKeyInfo edit(Long memberUid, KeyRequestDto.EditKey request) {
+
+        if (!memberRepository.existsById(memberUid))
+            throw new ApiException(ErrorCode.MEMBER_NOT_FOUND);
+
+        if (!catalogLoader.existsProvider(request.provider()))
+            throw new ApiException(ErrorCode.PROVIDER_NOT_FOUND);
+
+        Key key = keyRepository.findByKeyUid(request.keyUid())
+                .orElseThrow(() -> new ApiException(ErrorCode.KEY_NOT_FOUND));
+
+        if (!key.getProvider().equals(request.provider())
+                && keyRepository.existsByMember_MemberUidAndProvider(memberUid, request.provider())) {
+            throw new ApiException(ErrorCode.DUPLICATED_KEY);
+        }
+
+        if (!decryptKey(key.getEncryptedKey()).equals(request.key())) {
+
+            List<String> models = catalogLoader.models(request.provider());
+            if (models.isEmpty())
+                throw new ApiException(ErrorCode.MODEL_CATALOG_EMPTY);
+
+//        String testModel = request.provider() + "/" + models.get(0); // FIXME: 운영 환경에서 주석 해제
+            String testModel = models.get(0); // FIXME: 운영 환경에서 주석 처리
+            liteLlmClient.test(request.key(), testModel); // 문제 있다면 에러 발생
+        }
+
+        key.update(request.provider(), encryptKey(request.key()), request.isActive(), request.expirationAt());
+
+        return KeyResponseDto.EditKeyInfo.builder()
+                .keyUid(key.getKeyUid())
+                .build();
+    }
+
     private String encryptKey(String plainKey) {
         try {
             byte[] iv = new byte[12];

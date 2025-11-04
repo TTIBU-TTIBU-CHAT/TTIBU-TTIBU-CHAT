@@ -5,4 +5,5 @@ import io.ssafy.p.k13c103.coreapi.domain.key.dto.KeyResponseDto;
 
 public interface KeyService {
     KeyResponseDto.RegisteredKeyInfo register(Long memberUid, KeyRequestDto.RegisterKey request);
+    KeyResponseDto.EditKeyInfo edit(Long memberUid, KeyRequestDto.EditKey request);
 }

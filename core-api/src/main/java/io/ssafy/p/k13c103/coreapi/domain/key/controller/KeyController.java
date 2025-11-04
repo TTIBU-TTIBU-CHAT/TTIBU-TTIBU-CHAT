@@ -12,10 +12,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
 
 @Tag(name = "키 관리 API", description = "키 등록, 상태 관리 등 키 관련 API를 제공합니다.")
 @Slf4j
@@ -33,6 +30,15 @@ public class KeyController {
         KeyResponseDto.RegisteredKeyInfo info = keyService.register(member.getMemberUid(), request);
 
         return ResponseEntity.status(HttpStatus.CREATED).body(JSend.success(info));
+    }
+
+    @Operation(summary = "키 수정", description = "")
+    @PutMapping
+    public ResponseEntity<JSend> edit(@RequestBody KeyRequestDto.EditKey request, @AuthenticationPrincipal CustomMemberDetails member) {
+
+        KeyResponseDto.EditKeyInfo info = keyService.edit(member.getMemberUid(), request);
+
+        return ResponseEntity.status(HttpStatus.OK).body(JSend.success(info));
     }
 
 }
