@@ -4,6 +4,7 @@ import io.ssafy.p.k13c103.coreapi.common.error.ApiException;
 import io.ssafy.p.k13c103.coreapi.common.error.ErrorCode;
 import io.ssafy.p.k13c103.coreapi.config.security.CustomMemberDetails;
 import io.ssafy.p.k13c103.coreapi.domain.member.entity.Member;
+import io.ssafy.p.k13c103.coreapi.domain.member.repository.MemberRepository;
 import jakarta.servlet.http.Cookie;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;

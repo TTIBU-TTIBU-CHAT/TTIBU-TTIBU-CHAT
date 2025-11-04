@@ -1,4 +1,4 @@
-package io.ssafy.p.k13c103.coreapi.domain.member;
+package io.ssafy.p.k13c103.coreapi.domain.member.repository;
 
 import io.ssafy.p.k13c103.coreapi.domain.member.entity.Member;
 import org.springframework.data.jpa.repository.JpaRepository;

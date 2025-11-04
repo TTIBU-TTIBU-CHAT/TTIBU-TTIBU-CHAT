@@ -3,7 +3,7 @@ package io.ssafy.p.k13c103.coreapi.config.security;
 import io.ssafy.p.k13c103.coreapi.common.error.ApiException;
 import io.ssafy.p.k13c103.coreapi.common.error.ErrorCode;
 import io.ssafy.p.k13c103.coreapi.domain.member.entity.Member;
-import io.ssafy.p.k13c103.coreapi.domain.member.MemberRepository;
+import io.ssafy.p.k13c103.coreapi.domain.member.repository.MemberRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.core.userdetails.UserDetailsService;
