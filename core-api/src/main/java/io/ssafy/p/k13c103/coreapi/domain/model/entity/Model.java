@@ -21,13 +21,19 @@ public class Model extends BaseTimeEntity {
     private Long modelUid;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "member_uid")
+    @JoinColumn(name = "member_uid", nullable = false)
     private Member member;
+
+    @Column(name = "provider", nullable = false)
+    private String provider;
+
+    @Column(name = "code", nullable = false)
+    private String code;
 
     @Column(name = "name")
     private String name;
 
     @Builder.Default
-    @Column(name = "is_default")
+    @Column(name = "is_default", nullable = false)
     private Boolean isDefault = false;
 }
