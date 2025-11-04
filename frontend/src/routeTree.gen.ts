@@ -9,24 +9,25 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as TestcopyRouteImport } from './routes/testcopy'
 import { Route as TestRouteImport } from './routes/test'
-import { Route as ChatflowRouteRouteImport } from './routes/chatflow/route'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as SignupIndexRouteImport } from './routes/signup/index'
 import { Route as SettingsIndexRouteImport } from './routes/settings/index'
 import { Route as LoginIndexRouteImport } from './routes/login/index'
 import { Route as GroupsIndexRouteImport } from './routes/groups/index'
 import { Route as ChatRoomsIndexRouteImport } from './routes/chatRooms/index'
-import { Route as ChatflowNodeIdRouteImport } from './routes/chatflow/$nodeId'
+import { Route as GroupsNodeIdRouteImport } from './routes/groups/$nodeId'
+import { Route as ChatRoomsNodeIdRouteImport } from './routes/chatRooms/$nodeId'
 
+const TestcopyRoute = TestcopyRouteImport.update({
+  id: '/testcopy',
+  path: '/testcopy',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const TestRoute = TestRouteImport.update({
   id: '/test',
   path: '/test',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ChatflowRouteRoute = ChatflowRouteRouteImport.update({
-  id: '/chatflow',
-  path: '/chatflow',
   getParentRoute: () => rootRouteImport,
 } as any)
 const IndexRoute = IndexRouteImport.update({
@@ -59,17 +60,23 @@ const ChatRoomsIndexRoute = ChatRoomsIndexRouteImport.update({
   path: '/chatRooms/',
   getParentRoute: () => rootRouteImport,
 } as any)
-const ChatflowNodeIdRoute = ChatflowNodeIdRouteImport.update({
-  id: '/$nodeId',
-  path: '/$nodeId',
-  getParentRoute: () => ChatflowRouteRoute,
+const GroupsNodeIdRoute = GroupsNodeIdRouteImport.update({
+  id: '/groups/$nodeId',
+  path: '/groups/$nodeId',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ChatRoomsNodeIdRoute = ChatRoomsNodeIdRouteImport.update({
+  id: '/chatRooms/$nodeId',
+  path: '/chatRooms/$nodeId',
+  getParentRoute: () => rootRouteImport,
 } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
-  '/chatflow': typeof ChatflowRouteRouteWithChildren
   '/test': typeof TestRoute
-  '/chatflow/$nodeId': typeof ChatflowNodeIdRoute
+  '/testcopy': typeof TestcopyRoute
+  '/chatRooms/$nodeId': typeof ChatRoomsNodeIdRoute
+  '/groups/$nodeId': typeof GroupsNodeIdRoute
   '/chatRooms': typeof ChatRoomsIndexRoute
   '/groups': typeof GroupsIndexRoute
   '/login': typeof LoginIndexRoute
@@ -78,9 +85,10 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
-  '/chatflow': typeof ChatflowRouteRouteWithChildren
   '/test': typeof TestRoute
-  '/chatflow/$nodeId': typeof ChatflowNodeIdRoute
+  '/testcopy': typeof TestcopyRoute
+  '/chatRooms/$nodeId': typeof ChatRoomsNodeIdRoute
+  '/groups/$nodeId': typeof GroupsNodeIdRoute
   '/chatRooms': typeof ChatRoomsIndexRoute
   '/groups': typeof GroupsIndexRoute
   '/login': typeof LoginIndexRoute
@@ -90,9 +98,10 @@ export interface FileRoutesByTo {
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
-  '/chatflow': typeof ChatflowRouteRouteWithChildren
   '/test': typeof TestRoute
-  '/chatflow/$nodeId': typeof ChatflowNodeIdRoute
+  '/testcopy': typeof TestcopyRoute
+  '/chatRooms/$nodeId': typeof ChatRoomsNodeIdRoute
+  '/groups/$nodeId': typeof GroupsNodeIdRoute
   '/chatRooms/': typeof ChatRoomsIndexRoute
   '/groups/': typeof GroupsIndexRoute
   '/login/': typeof LoginIndexRoute
@@ -103,9 +112,10 @@ export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
-    | '/chatflow'
     | '/test'
-    | '/chatflow/$nodeId'
+    | '/testcopy'
+    | '/chatRooms/$nodeId'
+    | '/groups/$nodeId'
     | '/chatRooms'
     | '/groups'
     | '/login'
@@ -114,9 +124,10 @@ export interface FileRouteTypes {
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
-    | '/chatflow'
     | '/test'
-    | '/chatflow/$nodeId'
+    | '/testcopy'
+    | '/chatRooms/$nodeId'
+    | '/groups/$nodeId'
     | '/chatRooms'
     | '/groups'
     | '/login'
@@ -125,9 +136,10 @@ export interface FileRouteTypes {
   id:
     | '__root__'
     | '/'
-    | '/chatflow'
     | '/test'
-    | '/chatflow/$nodeId'
+    | '/testcopy'
+    | '/chatRooms/$nodeId'
+    | '/groups/$nodeId'
     | '/chatRooms/'
     | '/groups/'
     | '/login/'
@@ -137,8 +149,10 @@ export interface FileRouteTypes {
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
-  ChatflowRouteRoute: typeof ChatflowRouteRouteWithChildren
   TestRoute: typeof TestRoute
+  TestcopyRoute: typeof TestcopyRoute
+  ChatRoomsNodeIdRoute: typeof ChatRoomsNodeIdRoute
+  GroupsNodeIdRoute: typeof GroupsNodeIdRoute
   ChatRoomsIndexRoute: typeof ChatRoomsIndexRoute
   GroupsIndexRoute: typeof GroupsIndexRoute
   LoginIndexRoute: typeof LoginIndexRoute
@@ -148,18 +162,18 @@ export interface RootRouteChildren {
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/testcopy': {
+      id: '/testcopy'
+      path: '/testcopy'
+      fullPath: '/testcopy'
+      preLoaderRoute: typeof TestcopyRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/test': {
       id: '/test'
       path: '/test'
       fullPath: '/test'
       preLoaderRoute: typeof TestRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/chatflow': {
-      id: '/chatflow'
-      path: '/chatflow'
-      fullPath: '/chatflow'
-      preLoaderRoute: typeof ChatflowRouteRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/': {
@@ -204,32 +218,29 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ChatRoomsIndexRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/chatflow/$nodeId': {
-      id: '/chatflow/$nodeId'
-      path: '/$nodeId'
-      fullPath: '/chatflow/$nodeId'
-      preLoaderRoute: typeof ChatflowNodeIdRouteImport
-      parentRoute: typeof ChatflowRouteRoute
+    '/groups/$nodeId': {
+      id: '/groups/$nodeId'
+      path: '/groups/$nodeId'
+      fullPath: '/groups/$nodeId'
+      preLoaderRoute: typeof GroupsNodeIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/chatRooms/$nodeId': {
+      id: '/chatRooms/$nodeId'
+      path: '/chatRooms/$nodeId'
+      fullPath: '/chatRooms/$nodeId'
+      preLoaderRoute: typeof ChatRoomsNodeIdRouteImport
+      parentRoute: typeof rootRouteImport
     }
   }
 }
 
-interface ChatflowRouteRouteChildren {
-  ChatflowNodeIdRoute: typeof ChatflowNodeIdRoute
-}
-
-const ChatflowRouteRouteChildren: ChatflowRouteRouteChildren = {
-  ChatflowNodeIdRoute: ChatflowNodeIdRoute,
-}
-
-const ChatflowRouteRouteWithChildren = ChatflowRouteRoute._addFileChildren(
-  ChatflowRouteRouteChildren,
-)
-
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
-  ChatflowRouteRoute: ChatflowRouteRouteWithChildren,
   TestRoute: TestRoute,
+  TestcopyRoute: TestcopyRoute,
+  ChatRoomsNodeIdRoute: ChatRoomsNodeIdRoute,
+  GroupsNodeIdRoute: GroupsNodeIdRoute,
   ChatRoomsIndexRoute: ChatRoomsIndexRoute,
   GroupsIndexRoute: GroupsIndexRoute,
   LoginIndexRoute: LoginIndexRoute,

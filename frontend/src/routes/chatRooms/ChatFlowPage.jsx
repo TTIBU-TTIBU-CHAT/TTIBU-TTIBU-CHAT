@@ -5,7 +5,7 @@ import { useChatList } from "@/hooks/useChatList";
 import BranchDropdown from "@/components/BranchDropdown/BranchDropdown";
 import TopleftCard from "@/components/topleftCard/TopleftCard";
 import ModalShell from "@/components/ModalShell/ModalShell";
-import FlowCanvas from "@/components/flow/FlowCanvas";
+import FlowCanvas from "@/components/Chatflow/FlowCanvas";
 
 export default function ChatFlowPage() {
   const { nodeId } = useParams({ strict: false });
