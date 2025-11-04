@@ -13,7 +13,7 @@ export const Route = createRootRoute({
 
 function RootLayout() {
   const { isCollapsed } = useSidebarStore()
-  const sidebarW = useMemo(() => (isCollapsed ? 72 : 260), [isCollapsed])
+  const sidebarW = useMemo(() => (isCollapsed ? 72 : 240), [isCollapsed])
 
   const mainRef = useRef(null)
 
