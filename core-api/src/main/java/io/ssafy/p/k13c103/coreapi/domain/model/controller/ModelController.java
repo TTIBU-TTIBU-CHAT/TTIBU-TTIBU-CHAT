@@ -8,13 +8,11 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 
-@Tag(name = "모델 관리 API", description = "사용 모델 선택, 전체 모델 리스트 제공 등 모델 관련 API를 제공합니다.")
+@Tag(name = "모델 관리 API", description = "제공사 리스트 조회, 사용 모델 선택 등 모델 관련 API를 제공합니다.")
 @Slf4j
 @RestController
 @RequiredArgsConstructor
