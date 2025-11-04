@@ -1,3 +1,4 @@
+// FlowCanvas.jsx
 import React, {
   forwardRef,
   useCallback,
@@ -16,6 +17,7 @@ import ReactFlow, {
   useEdgesState,
   useNodesState,
   Position,
+  useReactFlow,
 } from "reactflow";
 import "reactflow/dist/style.css";
 
@@ -24,14 +26,16 @@ import { nodeStyle, edgeStyle } from "./styles";
 import {
   edge,
   stripRuntimeEdge,
-  // stripRuntimeNode,  // ❌ 데이터 유실 원인 — 사용 안 함
   serializeEdges,
   serializeNodes,
 } from "./utils";
 import { initialNodes, initialEdges } from "./initialData";
 import DeletableEdge from "./edges/DeletableEdge";
 import SelectionOverlay from "./overlays/SelectionOverlay";
-import QaNode from "./QaNode";
+import QaNode from "../GroupFlow/QaNode";
+
+/* ===== DnD MIME 키 ===== */
+const DND_MIME = "application/x-ttibu-resultcard";
 
 /* ===== 배치/충돌 관련 상수 & 유틸 ===== */
 const H_SPACING = 260;
@@ -77,10 +81,7 @@ const withHandlesByRoot = (nodes, edges) => {
     const isRoot = !incoming.get(n.id);
     if (isRoot) {
       const { targetPosition, ...rest } = n;
-      return {
-        ...rest,
-        sourcePosition: Position.Right,
-      };
+      return { ...rest, sourcePosition: Position.Right };
     }
     return {
       ...n,
@@ -92,7 +93,8 @@ const withHandlesByRoot = (nodes, edges) => {
 
 const ROOT_X_OFFSET = 120;
 
-const FlowCanvas = forwardRef(function FlowCanvas(
+/* ===================== Inner: Provider 안에서 훅 사용 ===================== */
+const FlowCanvasInner = forwardRef(function FlowCanvasInner(
   {
     editMode = true,
     onCanResetChange,
@@ -102,18 +104,18 @@ const FlowCanvas = forwardRef(function FlowCanvas(
   },
   ref
 ) {
-  /* ===== 커스텀 노드 타입 ===== */
+  const { screenToFlowPosition } = useReactFlow(); // ✅ 이제 Provider 안
+
+  /* 노드 타입 */
   const nodeTypes = useMemo(() => ({ qa: QaNode }), []);
 
-  /* ===== 상태 ===== */
+  /* 상태 */
   const [nodes, setNodes, onNodesChange] = useNodesState(
     withHandlesByRoot(
-      // ❗ stripRuntimeNode 제거 + type/스타일 강제 주입
       initialNodes.map((n) => ({ ...n, type: "qa", style: nodeStyle })),
       initialEdges
     )
   );
-
   const [edges, setEdges, onEdgesChange] = useEdgesState(
     initialEdges.map(stripRuntimeEdge)
   );
@@ -121,7 +123,6 @@ const FlowCanvas = forwardRef(function FlowCanvas(
   const [selectedNodes, setSelectedNodes] = useState([]);
   const [lastSelectedId, setLastSelectedId] = useState(null);
 
-  // 초기 스냅샷 (리셋/변경감지)
   const initialSnapshotRef = useRef({
     nodes: serializeNodes(
       initialNodes.map((n) => ({ ...n, type: "qa", style: nodeStyle }))
@@ -129,13 +130,13 @@ const FlowCanvas = forwardRef(function FlowCanvas(
     edges: serializeEdges(initialEdges),
   });
 
-  /* ===== 연결 ===== */
+  /* 연결 */
   const onConnect = useCallback(
     (params) => setEdges((eds) => addEdge({ ...params, ...edgeStyle }, eds)),
     [setEdges]
   );
 
-  /* ===== 편집 모드 전환 시 선택 해제 ===== */
+  /* 선택/모드 */
   useEffect(() => {
     if (!editMode) {
       setSelectedNodes([]);
@@ -144,7 +145,6 @@ const FlowCanvas = forwardRef(function FlowCanvas(
     }
   }, [editMode, onSelectionCountChange]);
 
-  /* ===== 선택 변경 ===== */
   const handleSelectionChange = useCallback(
     ({ nodes: selNodes }) => {
       if (!editMode) {
@@ -161,7 +161,6 @@ const FlowCanvas = forwardRef(function FlowCanvas(
     [editMode, onSelectionCountChange]
   );
 
-  /* ===== 노드 클릭 ===== */
   const onNodeClick = useCallback(
     (e, node) => {
       if (!editMode) {
@@ -175,7 +174,7 @@ const FlowCanvas = forwardRef(function FlowCanvas(
     [editMode, onNodeClickInViewMode]
   );
 
-  /* ===== 노드 액션: 자식 추가 ===== */
+  /* 노드 추가(버튼) */
   const addSiblingNode = useCallback(() => {
     if (!lastSelectedId) return;
     const base = nodes.find((n) => n.id === lastSelectedId);
@@ -211,6 +210,7 @@ const FlowCanvas = forwardRef(function FlowCanvas(
     onCreateNode?.(newId);
   }, [lastSelectedId, nodes, edges, onCreateNode, setNodes, setEdges]);
 
+  /* 선택 삭제 */
   const removeSelectedNode = useCallback(() => {
     if (!lastSelectedId) return;
 
@@ -231,7 +231,6 @@ const FlowCanvas = forwardRef(function FlowCanvas(
               !other.some((oe) => oe.source === s && oe.target === t)
           )
           .map(({ s, t }) => edge(s, t));
-
         return [...other, ...reattached];
       }
       return other;
@@ -243,11 +242,10 @@ const FlowCanvas = forwardRef(function FlowCanvas(
     onSelectionCountChange?.(0);
   }, [lastSelectedId, setEdges, setNodes, onSelectionCountChange]);
 
-  /* ===== 그룹 생성 (콘솔 로그) ===== */
+  /* 그룹(로그) */
   const groupSelected = useCallback(() => {
     const selected = nodes.filter((n) => n.selected);
     const list = selected.length ? selected : selectedNodes;
-
     if (list.length < 2) {
       console.warn("[Group] 최소 2개 이상 선택해야 그룹화가 가능합니다.");
       return;
@@ -278,11 +276,10 @@ const FlowCanvas = forwardRef(function FlowCanvas(
       },
       timestamp: new Date().toISOString(),
     };
-
     console.log("GROUP_SELECTED", group, list);
   }, [nodes, selectedNodes]);
 
-  /* ===== 루트 핸들 재적용 & 초기 오프셋 ===== */
+  /* 루트 핸들/오프셋 */
   const didInitialRootOffset = useRef(false);
 
   useEffect(() => {
@@ -312,7 +309,7 @@ const FlowCanvas = forwardRef(function FlowCanvas(
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  /* ===== 리셋 ===== */
+  /* 리셋 */
   const reset = useCallback(() => {
     setNodes(
       withHandlesByRoot(
@@ -326,7 +323,7 @@ const FlowCanvas = forwardRef(function FlowCanvas(
     onSelectionCountChange?.(0);
   }, [setNodes, setEdges, onSelectionCountChange]);
 
-  /* ===== 외부 메서드 ===== */
+  /* 외부 메서드 */
   const updateNodeLabel = useCallback(
     (id, label) => {
       setNodes((nds) =>
@@ -344,7 +341,7 @@ const FlowCanvas = forwardRef(function FlowCanvas(
     updateNodeLabel,
   ]);
 
-  /* ===== canReset 보고 ===== */
+  /* canReset 보고 */
   useEffect(() => {
     const now = { nodes: serializeNodes(nodes), edges: serializeEdges(edges) };
     const base = initialSnapshotRef.current;
@@ -352,7 +349,7 @@ const FlowCanvas = forwardRef(function FlowCanvas(
     onCanResetChange?.(changed);
   }, [nodes, edges, onCanResetChange]);
 
-  /* ===== 타입/상호작용 ===== */
+  /* 엣지 타입/상호작용 */
   const edgeTypes = useMemo(() => ({ deletable: DeletableEdge }), []);
   const rfInteractivity = useMemo(
     () => ({
@@ -367,42 +364,91 @@ const FlowCanvas = forwardRef(function FlowCanvas(
     [editMode]
   );
 
+  /* DnD: Search ResultCard → Canvas */
+  const onDragOver = useCallback((e) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = "copy";
+  }, []);
+
+  const onDrop = useCallback(
+    (e) => {
+      e.preventDefault();
+      const raw = e.dataTransfer.getData(DND_MIME);
+      if (!raw) return;
+
+      let payload;
+      try {
+        payload = JSON.parse(raw);
+      } catch {
+        return;
+      }
+
+      const flowPos = screenToFlowPosition({ x: e.clientX, y: e.clientY });
+      const newId = `r_${payload.id}_${Date.now()}`;
+      const newNode = {
+        id: newId,
+        type: "qa",
+        position: flowPos,
+        data: {
+          label: payload.question ?? "질문",
+          summary: payload.answer ?? "",
+          question: payload.question ?? "",
+          answer: payload.answer ?? "",
+          keyword: payload.tags?.[0] ?? undefined,
+        },
+        style: nodeStyle,
+        sourcePosition: Position.Right,
+        targetPosition: Position.Left,
+      };
+      setNodes((nds) => [...nds, newNode]);
+      onCreateNode?.(newId, payload);
+    },
+    [screenToFlowPosition, setNodes, onCreateNode]
+  );
+
+  return (
+    <FlowWrap>
+      <ReactFlow
+        nodes={nodes}
+        edges={edges}
+        onNodesChange={onNodesChange}
+        onEdgesChange={onEdgesChange}
+        onConnect={onConnect}
+        onSelectionChange={handleSelectionChange}
+        onNodeClick={onNodeClick}
+        fitView
+        proOptions={{ hideAttribution: true }}
+        edgeTypes={edgeTypes}
+        nodeTypes={nodeTypes}
+        onPaneContextMenu={(e) => e.preventDefault()}
+        onDragOver={onDragOver}
+        onDrop={onDrop}
+        {...rfInteractivity}
+      >
+        <Background gap={18} size={1} />
+        <MiniMap pannable />
+        <Controls />
+        {editMode && (
+          <SelectionOverlay
+            selectedNodes={selectedNodes}
+            lastSelectedId={lastSelectedId}
+            onAdd={addSiblingNode}
+            onRemove={removeSelectedNode}
+          />
+        )}
+      </ReactFlow>
+    </FlowWrap>
+  );
+});
+
+/* ===================== Wrapper: Provider 제공 ===================== */
+export default function FlowCanvas(props) {
   return (
     <>
       <GlobalRFStyles />
       <ReactFlowProvider>
-        <FlowWrap>
-          <ReactFlow
-            nodes={nodes}
-            edges={edges}
-            onNodesChange={onNodesChange}
-            onEdgesChange={onEdgesChange}
-            onConnect={onConnect}
-            onSelectionChange={handleSelectionChange}
-            onNodeClick={onNodeClick}
-            fitView
-            proOptions={{ hideAttribution: true }}
-            edgeTypes={edgeTypes}
-            nodeTypes={nodeTypes}        
-            onPaneContextMenu={(e) => e.preventDefault()}
-            {...rfInteractivity}
-          >
-            <Background gap={18} size={1} />
-            <MiniMap pannable />
-            <Controls />
-            {editMode && (
-              <SelectionOverlay
-                selectedNodes={selectedNodes}
-                lastSelectedId={lastSelectedId}
-                onAdd={addSiblingNode}
-                onRemove={removeSelectedNode}
-              />
-            )}
-          </ReactFlow>
-        </FlowWrap>
+        <FlowCanvasInner {...props} />
       </ReactFlowProvider>
     </>
   );
-});
-
-export default FlowCanvas;
+}
