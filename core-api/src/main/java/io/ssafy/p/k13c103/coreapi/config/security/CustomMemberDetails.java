@@ -1,6 +1,6 @@
 package io.ssafy.p.k13c103.coreapi.config.security;
 
-import io.ssafy.p.k13c103.coreapi.domain.member.Member;
+import io.ssafy.p.k13c103.coreapi.domain.member.entity.Member;
 import lombok.Getter;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.userdetails.UserDetails;
