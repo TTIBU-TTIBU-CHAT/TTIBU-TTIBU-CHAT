@@ -37,8 +37,17 @@ export default function SidebarMenu() {
 
   const handleNavigate = (path) => navigate({ to: path })
 
+  // ✅ 채팅 클릭 시 /chatFlow/:id 로 이동하는 함수
+  const handleChatClick = (chatId) => {
+    navigate({
+      to: '/chatFlow/$nodeId',
+      params: { nodeId: String(chatId) },
+    })
+  }
+
   return (
     <>
+      {/* 새 채팅 */}
       <S.MenuItem
         $collapsed={isCollapsed}
         $active={currentPath === '/'}
@@ -50,6 +59,7 @@ export default function SidebarMenu() {
         <span>새 채팅</span>
       </S.MenuItem>
 
+      {/* 그룹 */}
       <S.MenuItem
         $collapsed={isCollapsed}
         $active={currentPath.startsWith('/groups')}
@@ -61,6 +71,7 @@ export default function SidebarMenu() {
         <span>그룹</span>
       </S.MenuItem>
 
+      {/* 그룹 리스트 */}
       {!isCollapsed && (
         <>
           <S.SubList>
@@ -76,10 +87,11 @@ export default function SidebarMenu() {
         </>
       )}
 
+      {/* 채팅 */}
       <S.MenuItem
         $collapsed={isCollapsed}
-        $active={currentPath.startsWith('/chatRooms')}
-        onClick={() => handleNavigate('/chatRooms')}
+        $active={currentPath.startsWith('/chatflow')}
+        onClick={() => handleNavigate('/chatflow')}
       >
         <div className="icon">
           <ChatRoomIcon />
@@ -87,15 +99,22 @@ export default function SidebarMenu() {
         <span>채팅방</span>
       </S.MenuItem>
 
+      {/* ✅ 채팅 리스트 - 클릭 시 /chatflow/:id 로 이동 */}
       {!isCollapsed && (
         <>
           <S.SubList>
             {chats.slice(0, 5).map((chat) => (
-              <S.SubItem key={chat.id}>{chat.name}</S.SubItem>
+              <S.SubItem
+                key={chat.id}
+                onClick={() => handleChatClick(chat.id)} // 💥 핵심 수정 부분
+                $active={currentPath === `/chatflow/${chat.id}`}
+              >
+                {chat.name}
+              </S.SubItem>
             ))}
           </S.SubList>
           {chats.length > 5 && (
-            <S.MoreButton onClick={() => handleNavigate('/chatRooms')}>
+            <S.MoreButton onClick={() => handleNavigate('/chatrooms')}>
               더보기 ({chats.length - 5}+)
             </S.MoreButton>
           )}

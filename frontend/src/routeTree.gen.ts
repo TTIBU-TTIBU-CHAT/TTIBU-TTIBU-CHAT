@@ -10,16 +10,23 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as TestRouteImport } from './routes/test'
+import { Route as ChatflowRouteRouteImport } from './routes/chatflow/route'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as SignupIndexRouteImport } from './routes/signup/index'
 import { Route as SettingsIndexRouteImport } from './routes/settings/index'
 import { Route as LoginIndexRouteImport } from './routes/login/index'
 import { Route as GroupsIndexRouteImport } from './routes/groups/index'
 import { Route as ChatRoomsIndexRouteImport } from './routes/chatRooms/index'
+import { Route as ChatflowNodeIdRouteImport } from './routes/chatflow/$nodeId'
 
 const TestRoute = TestRouteImport.update({
   id: '/test',
   path: '/test',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ChatflowRouteRoute = ChatflowRouteRouteImport.update({
+  id: '/chatflow',
+  path: '/chatflow',
   getParentRoute: () => rootRouteImport,
 } as any)
 const IndexRoute = IndexRouteImport.update({
@@ -52,10 +59,17 @@ const ChatRoomsIndexRoute = ChatRoomsIndexRouteImport.update({
   path: '/chatRooms/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ChatflowNodeIdRoute = ChatflowNodeIdRouteImport.update({
+  id: '/$nodeId',
+  path: '/$nodeId',
+  getParentRoute: () => ChatflowRouteRoute,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/chatflow': typeof ChatflowRouteRouteWithChildren
   '/test': typeof TestRoute
+  '/chatflow/$nodeId': typeof ChatflowNodeIdRoute
   '/chatRooms': typeof ChatRoomsIndexRoute
   '/groups': typeof GroupsIndexRoute
   '/login': typeof LoginIndexRoute
@@ -64,7 +78,9 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/chatflow': typeof ChatflowRouteRouteWithChildren
   '/test': typeof TestRoute
+  '/chatflow/$nodeId': typeof ChatflowNodeIdRoute
   '/chatRooms': typeof ChatRoomsIndexRoute
   '/groups': typeof GroupsIndexRoute
   '/login': typeof LoginIndexRoute
@@ -74,7 +90,9 @@ export interface FileRoutesByTo {
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/chatflow': typeof ChatflowRouteRouteWithChildren
   '/test': typeof TestRoute
+  '/chatflow/$nodeId': typeof ChatflowNodeIdRoute
   '/chatRooms/': typeof ChatRoomsIndexRoute
   '/groups/': typeof GroupsIndexRoute
   '/login/': typeof LoginIndexRoute
@@ -85,7 +103,9 @@ export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
+    | '/chatflow'
     | '/test'
+    | '/chatflow/$nodeId'
     | '/chatRooms'
     | '/groups'
     | '/login'
@@ -94,7 +114,9 @@ export interface FileRouteTypes {
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
+    | '/chatflow'
     | '/test'
+    | '/chatflow/$nodeId'
     | '/chatRooms'
     | '/groups'
     | '/login'
@@ -103,7 +125,9 @@ export interface FileRouteTypes {
   id:
     | '__root__'
     | '/'
+    | '/chatflow'
     | '/test'
+    | '/chatflow/$nodeId'
     | '/chatRooms/'
     | '/groups/'
     | '/login/'
@@ -113,6 +137,7 @@ export interface FileRouteTypes {
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  ChatflowRouteRoute: typeof ChatflowRouteRouteWithChildren
   TestRoute: typeof TestRoute
   ChatRoomsIndexRoute: typeof ChatRoomsIndexRoute
   GroupsIndexRoute: typeof GroupsIndexRoute
@@ -128,6 +153,13 @@ declare module '@tanstack/react-router' {
       path: '/test'
       fullPath: '/test'
       preLoaderRoute: typeof TestRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/chatflow': {
+      id: '/chatflow'
+      path: '/chatflow'
+      fullPath: '/chatflow'
+      preLoaderRoute: typeof ChatflowRouteRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/': {
@@ -172,11 +204,31 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ChatRoomsIndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/chatflow/$nodeId': {
+      id: '/chatflow/$nodeId'
+      path: '/$nodeId'
+      fullPath: '/chatflow/$nodeId'
+      preLoaderRoute: typeof ChatflowNodeIdRouteImport
+      parentRoute: typeof ChatflowRouteRoute
+    }
   }
 }
 
+interface ChatflowRouteRouteChildren {
+  ChatflowNodeIdRoute: typeof ChatflowNodeIdRoute
+}
+
+const ChatflowRouteRouteChildren: ChatflowRouteRouteChildren = {
+  ChatflowNodeIdRoute: ChatflowNodeIdRoute,
+}
+
+const ChatflowRouteRouteWithChildren = ChatflowRouteRoute._addFileChildren(
+  ChatflowRouteRouteChildren,
+)
+
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  ChatflowRouteRoute: ChatflowRouteRouteWithChildren,
   TestRoute: TestRoute,
   ChatRoomsIndexRoute: ChatRoomsIndexRoute,
   GroupsIndexRoute: GroupsIndexRoute,
