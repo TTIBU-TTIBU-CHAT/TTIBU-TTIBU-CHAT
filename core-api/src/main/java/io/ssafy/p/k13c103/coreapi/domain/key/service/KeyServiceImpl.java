@@ -54,18 +54,18 @@ public class KeyServiceImpl implements KeyService {
         if (models.isEmpty())
             throw new ApiException(ErrorCode.MODEL_CATALOG_EMPTY);
 
-        // 2. 1토큰 테스트
+        // 2. 중복 키 체크
+        if (keyRepository.existsByMember_MemberUidAndProvider(memberUid, request.provider()))
+            throw new ApiException(ErrorCode.DUPLICATED_KEY);
+
+        // 3. 1토큰 테스트
 //        String testModel = request.provider() + "/" + models.get(0); // FIXME: 운영 환경에서 주석 해제
         String testModel = models.get(0); // FIXME: 운영 환경에서 주석 처리
         liteLlmClient.test(request.key(), testModel); // 문제 있다면 에러 발생
 
-        // 3. 중복 키 체크
-        if (keyRepository.existsByMember_MemberUidAndProvider(memberUid, request.provider()))
-            throw new ApiException(ErrorCode.DUPLICATED_KEY);
-
         // 4. 키 암호화 후 저장
         Key key = Key.builder()
-                .member(memberRepository.findById(memberUid).get())
+                .member(memberRepository.getReferenceById(memberUid))
                 .provider(request.provider())
                 .encryptedKey(encryptKey(request.key()))
                 .isActive(request.isActive())
