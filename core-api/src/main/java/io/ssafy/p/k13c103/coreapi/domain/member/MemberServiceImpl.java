@@ -3,6 +3,8 @@ package io.ssafy.p.k13c103.coreapi.domain.member;
 import io.ssafy.p.k13c103.coreapi.common.error.ApiException;
 import io.ssafy.p.k13c103.coreapi.common.error.ErrorCode;
 import io.ssafy.p.k13c103.coreapi.config.security.CustomMemberDetails;
+import io.ssafy.p.k13c103.coreapi.domain.member.dto.MemberRequestDto;
+import io.ssafy.p.k13c103.coreapi.domain.member.dto.MemberResponseDto;
 import io.ssafy.p.k13c103.coreapi.domain.member.entity.Member;
 import io.ssafy.p.k13c103.coreapi.domain.member.repository.MemberRepository;
 import jakarta.servlet.http.Cookie;
