@@ -114,6 +114,19 @@ public class KeyServiceImpl implements KeyService {
                 .build();
     }
 
+    @Override
+    @Transactional
+    public void delete(Long memberUid, Long keyUid) {
+
+        if (!memberRepository.existsById(memberUid))
+            throw new ApiException(ErrorCode.MEMBER_NOT_FOUND);
+
+        Key key = keyRepository.findByKeyUid(keyUid)
+                .orElseThrow(() -> new ApiException(ErrorCode.KEY_NOT_FOUND));
+
+        keyRepository.delete(key);
+    }
+
     private String encryptKey(String plainKey) {
         try {
             byte[] iv = new byte[12];

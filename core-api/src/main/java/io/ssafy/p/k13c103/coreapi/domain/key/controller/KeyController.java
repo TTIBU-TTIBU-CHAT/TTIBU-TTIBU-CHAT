@@ -41,4 +41,13 @@ public class KeyController {
         return ResponseEntity.status(HttpStatus.OK).body(JSend.success(info));
     }
 
+    @Operation(summary="키 삭제", description="")
+    @DeleteMapping("/{keyUid}")
+    public ResponseEntity<JSend> delete(@PathVariable Long keyUid, @AuthenticationPrincipal CustomMemberDetails member) {
+
+        keyService.delete(member.getMemberUid(), keyUid);
+
+        return ResponseEntity.status(HttpStatus.OK).body(JSend.success("키 삭제 완료"));
+    }
+
 }
