@@ -1,10 +1,15 @@
-import { useMemo } from "react";
+// GroupContent.jsx
+import { useMemo, useRef } from "react";
 import styled from "styled-components";
 import * as S from "../ModalShell.styles";
 import ReactFlow, { Background, useNodesState, useEdgesState } from "reactflow";
 import "reactflow/dist/style.css";
 
-function MiniGraph({ title, graph, onEdit, onDelete }) {
+/* ✅ FlowCanvas와 동일 MIME 키 */
+const DND_MIME = "application/x-ttibu-card";
+
+/* 미니 그래프 프리뷰 카드 */
+function MiniGraph({ graph, onEdit, onDelete }) {
   const [nodes, , onNodesChange] = useNodesState(graph.nodes);
   const [edges, , onEdgesChange] = useEdgesState(graph.edges);
 
@@ -44,6 +49,9 @@ function MiniGraph({ title, graph, onEdit, onDelete }) {
 }
 
 export function GroupContent({ onSelect }) {
+  const dragGhostRef = useRef(null);
+
+  /* 🗂 그룹 목록 — 실제에선 서버/상태값으로 교체 */
   const groups = useMemo(
     () =>
       Array.from({ length: 4 }).map((_, gi) => {
@@ -81,22 +89,62 @@ export function GroupContent({ onSelect }) {
     []
   );
 
+  /* ✅ g 그대로 담아서 전송 */
+  const makeDragPayload = (g) =>
+    JSON.stringify({
+      kind: "group",
+      id: g.id,
+      title: g.title,
+      graph: g.graph, // nodes/edges 그대로
+    });
+
+  /* 선명한 드래그 프리뷰 */
+  const makeDragImage = (cardEl) => {
+    if (!cardEl) return null;
+    const clone = cardEl.cloneNode(true);
+    clone.style.position = "fixed";
+    clone.style.top = "-1000px";
+    clone.style.left = "-1000px";
+    clone.style.pointerEvents = "none";
+    clone.style.filter = "none";
+    document.body.appendChild(clone);
+    dragGhostRef.current = clone;
+    return clone;
+  };
+  const cleanupDragImage = () => {
+    if (dragGhostRef.current) {
+      document.body.removeChild(dragGhostRef.current);
+      dragGhostRef.current = null;
+    }
+  };
+
   return (
     <>
-      <HeaderHint>그룹을 선택하세요</HeaderHint>
+      <HeaderHint>그룹 카드를 드래그해 오른쪽 캔버스에 놓으세요</HeaderHint>
       <S.SearchScroll>
         {groups.map((g) => (
           <GroupCard
             key={g.id}
+            draggable
+            onDragStart={(e) => {
+              const ghost = makeDragImage(e.currentTarget);
+              if (ghost) e.dataTransfer.setDragImage(ghost, 24, 24);
+              e.dataTransfer.setData(DND_MIME, makeDragPayload(g));
+            }}
+            onDragEnd={cleanupDragImage}
             onClick={() =>
               onSelect?.({ id: g.id, label: g.title, type: "group" })
             }
+            title="캔버스로 드래그해보세요"
           >
             <CardTop>
               <CardTitleText>{g.title}</CardTitleText>
+              <MetaSmall>
+                노드 {g.graph.nodes.length} · 엣지 {g.graph.edges.length}
+              </MetaSmall>
             </CardTop>
+
             <MiniGraph
-              title={g.title}
               graph={g.graph}
               onEdit={() => console.log("edit:", g.id)}
               onDelete={() => console.log("delete:", g.id)}
@@ -132,18 +180,28 @@ const GroupCard = styled(S.ResultCard)`
     #fff;
   border-radius: 18px;
   padding-top: 12px;
+  cursor: grab;
+  &:active { cursor: grabbing; }
 `;
 
 const CardTop = styled.div`
   display: flex;
-  align-items: center;
+  align-items: baseline;
+  justify-content: space-between;
   padding: 0 6px 8px 6px;
+  gap: 8px;
 `;
 
 const CardTitleText = styled.span`
   font-size: 15px;
   font-weight: 800;
   color: #2a344a;
+`;
+
+const MetaSmall = styled.span`
+  font-size: 12px;
+  color: #5b6786;
+  opacity: 0.9;
 `;
 
 const PreviewCardSurface = styled.div`
@@ -159,28 +217,21 @@ const PreviewWrap = styled.div`
   height: 220px;
   border-radius: 12px;
   overflow: hidden;
-  & > div {
-    height: 100%;
-  }
+  & > div { height: 100%; }
   isolation: isolate;
-  & .react-flow {
-    position: relative;
-    z-index: 1;
-  }
+  & .react-flow { position: relative; z-index: 1; }
 `;
 
 const PreviewActions = styled.div`
   position: absolute;
   right: -14%;
-  bottom: -82%; /* 카드 안쪽으로 살짝 띄우기 */
-  transform: translateX(-50%); /* 🔥 가로 중앙 고정 */
+  bottom: -82%;
+  transform: translateX(-50%);
   display: flex;
   gap: 12px;
-  z-index: 20; /* ReactFlow 위 */
-  pointer-events: none; /* 캔버스 제스처 방해 X */
-  & > * {
-    pointer-events: auto;
-  } /* 버튼은 클릭 가능 */
+  z-index: 20;
+  pointer-events: none;
+  & > * { pointer-events: auto; }
 `;
 
 const ActionButton = styled.button`
@@ -194,16 +245,7 @@ const ActionButton = styled.button`
   cursor: pointer;
   background: ${({ $tone }) => ($tone === "blue" ? "#29466b" : "#cf3b35")};
   box-shadow: 0 14px 26px rgba(0, 0, 0, 0.18);
-  transition:
-    transform 0.15s ease,
-    filter 0.15s ease;
-
-  &:hover {
-    filter: brightness(1.06);
-    transform: translateY(-1px);
-  }
-  &:active {
-    transform: translateY(0);
-  }
-  pointer-events: auto;
+  transition: transform 0.15s ease, filter 0.15s ease;
+  &:hover { filter: brightness(1.06); transform: translateY(-1px); }
+  &:active { transform: translateY(0); }
 `;

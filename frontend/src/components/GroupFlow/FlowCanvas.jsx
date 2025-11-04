@@ -34,10 +34,10 @@ import DeletableEdge from "./edges/DeletableEdge";
 import SelectionOverlay from "./overlays/SelectionOverlay";
 import QaNode from "../GroupFlow/QaNode";
 
-/* ===== DnD MIME 키 ===== */
-const DND_MIME = "application/x-ttibu-resultcard";
+/* ✅ 공통 DnD MIME */
+const DND_MIME = "application/x-ttibu-card";
 
-/* ===== 배치/충돌 관련 상수 & 유틸 ===== */
+/* ===== 배치/충돌 유틸 ===== */
 const H_SPACING = 260;
 const V_SPACING = 110;
 const COLLIDE_EPS = 12;
@@ -46,10 +46,7 @@ const MAX_PER_COL = 5;
 const getChildren = (eds, parentId) =>
   eds.filter((e) => e.source === parentId).map((e) => e.target);
 
-const zigzag = (n) => {
-  if (n === 0) return 0;
-  return n % 2 === 1 ? Math.ceil(n / 2) : -n / 2;
-};
+const zigzag = (n) => (n === 0 ? 0 : n % 2 === 1 ? Math.ceil(n / 2) : -n / 2);
 
 const findFreeSpot = (nodes, startX, startY) => {
   let x = startX;
@@ -69,9 +66,7 @@ const findFreeSpot = (nodes, startX, startY) => {
 /* ===== 루트/핸들 ===== */
 const computeIncomingMap = (edges) => {
   const map = new Map();
-  edges.forEach((e) => {
-    map.set(e.target, (map.get(e.target) || 0) + 1);
-  });
+  edges.forEach((e) => map.set(e.target, (map.get(e.target) || 0) + 1));
   return map;
 };
 
@@ -93,7 +88,7 @@ const withHandlesByRoot = (nodes, edges) => {
 
 const ROOT_X_OFFSET = 120;
 
-/* ===================== Inner: Provider 안에서 훅 사용 ===================== */
+/* ====== Provider 내부 코어 ====== */
 const FlowCanvasInner = forwardRef(function FlowCanvasInner(
   {
     editMode = true,
@@ -104,12 +99,10 @@ const FlowCanvasInner = forwardRef(function FlowCanvasInner(
   },
   ref
 ) {
-  const { screenToFlowPosition } = useReactFlow(); // ✅ 이제 Provider 안
+  const { screenToFlowPosition } = useReactFlow();
 
-  /* 노드 타입 */
   const nodeTypes = useMemo(() => ({ qa: QaNode }), []);
 
-  /* 상태 */
   const [nodes, setNodes, onNodesChange] = useNodesState(
     withHandlesByRoot(
       initialNodes.map((n) => ({ ...n, type: "qa", style: nodeStyle })),
@@ -130,13 +123,11 @@ const FlowCanvasInner = forwardRef(function FlowCanvasInner(
     edges: serializeEdges(initialEdges),
   });
 
-  /* 연결 */
   const onConnect = useCallback(
     (params) => setEdges((eds) => addEdge({ ...params, ...edgeStyle }, eds)),
     [setEdges]
   );
 
-  /* 선택/모드 */
   useEffect(() => {
     if (!editMode) {
       setSelectedNodes([]);
@@ -174,7 +165,6 @@ const FlowCanvasInner = forwardRef(function FlowCanvasInner(
     [editMode, onNodeClickInViewMode]
   );
 
-  /* 노드 추가(버튼) */
   const addSiblingNode = useCallback(() => {
     if (!lastSelectedId) return;
     const base = nodes.find((n) => n.id === lastSelectedId);
@@ -189,18 +179,12 @@ const FlowCanvasInner = forwardRef(function FlowCanvasInner(
     const draftY = (base.position?.y ?? 0) + zigzag(row) * V_SPACING;
 
     const { x, y } = findFreeSpot(nodes, draftX, draftY);
-
     const newId = `n${Date.now()}`;
     const newNode = {
       id: newId,
       type: "qa",
       position: { x, y },
-      data: {
-        label: "새 노드",
-        summary: "요약을 입력하세요",
-        question: "",
-        answer: "",
-      },
+      data: { label: "새 노드", summary: "요약을 입력하세요", question: "", answer: "" },
       style: nodeStyle,
       sourcePosition: Position.Right,
     };
@@ -210,7 +194,6 @@ const FlowCanvasInner = forwardRef(function FlowCanvasInner(
     onCreateNode?.(newId);
   }, [lastSelectedId, nodes, edges, onCreateNode, setNodes, setEdges]);
 
-  /* 선택 삭제 */
   const removeSelectedNode = useCallback(() => {
     if (!lastSelectedId) return;
 
@@ -227,8 +210,7 @@ const FlowCanvasInner = forwardRef(function FlowCanvasInner(
           .map((e) => ({ s: parentId, t: e.target }))
           .filter(({ s, t }) => s && t && s !== t)
           .filter(
-            ({ s, t }) =>
-              !other.some((oe) => oe.source === s && oe.target === t)
+            ({ s, t }) => !other.some((oe) => oe.source === s && oe.target === t)
           )
           .map(({ s, t }) => edge(s, t));
         return [...other, ...reattached];
@@ -242,7 +224,6 @@ const FlowCanvasInner = forwardRef(function FlowCanvasInner(
     onSelectionCountChange?.(0);
   }, [lastSelectedId, setEdges, setNodes, onSelectionCountChange]);
 
-  /* 그룹(로그) */
   const groupSelected = useCallback(() => {
     const selected = nodes.filter((n) => n.selected);
     const list = selected.length ? selected : selectedNodes;
@@ -250,7 +231,6 @@ const FlowCanvasInner = forwardRef(function FlowCanvasInner(
       console.warn("[Group] 최소 2개 이상 선택해야 그룹화가 가능합니다.");
       return;
     }
-
     const fallbackW = 160;
     const fallbackH = 40;
     const minX = Math.min(...list.map((n) => n.position.x));
@@ -266,20 +246,12 @@ const FlowCanvasInner = forwardRef(function FlowCanvasInner(
       id: `group-${Date.now()}`,
       nodeIds: list.map((n) => n.id),
       count: list.length,
-      bounds: {
-        minX,
-        minY,
-        maxX,
-        maxY,
-        width: maxX - minX,
-        height: maxY - minY,
-      },
+      bounds: { minX, minY, maxX, maxY, width: maxX - minX, height: maxY - minY },
       timestamp: new Date().toISOString(),
     };
     console.log("GROUP_SELECTED", group, list);
   }, [nodes, selectedNodes]);
 
-  /* 루트 핸들/오프셋 */
   const didInitialRootOffset = useRef(false);
 
   useEffect(() => {
@@ -292,24 +264,22 @@ const FlowCanvasInner = forwardRef(function FlowCanvasInner(
       const incoming = computeIncomingMap(edges);
       const roots = prev.filter((n) => !incoming.get(n.id));
       if (roots.length === 0) return prev;
-
-      return prev.map((n) => {
-        const isRoot = !incoming.get(n.id);
-        if (!isRoot) return n;
-        return {
-          ...n,
-          position: {
-            x: (n.position?.x ?? 0) - ROOT_X_OFFSET,
-            y: n.position?.y ?? 0,
-          },
-        };
-      });
+      return prev.map((n) =>
+        !incoming.get(n.id)
+          ? {
+              ...n,
+              position: {
+                x: (n.position?.x ?? 0) - ROOT_X_OFFSET,
+                y: n.position?.y ?? 0,
+              },
+            }
+          : n
+      );
     });
     didInitialRootOffset.current = true;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  /* 리셋 */
   const reset = useCallback(() => {
     setNodes(
       withHandlesByRoot(
@@ -323,7 +293,6 @@ const FlowCanvasInner = forwardRef(function FlowCanvasInner(
     onSelectionCountChange?.(0);
   }, [setNodes, setEdges, onSelectionCountChange]);
 
-  /* 외부 메서드 */
   const updateNodeLabel = useCallback(
     (id, label) => {
       setNodes((nds) =>
@@ -341,7 +310,6 @@ const FlowCanvasInner = forwardRef(function FlowCanvasInner(
     updateNodeLabel,
   ]);
 
-  /* canReset 보고 */
   useEffect(() => {
     const now = { nodes: serializeNodes(nodes), edges: serializeEdges(edges) };
     const base = initialSnapshotRef.current;
@@ -349,7 +317,6 @@ const FlowCanvasInner = forwardRef(function FlowCanvasInner(
     onCanResetChange?.(changed);
   }, [nodes, edges, onCanResetChange]);
 
-  /* 엣지 타입/상호작용 */
   const edgeTypes = useMemo(() => ({ deletable: DeletableEdge }), []);
   const rfInteractivity = useMemo(
     () => ({
@@ -364,7 +331,7 @@ const FlowCanvasInner = forwardRef(function FlowCanvasInner(
     [editMode]
   );
 
-  /* DnD: Search ResultCard → Canvas */
+  /* ===== DnD: Search / Group 카드 공용 처리 ===== */
   const onDragOver = useCallback((e) => {
     e.preventDefault();
     e.dataTransfer.dropEffect = "copy";
@@ -384,26 +351,55 @@ const FlowCanvasInner = forwardRef(function FlowCanvasInner(
       }
 
       const flowPos = screenToFlowPosition({ x: e.clientX, y: e.clientY });
-      const newId = `r_${payload.id}_${Date.now()}`;
+      const { x, y } = findFreeSpot(nodes, flowPos.x, flowPos.y);
+
+      // kind에 따라 노드 데이터 구성
+      if (payload.kind === "group") {
+        const id = `grp_${payload.id}_${Date.now()}`;
+        const newNode = {
+          id,
+          type: "qa",
+          position: { x, y },
+          data: {
+            label: payload.title,                 // 그룹명
+            summary:
+              `그룹(노드 ${payload.graph?.nodes?.length ?? 0} / 엣지 ${payload.graph?.edges?.length ?? 0})`,
+            question: payload.title,
+            answer: "그룹 카드가 드롭되었습니다.",
+            keyword: "그룹",
+            payload,                              // ✅ 원본 전체 보관
+          },
+          style: nodeStyle,
+          sourcePosition: Position.Right,
+          targetPosition: Position.Left,
+        };
+        setNodes((nds) => [...nds, newNode]);
+        onCreateNode?.(id, payload);
+        return;
+      }
+
+      // fallback: 검색 결과(result) 카드
+      const id = `res_${payload.id}_${Date.now()}`;
       const newNode = {
-        id: newId,
+        id,
         type: "qa",
-        position: flowPos,
+        position: { x, y },
         data: {
           label: payload.question ?? "질문",
           summary: payload.answer ?? "",
           question: payload.question ?? "",
           answer: payload.answer ?? "",
           keyword: payload.tags?.[0] ?? undefined,
+          payload, // ✅ 원본 전체 보관
         },
         style: nodeStyle,
         sourcePosition: Position.Right,
         targetPosition: Position.Left,
       };
       setNodes((nds) => [...nds, newNode]);
-      onCreateNode?.(newId, payload);
+      onCreateNode?.(id, payload);
     },
-    [screenToFlowPosition, setNodes, onCreateNode]
+    [nodes, screenToFlowPosition, setNodes, onCreateNode]
   );
 
   return (
@@ -441,7 +437,7 @@ const FlowCanvasInner = forwardRef(function FlowCanvasInner(
   );
 });
 
-/* ===================== Wrapper: Provider 제공 ===================== */
+/* ====== Provider 쉘 ====== */
 export default function FlowCanvas(props) {
   return (
     <>

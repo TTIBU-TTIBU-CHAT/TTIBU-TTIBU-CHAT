@@ -34,8 +34,9 @@ import DeletableEdge from "./edges/DeletableEdge";
 import SelectionOverlay from "./overlays/SelectionOverlay";
 import QaNode from "../GroupFlow/QaNode";
 
-/* SearchContent와 같은 MIME 키 */
-const DND_MIME = "application/x-ttibu-resultcard";
+/* MIME 키 (검색/그룹 둘 다 지원) */
+const DND_MIME_RESULT = "application/x-ttibu-resultcard";
+const DND_MIME_GROUP  = "application/x-ttibu-card";
 
 /* ===== 배치/충돌 관련 상수 & 유틸 ===== */
 const H_SPACING = 260;
@@ -84,7 +85,7 @@ const withHandlesByRoot = (nodes, edges) => {
 const ROOT_X_OFFSET = 120;
 
 /* ============================================================
- * 1) Provider 바깥 쉘: 훅 호출하지 않음
+ * 1) Provider 바깥 쉘
  * ============================================================ */
 const FlowCanvas = forwardRef(function FlowCanvas(props, ref) {
   return (
@@ -111,7 +112,7 @@ const FlowCore = forwardRef(function FlowCore(
   ref
 ) {
   const nodeTypes = useMemo(() => ({ qa: QaNode }), []);
-  const rf = useReactFlow(); // ✅ Provider 내부이므로 OK
+  const rf = useReactFlow(); // ✅ Provider 내부
 
   /* ===== 상태 ===== */
   const [nodes, setNodes, onNodesChange] = useNodesState(
@@ -226,7 +227,7 @@ const FlowCore = forwardRef(function FlowCore(
         (e) => e.source !== lastSelectedId && e.target !== lastSelectedId
       );
 
-    if (incoming.length === 1) {
+      if (incoming.length === 1) {
         const parentId = incoming[0].source;
         const reattached = outgoing
           .map((e) => ({ s: parentId, t: e.target }))
@@ -362,49 +363,81 @@ const FlowCore = forwardRef(function FlowCore(
     [editMode]
   );
 
-  /* ===== DnD: SearchContent → Flow ===== */
+  /* ===== DnD: 검색 ResultCard & 그룹 GroupCard → Flow ===== */
   const handleDragOver = useCallback((e) => {
     e.preventDefault();
     e.dataTransfer.dropEffect = "copy";
   }, []);
 
+  const tryGetPayload = (dt) => {
+    const rawResult = dt.getData(DND_MIME_RESULT);
+    const rawGroup  = dt.getData(DND_MIME_GROUP);
+    const raw = rawResult || rawGroup;
+    if (!raw) return null;
+    try {
+      return JSON.parse(raw);
+    } catch {
+      return null;
+    }
+  };
+
   const handleDrop = useCallback(
     (e) => {
       e.preventDefault();
-      const json = e.dataTransfer.getData(DND_MIME);
-      if (!json) return;
+      const payload = tryGetPayload(e.dataTransfer);
+      if (!payload) return;
 
-      let payload;
-      try {
-        payload = JSON.parse(json);
-      } catch {
+      const pos = rf.screenToFlowPosition({ x: e.clientX, y: e.clientY });
+      const { x, y } = findFreeSpot(nodes, pos.x, pos.y);
+
+      // 그룹 카드인지 검사
+      if (payload.kind === "group" && payload.title) {
+        const id = `g-${payload.id}-${Date.now()}`;
+        const graph = payload.graph ?? { nodes: [], edges: [] };
+        const newNode = {
+          id,
+          type: "qa",
+          position: { x, y },
+          data: {
+            label: payload.title,            // 그룹명
+            summary: `그룹: 노드 ${graph.nodes?.length ?? 0} · 엣지 ${graph.edges?.length ?? 0}`,
+            question: "",                    // 그룹은 Q/A 본문 없음
+            answer: "",
+            group: graph,                    // 🔗 원본 그래프를 통째로 보관
+            kind: "group",
+          },
+          style: nodeStyle,
+          sourcePosition: Position.Right,
+          targetPosition: Position.Left,
+        };
+        setNodes((nds) => [...nds, newNode]);
+        onCreateNode?.(id, payload);
         return;
       }
 
-      const { clientX, clientY } = e;
-      const pos = rf.screenToFlowPosition({ x: clientX, y: clientY });
-      const { x, y } = findFreeSpot(nodes, pos.x, pos.y);
-
-      const id = `q-${Date.now()}`;
+      // 그렇지 않으면 검색 결과 카드로 처리
+      const id = `q-${payload.id ?? "ad-hoc"}-${Date.now()}`;
       const newNode = {
         id,
         type: "qa",
         position: { x, y },
         data: {
-          label: payload.label || "질문",
-          summary: payload.answer?.slice(0, 120) || "",
+          label: payload.label || payload.question || "질문",
+          summary: (payload.answer || "").slice(0, 140),
           question: payload.question || payload.label || "",
           answer: payload.answer || "",
           tags: payload.tags || [],
           date: payload.date,
+          kind: "result",
         },
         style: nodeStyle,
         sourcePosition: Position.Right,
+        targetPosition: Position.Left,
       };
-
       setNodes((nds) => [...nds, newNode]);
+      onCreateNode?.(id, payload);
     },
-    [nodes, rf, setNodes]
+    [nodes, rf, setNodes, onCreateNode]
   );
 
   return (
