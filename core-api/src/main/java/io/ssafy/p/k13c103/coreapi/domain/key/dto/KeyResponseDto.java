@@ -12,4 +12,13 @@ public class KeyResponseDto {
             Long keyUid
     ) {
     }
+
+    /**
+     * 키 수정 응답 DTO
+     */
+    @Builder
+    public record EditKeyInfo(
+            Long keyUid
+    ) {
+    }
 }

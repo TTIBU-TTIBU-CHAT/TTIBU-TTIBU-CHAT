@@ -14,4 +14,16 @@ public class KeyRequestDto {
             LocalDate expirationAt
     ) {
     }
+
+    /**
+     * 키 수정 요청 DTO
+     */
+    public record EditKey(
+            Long keyUid,
+            String provider,
+            String key,
+            Boolean isActive,
+            LocalDate expirationAt
+    ) {
+    }
 }
