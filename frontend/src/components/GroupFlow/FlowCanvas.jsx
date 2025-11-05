@@ -44,6 +44,9 @@ const V_SPACING = 110;
 const COLLIDE_EPS = 12;
 const MAX_PER_COL = 5;
 
+/* ✅ 최초 한 번만 적용할 최소 줌 */
+const MIN_ZOOM = 0.5;
+
 const getChildren = (eds, parentId) =>
   eds.filter((e) => e.source === parentId).map((e) => e.target);
 
@@ -89,6 +92,32 @@ const withHandlesByRoot = (nodes, edges) => {
 
 const ROOT_X_OFFSET = 120;
 
+/* 🔧 최초 1회: 그래프 바운딩 박스 중심으로 이동 + 최소 줌 적용 */
+function centerGraphOnce(instance, zoom = MIN_ZOOM) {
+  requestAnimationFrame(() => {
+    const rendered = instance.getNodes();
+    if (!rendered.length) {
+      instance.setViewport({ x: 0, y: 0, zoom });
+      return;
+    }
+    const F_W = 160, F_H = 40;
+    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+    for (const n of rendered) {
+      const x = n.position?.x ?? 0;
+      const y = n.position?.y ?? 0;
+      const w = n.width ?? F_W;
+      const h = n.height ?? F_H;
+      minX = Math.min(minX, x);
+      minY = Math.min(minY, y);
+      maxX = Math.max(maxX, x + w);
+      maxY = Math.max(maxY, y + h);
+    }
+    const cx = (minX + maxX) / 2;
+    const cy = (minY + maxY) / 2;
+    instance.setCenter(cx, cy, { zoom, duration: 0 });
+  });
+}
+
 /* 🔹 (더 이상 사용 안 함) 그룹 타이틀 노드 자리채움 */
 function GroupTitleNode() {
   return (
@@ -105,6 +134,7 @@ function GroupTitleNode() {
       justifyContent: "center",
       fontWeight: 800,
       fontSize: 13,
+      position: "relative",
     }}>
       Group
       <Handle type="target" position={Position.Left} style={{ opacity: 1 }} />
@@ -125,6 +155,7 @@ const FlowCanvasInner = forwardRef(function FlowCanvasInner(
   ref
 ) {
   const { screenToFlowPosition } = useReactFlow();
+  const didInitRef = useRef(false); // ✅ 초기 뷰포트 세팅 1회 보장
 
   /* qa: QaNode / gtitle: GroupTitleNode(미사용) */
   const nodeTypes = useMemo(() => ({ qa: QaNode, gtitle: GroupTitleNode }), []);
@@ -210,7 +241,7 @@ const FlowCanvasInner = forwardRef(function FlowCanvasInner(
       id: newId,
       type: "qa",
       position: { x, y },
-      data: { label: "새 노드", summary: "요약을 입력하세요", question: "", answer: "" },
+      data: { label: "새 노드", summary: "새 노드", question: "", answer: "" },
       style: nodeStyle,
       sourcePosition: Position.Right,
       targetPosition: Position.Left,
@@ -442,7 +473,14 @@ const FlowCanvasInner = forwardRef(function FlowCanvasInner(
         onConnect={onConnect}
         onSelectionChange={handleSelectionChange}
         onNodeClick={onNodeClick}
-        fitView
+        /* ✅ 최초 한 번만: 최소 줌 + 그래프 중앙 정렬 */
+        minZoom={MIN_ZOOM}
+        onInit={(instance) => {
+          if (didInitRef.current) return;
+          centerGraphOnce(instance, MIN_ZOOM);
+          didInitRef.current = true;
+        }}
+        /* ❌ fitView를 쓰면 우리가 정한 줌/중앙이 덮일 수 있어 제외 */
         proOptions={{ hideAttribution: true }}
         edgeTypes={edgeTypes}
         nodeTypes={nodeTypes}

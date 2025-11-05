@@ -44,6 +44,9 @@ const V_SPACING = 110;
 const COLLIDE_EPS = 12;
 const MAX_PER_COL = 5;
 
+/* ✅ 최소 줌 (가장 작게 시작) */
+const MIN_ZOOM = 0.5;
+
 const getChildren = (eds, parentId) =>
   eds.filter((e) => e.source === parentId).map((e) => e.target);
 
@@ -99,11 +102,47 @@ const FlowCanvas = forwardRef(function FlowCanvas(props, ref) {
 });
 
 /* ============================================================
+ * 바운딩 박스 중심으로 1회만 중앙 정렬
+ * ============================================================ */
+function centerGraph(instance, zoom) {
+  requestAnimationFrame(() => {
+    const rendered = instance.getNodes();
+    if (!rendered.length) {
+      instance.setViewport({ x: 0, y: 0, zoom });
+      return;
+    }
+
+    const F_W = 160, F_H = 40;
+    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+
+    for (const n of rendered) {
+      const x = n.position?.x ?? 0;
+      const y = n.position?.y ?? 0;
+      const w = n.width ?? F_W;
+      const h = n.height ?? F_H;
+      minX = Math.min(minX, x);
+      minY = Math.min(minY, y);
+      maxX = Math.max(maxX, x + w);
+      maxY = Math.max(maxY, y + h);
+    }
+
+    const cx = (minX + maxX) / 2;
+    const cy = (minY + maxY) / 2;
+
+    instance.setCenter(cx, cy, { zoom, duration: 0 });
+  });
+}
+
+/* ============================================================
  * 2) Provider 내부 실제 로직
+ *    - activeBranch를 받아 보이는 노드/엣지 필터링
+ *    - 최초 1회: MIN_ZOOM + 중앙 정렬
+ *    - 이후엔 사용자 조작 유지
  * ============================================================ */
 const FlowCore = forwardRef(function FlowCore(
   {
     editMode = true,
+    activeBranch = "전체", // 현재 선택된 브랜치
     onCanResetChange,
     onSelectionCountChange,
     onNodeClickInViewMode,
@@ -111,9 +150,9 @@ const FlowCore = forwardRef(function FlowCore(
   },
   ref
 ) {
-  // 🔁 이제 nodeTypes는 QaNode만 사용 (그룹도 QaNode로)
   const nodeTypes = useMemo(() => ({ qa: QaNode }), []);
   const rf = useReactFlow();
+  const didInitRef = useRef(false); // onInit 1회 보장
 
   /* ===== 상태 ===== */
   const [nodes, setNodes, onNodesChange] = useNodesState(
@@ -201,9 +240,10 @@ const FlowCore = forwardRef(function FlowCore(
       type: "qa",
       position: { x, y },
       data: {
+        branch: activeBranch !== "전체" ? activeBranch : undefined, // 브랜치 태깅
         label: "새 노드",
-        summary: "요약을 입력하세요",
-        question: "",
+        summary: "새 노드",
+        question: "질문을 입력하세요",
         answer: "",
       },
       style: nodeStyle,
@@ -214,7 +254,7 @@ const FlowCore = forwardRef(function FlowCore(
     setNodes((nds) => [...nds, newNode]);
     setEdges((eds) => [...eds, edge(base.id, newId)]);
     onCreateNode?.(newId);
-  }, [lastSelectedId, nodes, edges, onCreateNode, setNodes, setEdges]);
+  }, [lastSelectedId, nodes, edges, activeBranch, onCreateNode, setNodes, setEdges]);
 
   const removeSelectedNode = useCallback(() => {
     if (!lastSelectedId) return;
@@ -226,7 +266,7 @@ const FlowCore = forwardRef(function FlowCore(
         (e) => e.source !== lastSelectedId && e.target !== lastSelectedId
       );
 
-    if (incoming.length === 1) {
+      if (incoming.length === 1) {
         const parentId = incoming[0].source;
         const reattached = outgoing
           .map((e) => ({ s: parentId, t: e.target }))
@@ -345,10 +385,24 @@ const FlowCore = forwardRef(function FlowCore(
     onCanResetChange?.(changed);
   }, [nodes, edges, onCanResetChange]);
 
-  /* ===== 커스텀 엣지 타입 ===== */
-  const edgeTypes = useMemo(() => ({ deletable: DeletableEdge }), []);
+  /* ===== 브랜치 필터링 ===== */
+  const visibleNodes = useMemo(() => {
+    if (activeBranch === "전체") return nodes;
+    return nodes.filter((n) => n?.data?.branch === activeBranch);
+  }, [nodes, activeBranch]);
 
-  /* ===== 상호작용 옵션 ===== */
+  const visibleIdSet = useMemo(
+    () => new Set(visibleNodes.map((n) => n.id)),
+    [visibleNodes]
+  );
+
+  const visibleEdges = useMemo(() => {
+    if (activeBranch === "전체") return edges;
+    return edges.filter((e) => visibleIdSet.has(e.source) && visibleIdSet.has(e.target));
+  }, [edges, activeBranch, visibleIdSet]);
+
+  /* ===== 커스텀 엣지 타입 & 상호작용 ===== */
+  const edgeTypes = useMemo(() => ({ deletable: DeletableEdge }), []);
   const rfInteractivity = useMemo(
     () => ({
       nodesDraggable: editMode,
@@ -393,7 +447,7 @@ const FlowCore = forwardRef(function FlowCore(
       if (payload.kind === "group" && payload.title) {
         const id = `g-${payload.id}-${Date.now()}`;
         const graph = payload.graph ?? { nodes: [], edges: [] };
-        const summary = payload.summary || ""; // ← GroupContent에서 넣어준 요약
+        const summary = payload.summary || "";
 
         const newNode = {
           id,
@@ -404,6 +458,7 @@ const FlowCore = forwardRef(function FlowCore(
             label: payload.title,
             summary,
             group: graph,
+            branch: activeBranch !== "전체" ? activeBranch : undefined, // 드롭 시 브랜치 태깅
           },
           style: nodeStyle,
           sourcePosition: Position.Right,
@@ -421,6 +476,7 @@ const FlowCore = forwardRef(function FlowCore(
         type: "qa",
         position: { x, y },
         data: {
+          branch: activeBranch !== "전체" ? activeBranch : undefined,
           label: payload.label || payload.question || "질문",
           summary: (payload.answer || "").slice(0, 140),
           question: payload.question || "",
@@ -435,20 +491,26 @@ const FlowCore = forwardRef(function FlowCore(
       setNodes((nds) => [...nds, newNode]);
       onCreateNode?.(id, payload);
     },
-    [nodes, rf, setNodes, onCreateNode]
+    [nodes, rf, setNodes, onCreateNode, activeBranch]
   );
 
   return (
     <FlowWrap>
       <ReactFlow
-        nodes={nodes}
-        edges={edges}
+        nodes={visibleNodes}
+        edges={visibleEdges}
         onNodesChange={onNodesChange}
         onEdgesChange={onEdgesChange}
         onConnect={onConnect}
         onSelectionChange={handleSelectionChange}
         onNodeClick={onNodeClick}
-        fitView
+        /* ✅ 초기 1회: 최소 줌 + 중앙 정렬만 수행, 이후 사용자 조작 유지 */
+        minZoom={MIN_ZOOM}
+        onInit={(instance) => {
+          if (didInitRef.current) return;
+          centerGraph(instance, MIN_ZOOM);
+          didInitRef.current = true;
+        }}
         proOptions={{ hideAttribution: true }}
         edgeTypes={edgeTypes}
         nodeTypes={nodeTypes}

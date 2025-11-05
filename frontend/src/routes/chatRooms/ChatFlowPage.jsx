@@ -1,3 +1,4 @@
+// src/pages/ChatFlowPage.jsx
 import { useCallback, useRef, useState } from "react";
 import styled from "styled-components";
 import { useParams } from "@tanstack/react-router";
@@ -10,23 +11,16 @@ import FlowCanvas from "@/components/Chatflow/FlowCanvas";
 export default function ChatFlowPage() {
   const { nodeId } = useParams({ strict: false });
   const { messages, addUser, addAssistant } = useChatList([
-    {
-      id: "u1",
-      role: "user",
-      content: "다익스트라 알고리즘 예시 말해줘",
-      ts: Date.now() - 2000,
-    },
-    {
-      id: "a1",
-      role: "assistant",
-      content: "다익스트라 알고리즘의 예시입니다.",
-      ts: Date.now() - 1000,
-    },
+    { id: "u1", role: "user", content: "다익스트라 알고리즘 예시 말해줘", ts: Date.now() - 2000 },
+    { id: "a1", role: "assistant", content: "다익스트라 알고리즘의 예시입니다.", ts: Date.now() - 1000 },
   ]);
   const [input, setInput] = useState("");
   const [editingNodeId, setEditingNodeId] = useState(null);
   const [branchOpen, setBranchOpen] = useState(false);
-  const [branch, setBranch] = useState("브랜치-2");
+
+  // ✅ 기본 '전체'
+  const [branch, setBranch] = useState("전체");
+
   const [editMode, setEditMode] = useState(true);
   const [panelOpen, setPanelOpen] = useState(false);
   const [panelType, setPanelType] = useState("chat");
@@ -45,16 +39,18 @@ export default function ChatFlowPage() {
   }, [input, addUser, addAssistant, editingNodeId]);
 
   const handleInit = () => canvasRef.current?.reset();
-  const openChatPanel = () => {
-    setPanelType("chat");
-    setPanelOpen(true);
-  };
+  const openChatPanel = () => { setPanelType("chat"); setPanelOpen(true); };
   const handleCreateNode = useCallback((newNodeId) => {
     setEditingNodeId(newNodeId);
     setPanelType("chat");
     setPanelOpen(true);
   }, []);
   const showGroupButton = editMode && selectedCount > 1;
+
+  const branchItems = ["전체", "브랜치-1", "브랜치-2", "브랜치-3"].map((v) => ({
+    value: v,
+    active: v === branch,
+  }));
 
   return (
     <Page>
@@ -68,10 +64,7 @@ export default function ChatFlowPage() {
 
       <BranchDropdown
         label={branch}
-        items={["브랜치-1", "브랜치-2", "브랜치-3"].map((v) => ({
-          value: v,
-          active: v === branch,
-        }))}
+        items={branchItems}
         open={branchOpen}
         setOpen={setBranchOpen}
         onSelect={setBranch}
@@ -102,6 +95,7 @@ export default function ChatFlowPage() {
       <FlowCanvas
         ref={canvasRef}
         editMode={editMode}
+        activeBranch={branch}
         onCanResetChange={setCanReset}
         onSelectionCountChange={setSelectedCount}
         onNodeClickInViewMode={openChatPanel}
