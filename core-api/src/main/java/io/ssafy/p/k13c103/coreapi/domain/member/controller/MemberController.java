@@ -1,9 +1,12 @@
 package io.ssafy.p.k13c103.coreapi.domain.member.controller;
 
 import io.ssafy.p.k13c103.coreapi.common.jsend.JSend;
+import io.ssafy.p.k13c103.coreapi.config.security.CustomMemberDetails;
+import io.ssafy.p.k13c103.coreapi.domain.key.service.KeyService;
 import io.ssafy.p.k13c103.coreapi.domain.member.dto.MemberRequestDto;
 import io.ssafy.p.k13c103.coreapi.domain.member.dto.MemberResponseDto;
 import io.ssafy.p.k13c103.coreapi.domain.member.service.MemberService;
+import io.ssafy.p.k13c103.coreapi.domain.model.service.ModelService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.servlet.http.HttpServletRequest;
@@ -12,6 +15,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.web.csrf.CsrfToken;
 import org.springframework.web.bind.annotation.*;
 
@@ -25,6 +29,8 @@ import java.util.Map;
 public class MemberController {
 
     private final MemberService memberService;
+    private final KeyService keyService;
+    private final ModelService modelService;
 
     @Operation(summary = "회원가입", description = "")
     @PostMapping
@@ -52,6 +58,19 @@ public class MemberController {
         memberService.logout(request, response);
 
         return ResponseEntity.status(HttpStatus.OK).body(JSend.success("로그아웃 완료"));
+    }
+
+    @Operation(summary = "내 정보 조회", description = "")
+    @GetMapping("/me")
+    public ResponseEntity<JSend> getMe(@AuthenticationPrincipal CustomMemberDetails member){
+
+        MemberResponseDto.MemberDetailInfo info = MemberResponseDto.MemberDetailInfo.builder()
+                .tokens(keyService.getTokens(member.getMemberUid()))
+                .keys(keyService.getKeys(member.getMemberUid()))
+                .models(modelService.getModels(member.getMemberUid()))
+                .build();
+
+        return ResponseEntity.status(HttpStatus.OK).body(JSend.success(info));
     }
 
     @Operation(summary = "csrf 토큰 발급", description = "")
