@@ -20,6 +20,10 @@ spring:
 server:
   port: ${SERVER_PORT:8080}
 
+app:
+  security:
+    csrf-mode: token
+
 logging:
   level:
     org.springframework.data.mongodb.core.MongoTemplate: WARN
@@ -27,3 +31,9 @@ logging:
     org.springframework.web: WARN
   pattern:
     console: "%d{yyyy-MM-dd HH:mm:ss} [%thread] %-5level %logger{36} - %msg%n"
+
+springdoc:
+  api-docs:
+    enabled: false
+  swagger-ui:
+    enabled: false
