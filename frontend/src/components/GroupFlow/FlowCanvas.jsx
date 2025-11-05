@@ -1,4 +1,3 @@
-// FlowCanvas.jsx
 import React, {
   forwardRef,
   useCallback,
@@ -18,6 +17,7 @@ import ReactFlow, {
   useNodesState,
   Position,
   useReactFlow,
+  Handle,
 } from "reactflow";
 import "reactflow/dist/style.css";
 
@@ -34,8 +34,9 @@ import DeletableEdge from "./edges/DeletableEdge";
 import SelectionOverlay from "./overlays/SelectionOverlay";
 import QaNode from "../GroupFlow/QaNode";
 
-/* ✅ 공통 DnD MIME */
-const DND_MIME = "application/x-ttibu-card";
+/* ✅ 두 MIME 모두 지원 (검색/그룹) */
+const DND_MIME_RESULT = "application/x-ttibu-resultcard";
+const DND_MIME_GROUP  = "application/x-ttibu-card";
 
 /* ===== 배치/충돌 유틸 ===== */
 const H_SPACING = 260;
@@ -88,6 +89,30 @@ const withHandlesByRoot = (nodes, edges) => {
 
 const ROOT_X_OFFSET = 120;
 
+/* 🔹 (더 이상 사용 안 함) 그룹 타이틀 노드 자리채움 */
+function GroupTitleNode() {
+  return (
+    <div style={{
+      background: "#F4FAF7",
+      border: "2px dashed #BFEAD0",
+      borderRadius: 14,
+      padding: "10px 12px",
+      color: "#1F6F4A",
+      minWidth: 240,
+      minHeight: 60,
+      display: "inline-flex",
+      alignItems: "center",
+      justifyContent: "center",
+      fontWeight: 800,
+      fontSize: 13,
+    }}>
+      Group
+      <Handle type="target" position={Position.Left} style={{ opacity: 1 }} />
+      <Handle type="source" position={Position.Right} style={{ opacity: 1 }} />
+    </div>
+  );
+}
+
 /* ====== Provider 내부 코어 ====== */
 const FlowCanvasInner = forwardRef(function FlowCanvasInner(
   {
@@ -101,7 +126,8 @@ const FlowCanvasInner = forwardRef(function FlowCanvasInner(
 ) {
   const { screenToFlowPosition } = useReactFlow();
 
-  const nodeTypes = useMemo(() => ({ qa: QaNode }), []);
+  /* qa: QaNode / gtitle: GroupTitleNode(미사용) */
+  const nodeTypes = useMemo(() => ({ qa: QaNode, gtitle: GroupTitleNode }), []);
 
   const [nodes, setNodes, onNodesChange] = useNodesState(
     withHandlesByRoot(
@@ -187,6 +213,7 @@ const FlowCanvasInner = forwardRef(function FlowCanvasInner(
       data: { label: "새 노드", summary: "요약을 입력하세요", question: "", answer: "" },
       style: nodeStyle,
       sourcePosition: Position.Right,
+      targetPosition: Position.Left,
     };
 
     setNodes((nds) => [...nds, newNode]);
@@ -277,8 +304,7 @@ const FlowCanvasInner = forwardRef(function FlowCanvasInner(
       );
     });
     didInitialRootOffset.current = true;
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, []); // eslint-disable-line
 
   const reset = useCallback(() => {
     setNodes(
@@ -337,37 +363,42 @@ const FlowCanvasInner = forwardRef(function FlowCanvasInner(
     e.dataTransfer.dropEffect = "copy";
   }, []);
 
+  // ✅ 두 MIME 중 어떤 걸로 와도 읽는다
+  const getPayloadFromDT = (dt) => {
+    const raw = dt.getData(DND_MIME_RESULT) || dt.getData(DND_MIME_GROUP);
+    if (!raw) return null;
+    try {
+      return JSON.parse(raw);
+    } catch {
+      return null;
+    }
+  };
+
   const onDrop = useCallback(
     (e) => {
       e.preventDefault();
-      const raw = e.dataTransfer.getData(DND_MIME);
-      if (!raw) return;
-
-      let payload;
-      try {
-        payload = JSON.parse(raw);
-      } catch {
-        return;
-      }
+      const payload = getPayloadFromDT(e.dataTransfer);
+      if (!payload) return;
 
       const flowPos = screenToFlowPosition({ x: e.clientX, y: e.clientY });
       const { x, y } = findFreeSpot(nodes, flowPos.x, flowPos.y);
 
-      // kind에 따라 노드 데이터 구성
+      // ✅ 그룹 카드는 qa 타입 + data.kind="group" (줌 2단계 렌더)
       if (payload.kind === "group") {
         const id = `grp_${payload.id}_${Date.now()}`;
+        const g = payload.graph ?? { nodes: [], edges: [] };
+        const label = payload.title || "Group";
+        const summary = payload.summary || ""; // ← 받으면 그대로 씀
+
         const newNode = {
           id,
           type: "qa",
           position: { x, y },
           data: {
-            label: payload.title,                 // 그룹명
-            summary:
-              `그룹(노드 ${payload.graph?.nodes?.length ?? 0} / 엣지 ${payload.graph?.edges?.length ?? 0})`,
-            question: payload.title,
-            answer: "그룹 카드가 드롭되었습니다.",
-            keyword: "그룹",
-            payload,                              // ✅ 원본 전체 보관
+            kind: "group",
+            label,
+            summary,
+            group: g,
           },
           style: nodeStyle,
           sourcePosition: Position.Right,
@@ -378,19 +409,18 @@ const FlowCanvasInner = forwardRef(function FlowCanvasInner(
         return;
       }
 
-      // fallback: 검색 결과(result) 카드
-      const id = `res_${payload.id}_${Date.now()}`;
+      // 일반 검색 결과 카드
+      const id = `res_${payload.id || "adhoc"}_${Date.now()}`;
       const newNode = {
         id,
         type: "qa",
         position: { x, y },
         data: {
-          label: payload.question ?? "질문",
-          summary: payload.answer ?? "",
-          question: payload.question ?? "",
-          answer: payload.answer ?? "",
-          keyword: payload.tags?.[0] ?? undefined,
-          payload, // ✅ 원본 전체 보관
+          label: payload.label || payload.question || "질문",
+          summary: (payload.answer || "").slice(0, 140),
+          question: payload.question || payload.label || "",
+          answer: payload.answer || "",
+          date: payload.date,
         },
         style: nodeStyle,
         sourcePosition: Position.Right,
@@ -437,7 +467,6 @@ const FlowCanvasInner = forwardRef(function FlowCanvasInner(
   );
 });
 
-/* ====== Provider 쉘 ====== */
 export default function FlowCanvas(props) {
   return (
     <>

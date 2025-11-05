@@ -1,4 +1,4 @@
-// FlowCanvas.jsx
+// src/components/Flow/FlowCanvas.jsx
 import React, {
   forwardRef,
   useCallback,
@@ -36,7 +36,7 @@ import QaNode from "../GroupFlow/QaNode";
 
 /* MIME 키 (검색/그룹 둘 다 지원) */
 const DND_MIME_RESULT = "application/x-ttibu-resultcard";
-const DND_MIME_GROUP  = "application/x-ttibu-card";
+const DND_MIME_GROUP = "application/x-ttibu-card";
 
 /* ===== 배치/충돌 관련 상수 & 유틸 ===== */
 const H_SPACING = 260;
@@ -75,7 +75,7 @@ const withHandlesByRoot = (nodes, edges) => {
   return nodes.map((n) => {
     const isRoot = !incoming.get(n.id);
     if (isRoot) {
-      const { targetPosition, ...rest } = n;
+      const { targetPosition, ...rest } = n; // 루트: target 핸들 제거
       return { ...rest, sourcePosition: Position.Right };
     }
     return { ...n, sourcePosition: Position.Right, targetPosition: Position.Left };
@@ -111,8 +111,9 @@ const FlowCore = forwardRef(function FlowCore(
   },
   ref
 ) {
+  // 🔁 이제 nodeTypes는 QaNode만 사용 (그룹도 QaNode로)
   const nodeTypes = useMemo(() => ({ qa: QaNode }), []);
-  const rf = useReactFlow(); // ✅ Provider 내부
+  const rf = useReactFlow();
 
   /* ===== 상태 ===== */
   const [nodes, setNodes, onNodesChange] = useNodesState(
@@ -141,7 +142,7 @@ const FlowCore = forwardRef(function FlowCore(
     [setEdges]
   );
 
-  /* ===== 편집 모드 전환 시 선택 해제 ===== */
+  /* ===== 선택/클릭/추가/삭제 ===== */
   useEffect(() => {
     if (!editMode) {
       setSelectedNodes([]);
@@ -150,7 +151,6 @@ const FlowCore = forwardRef(function FlowCore(
     }
   }, [editMode, onSelectionCountChange]);
 
-  /* ===== 선택 변경 ===== */
   const handleSelectionChange = useCallback(
     ({ nodes: selNodes }) => {
       if (!editMode) {
@@ -167,7 +167,6 @@ const FlowCore = forwardRef(function FlowCore(
     [editMode, onSelectionCountChange]
   );
 
-  /* ===== 노드 클릭 ===== */
   const onNodeClick = useCallback(
     (e, node) => {
       if (!editMode) {
@@ -181,7 +180,6 @@ const FlowCore = forwardRef(function FlowCore(
     [editMode, onNodeClickInViewMode]
   );
 
-  /* ===== 노드 액션: 자식 추가 ===== */
   const addSiblingNode = useCallback(() => {
     if (!lastSelectedId) return;
     const base = nodes.find((n) => n.id === lastSelectedId);
@@ -210,6 +208,7 @@ const FlowCore = forwardRef(function FlowCore(
       },
       style: nodeStyle,
       sourcePosition: Position.Right,
+      targetPosition: Position.Left,
     };
 
     setNodes((nds) => [...nds, newNode]);
@@ -227,7 +226,7 @@ const FlowCore = forwardRef(function FlowCore(
         (e) => e.source !== lastSelectedId && e.target !== lastSelectedId
       );
 
-      if (incoming.length === 1) {
+    if (incoming.length === 1) {
         const parentId = incoming[0].source;
         const reattached = outgoing
           .map((e) => ({ s: parentId, t: e.target }))
@@ -371,7 +370,7 @@ const FlowCore = forwardRef(function FlowCore(
 
   const tryGetPayload = (dt) => {
     const rawResult = dt.getData(DND_MIME_RESULT);
-    const rawGroup  = dt.getData(DND_MIME_GROUP);
+    const rawGroup = dt.getData(DND_MIME_GROUP);
     const raw = rawResult || rawGroup;
     if (!raw) return null;
     try {
@@ -390,21 +389,21 @@ const FlowCore = forwardRef(function FlowCore(
       const pos = rf.screenToFlowPosition({ x: e.clientX, y: e.clientY });
       const { x, y } = findFreeSpot(nodes, pos.x, pos.y);
 
-      // 그룹 카드인지 검사
+      // ✅ 그룹 → QaNode로 생성 (2단계 줌 렌더), summary도 전달
       if (payload.kind === "group" && payload.title) {
         const id = `g-${payload.id}-${Date.now()}`;
         const graph = payload.graph ?? { nodes: [], edges: [] };
+        const summary = payload.summary || ""; // ← GroupContent에서 넣어준 요약
+
         const newNode = {
           id,
           type: "qa",
           position: { x, y },
           data: {
-            label: payload.title,            // 그룹명
-            summary: `그룹: 노드 ${graph.nodes?.length ?? 0} · 엣지 ${graph.edges?.length ?? 0}`,
-            question: "",                    // 그룹은 Q/A 본문 없음
-            answer: "",
-            group: graph,                    // 🔗 원본 그래프를 통째로 보관
             kind: "group",
+            label: payload.title,
+            summary,
+            group: graph,
           },
           style: nodeStyle,
           sourcePosition: Position.Right,
@@ -415,8 +414,8 @@ const FlowCore = forwardRef(function FlowCore(
         return;
       }
 
-      // 그렇지 않으면 검색 결과 카드로 처리
-      const id = `q-${payload.id ?? "ad-hoc"}-${Date.now()}`;
+      // 일반 검색 결과 카드 → 3단계 줌 렌더
+      const id = `q-${payload.id ?? "adhoc"}-${Date.now()}`;
       const newNode = {
         id,
         type: "qa",
@@ -424,10 +423,9 @@ const FlowCore = forwardRef(function FlowCore(
         data: {
           label: payload.label || payload.question || "질문",
           summary: (payload.answer || "").slice(0, 140),
-          question: payload.question || payload.label || "",
+          question: payload.question || "",
           answer: payload.answer || "",
           tags: payload.tags || [],
-          date: payload.date,
           kind: "result",
         },
         style: nodeStyle,

@@ -1,4 +1,3 @@
-// GroupContent.jsx
 import { useMemo, useRef } from "react";
 import styled from "styled-components";
 import * as S from "../ModalShell.styles";
@@ -80,21 +79,27 @@ export function GroupContent({ onSelect }) {
             type: "smoothstep",
           },
         ];
+
+        // ✅ 여기서 summary를 생성/보관
+        const summary = `다익스트라 핵심 흐름: 우선순위 큐로 최소 비용 정점 확장 · 예시 포함`;
+
         return {
           id: `group-${gi + 1}`,
           title: `Group ${gi + 1}`,
           graph: { nodes, edges },
+          summary, // ← 추가
         };
       }),
     []
   );
 
-  /* ✅ g 그대로 담아서 전송 */
+  /* ✅ summary까지 함께 담아서 전송 */
   const makeDragPayload = (g) =>
     JSON.stringify({
       kind: "group",
       id: g.id,
       title: g.title,
+      summary: g.summary, // ← 추가
       graph: g.graph, // nodes/edges 그대로
     });
 
@@ -139,9 +144,6 @@ export function GroupContent({ onSelect }) {
           >
             <CardTop>
               <CardTitleText>{g.title}</CardTitleText>
-              <MetaSmall>
-                노드 {g.graph.nodes.length} · 엣지 {g.graph.edges.length}
-              </MetaSmall>
             </CardTop>
 
             <MiniGraph
@@ -162,7 +164,7 @@ const bubbleNodeStyle = {
   border: "1px solid rgba(0,0,0,.10)",
   borderRadius: 12,
   padding: "8px 10px",
-  boxShadow: "0 6px 16px rgba(0,0,0,.10)",
+  boxShadow: 0 + " 6px 16px rgba(0,0,0,.10)",
   fontSize: 12,
 };
 
@@ -181,7 +183,9 @@ const GroupCard = styled(S.ResultCard)`
   border-radius: 18px;
   padding-top: 12px;
   cursor: grab;
-  &:active { cursor: grabbing; }
+  &:active {
+    cursor: grabbing;
+  }
 `;
 
 const CardTop = styled.div`
@@ -198,12 +202,6 @@ const CardTitleText = styled.span`
   color: #2a344a;
 `;
 
-const MetaSmall = styled.span`
-  font-size: 12px;
-  color: #5b6786;
-  opacity: 0.9;
-`;
-
 const PreviewCardSurface = styled.div`
   margin-top: 6px;
   border-radius: 16px;
@@ -217,9 +215,14 @@ const PreviewWrap = styled.div`
   height: 220px;
   border-radius: 12px;
   overflow: hidden;
-  & > div { height: 100%; }
+  & > div {
+    height: 100%;
+  }
   isolation: isolate;
-  & .react-flow { position: relative; z-index: 1; }
+  & .react-flow {
+    position: relative;
+    z-index: 1;
+  }
 `;
 
 const PreviewActions = styled.div`
@@ -231,7 +234,9 @@ const PreviewActions = styled.div`
   gap: 12px;
   z-index: 20;
   pointer-events: none;
-  & > * { pointer-events: auto; }
+  & > * {
+    pointer-events: auto;
+  }
 `;
 
 const ActionButton = styled.button`
@@ -245,7 +250,14 @@ const ActionButton = styled.button`
   cursor: pointer;
   background: ${({ $tone }) => ($tone === "blue" ? "#29466b" : "#cf3b35")};
   box-shadow: 0 14px 26px rgba(0, 0, 0, 0.18);
-  transition: transform 0.15s ease, filter 0.15s ease;
-  &:hover { filter: brightness(1.06); transform: translateY(-1px); }
-  &:active { transform: translateY(0); }
+  transition:
+    transform 0.15s ease,
+    filter 0.15s ease;
+  &:hover {
+    filter: brightness(1.06);
+    transform: translateY(-1px);
+  }
+  &:active {
+    transform: translateY(0);
+  }
 `;

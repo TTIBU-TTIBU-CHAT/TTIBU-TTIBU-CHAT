@@ -2,8 +2,9 @@
 import { useMemo, useRef, useState } from "react";
 import * as S from "../ModalShell.styles";
 
-// FlowCanvas와 동일한 MIME 키
-const DND_MIME = "application/x-ttibu-resultcard";
+/* ✅ 두 MIME 모두로 setData (호환성↑) */
+const DND_MIME_RESULT = "application/x-ttibu-resultcard";
+const DND_MIME_GROUP  = "application/x-ttibu-card";
 
 // 불투명한 drag image 복제본 생성
 function makeDragImage(node) {
@@ -23,7 +24,6 @@ function makeDragImage(node) {
     imageRendering: "auto",
     willChange: "auto",
     zIndex: "2147483647",
-    // 카드 스타일을 최대한 동일하게 (hover 그림자 등)
     background: "#fff",
     border: "1px solid rgba(0,0,0,0.08)",
     borderRadius: "16px",
@@ -72,9 +72,8 @@ export function SearchContent({ onSelect }) {
     setQuery("");
   };
 
-  /** ✅ 드래그 시작: 원본 숨김 + 불투명 drag image */
+  /* ✅ 드래그 시작: 두 MIME 키 모두 setData */
   const handleDragStart = (e, item) => {
-    // FlowCanvas로 전달할 페이로드
     const payload = {
       id: item.id,
       label: item.question,
@@ -83,32 +82,32 @@ export function SearchContent({ onSelect }) {
       tags: item.tags,
       date: item.date,
       type: "chat",
+      // kind는 생략 ⇒ FlowCanvas에서 result로 처리
     };
-    e.dataTransfer.setData(DND_MIME, JSON.stringify(payload));
+
+    // 호환을 위해 두 키 모두 채움
+    const json = JSON.stringify(payload);
+    e.dataTransfer.setData(DND_MIME_RESULT, json);
+    e.dataTransfer.setData(DND_MIME_GROUP, json); // ← FlowCanvas가 이 키만 읽어도 OK
     e.dataTransfer.effectAllowed = "copy";
 
     const cardEl = e.currentTarget;
     dragOriginRef.current = cardEl;
 
-    // 1) 원본을 숨겨 "그 카드가 움직이는 느낌" 강화
-    cardEl.style.opacity = "0";      // visibility:hidden 대신 공간 보존용
+    cardEl.style.opacity = "0";
     cardEl.style.cursor = "grabbing";
 
-    // 2) 불투명 클론을 drag image로 지정
     const img = makeDragImage(cardEl);
     dragImgRef.current = img;
 
-    // 포인터 상대 좌표로 자연스러운 오프셋
     const native = e.nativeEvent;
     const offsetX =
       typeof native.offsetX === "number" ? native.offsetX : Math.min(24, img.offsetWidth / 2);
     const offsetY =
       typeof native.offsetY === "number" ? native.offsetY : Math.min(24, img.offsetHeight / 2);
-
     e.dataTransfer.setDragImage(img, offsetX, offsetY);
   };
 
-  /** ✅ 드래그 종료: 원본 복구 + 클론 제거 */
   const handleDragEnd = () => {
     if (dragOriginRef.current) {
       dragOriginRef.current.style.opacity = "";
@@ -150,11 +149,9 @@ export function SearchContent({ onSelect }) {
         {filtered.map((item) => (
           <S.ResultCard
             key={item.id}
-            // 클릭 선택도 유지
             onClick={() =>
               onSelect?.({ id: item.id, label: item.question, type: "chat" })
             }
-            // ✅ HTML5 DnD
             draggable
             onDragStart={(e) => handleDragStart(e, item)}
             onDragEnd={handleDragEnd}
