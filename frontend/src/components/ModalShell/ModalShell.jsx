@@ -24,6 +24,7 @@ export default function ModalShell({
   peek = false,
   showDock = true,
   onPick, // ✅ 클릭 선택 시 부모로 payload 전달 (임시 노드 채우기 등에 사용)
+
 }) {
   const panelRef = useRef(null);
   // ✅ 현재 경로 읽기
@@ -204,6 +205,7 @@ export default function ModalShell({
     }
     if (renderType === "search") return <SearchContent onPick={onPick} />; // ✅ 전달
     return <GroupContent onPick={onPick} />; // ✅ 전달
+
   };
 
   return createPortal(
@@ -229,6 +231,7 @@ export default function ModalShell({
               </S.DockButton>
             )}
 
+
             <S.DockButton
               title="검색"
               onClick={() => handleDockToggle("search")}
@@ -236,6 +239,7 @@ export default function ModalShell({
               <i className="fa-solid fa-diagram-project" />
             </S.DockButton>
             {/* ✅ /groups에서는 채팅 Dock 버튼 숨김 */}
+
             {!hideChatDock && (
               <S.DockButton
                 title="채팅"

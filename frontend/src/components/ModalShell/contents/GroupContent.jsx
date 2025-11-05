@@ -1,4 +1,5 @@
 // GroupContent.jsx
+
 import { useMemo, useRef } from "react";
 import styled from "styled-components";
 import * as S from "../ModalShell.styles";
@@ -48,7 +49,8 @@ function MiniGraph({ graph, onEdit, onDelete }) {
   );
 }
 
-export function GroupContent({ onPick }) { // ← onSelect → onPick
+export function GroupContent({ onPick }) {
+  // ← onSelect → onPick
   const dragGhostRef = useRef(null);
 
   const groups = useMemo(
@@ -134,6 +136,7 @@ export function GroupContent({ onPick }) { // ← onSelect → onPick
   return (
     <>
       <HeaderHint>그룹 카드를 드래그하거나 클릭하여 추가하세요</HeaderHint>
+
       <S.SearchScroll>
         {groups.map((g) => (
           <GroupCard
@@ -145,7 +148,7 @@ export function GroupContent({ onPick }) { // ← onSelect → onPick
               e.dataTransfer.setData(DND_MIME, makeDragPayload(g));
             }}
             onDragEnd={cleanupDragImage}
-            onClick={() => handlePick(g)}  // ★ 클릭 → onPick(group payload)
+            onClick={() => handlePick(g)} // ★ 클릭 → onPick(group payload)
             title="캔버스로 드래그하거나 클릭해보세요"
           >
             <CardTop>

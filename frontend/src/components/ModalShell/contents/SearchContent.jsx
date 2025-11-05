@@ -4,7 +4,7 @@ import * as S from "../ModalShell.styles";
 
 /* ✅ 두 MIME 모두로 setData (호환성↑) */
 const DND_MIME_RESULT = "application/x-ttibu-resultcard";
-const DND_MIME_GROUP  = "application/x-ttibu-card";
+const DND_MIME_GROUP = "application/x-ttibu-card";
 
 // 불투명한 drag image 복제본 생성
 function makeDragImage(node) {
@@ -34,7 +34,9 @@ function makeDragImage(node) {
   return clone;
 }
 
-export function SearchContent({ onPick }) { // ← onSelect → onPick 사용
+export function SearchContent({ onPick }) {
+  // ← onSelect → onPick 사용
+
   const [query, setQuery] = useState("");
   const [chips, setChips] = useState(["알고리즘"]);
   const dragImgRef = useRef(null);
@@ -88,6 +90,7 @@ export function SearchContent({ onPick }) { // ← onSelect → onPick 사용
     const json = JSON.stringify(payload);
     e.dataTransfer.setData(DND_MIME_RESULT, json);
     e.dataTransfer.setData(DND_MIME_GROUP, json);
+
     e.dataTransfer.effectAllowed = "copy";
 
     const cardEl = e.currentTarget;
@@ -101,9 +104,13 @@ export function SearchContent({ onPick }) { // ← onSelect → onPick 사용
 
     const native = e.nativeEvent;
     const offsetX =
-      typeof native.offsetX === "number" ? native.offsetX : Math.min(24, img.offsetWidth / 2);
+      typeof native.offsetX === "number"
+        ? native.offsetX
+        : Math.min(24, img.offsetWidth / 2);
     const offsetY =
-      typeof native.offsetY === "number" ? native.offsetY : Math.min(24, img.offsetHeight / 2);
+      typeof native.offsetY === "number"
+        ? native.offsetY
+        : Math.min(24, img.offsetHeight / 2);
     e.dataTransfer.setDragImage(img, offsetX, offsetY);
   };
 
@@ -162,7 +169,7 @@ export function SearchContent({ onPick }) { // ← onSelect → onPick 사용
         {filtered.map((item) => (
           <S.ResultCard
             key={item.id}
-            onClick={() => handlePick(item)}            // ★ 클릭 → onPick(payload)
+            onClick={() => handlePick(item)} // ★ 클릭 → onPick(payload)
             draggable
             onDragStart={(e) => handleDragStart(e, item)}
             onDragEnd={handleDragEnd}
