@@ -1,7 +1,7 @@
 package io.ssafy.p.k13c103.coreapi.domain.model.controller;
 
 import io.ssafy.p.k13c103.coreapi.common.jsend.JSend;
-import io.ssafy.p.k13c103.coreapi.domain.llm.LiteLlmCatalogLoader;
+import io.ssafy.p.k13c103.coreapi.domain.model.service.ModelService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
@@ -19,13 +19,13 @@ import java.util.List;
 @RequestMapping("/api/v1/models")
 public class ModelController {
 
-    private final LiteLlmCatalogLoader catalogLoader;
+    private final ModelService modelService;
 
     @Operation(summary = "제공사 리스트 조회", description = "")
     @GetMapping("/providers")
     public ResponseEntity<JSend> getProviders() {
 
-        List<String> providers = catalogLoader.providers();
+        List<String> providers = modelService.getProviders();
 
         return ResponseEntity.status(HttpStatus.OK).body(JSend.success(providers));
     }

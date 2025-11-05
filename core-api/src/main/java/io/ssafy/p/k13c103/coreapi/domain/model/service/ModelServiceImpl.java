@@ -2,9 +2,10 @@ package io.ssafy.p.k13c103.coreapi.domain.model.service;
 
 import io.ssafy.p.k13c103.coreapi.common.error.ApiException;
 import io.ssafy.p.k13c103.coreapi.common.error.ErrorCode;
+import io.ssafy.p.k13c103.coreapi.domain.catalog.entity.ProviderCatalog;
+import io.ssafy.p.k13c103.coreapi.domain.catalog.repository.ProviderCatalogRepository;
 import io.ssafy.p.k13c103.coreapi.domain.key.entity.Key;
 import io.ssafy.p.k13c103.coreapi.domain.key.repository.KeyRepository;
-import io.ssafy.p.k13c103.coreapi.domain.llm.LiteLlmCatalogLoader;
 import io.ssafy.p.k13c103.coreapi.domain.member.repository.MemberRepository;
 import io.ssafy.p.k13c103.coreapi.domain.model.dto.ModelResponseDto;
 import io.ssafy.p.k13c103.coreapi.domain.model.entity.Model;
@@ -21,11 +22,10 @@ import java.util.*;
 @RequiredArgsConstructor
 public class ModelServiceImpl implements ModelService {
 
+    private final ProviderCatalogRepository providerCatalogRepository;
     private final ModelRepository modelRepository;
     private final MemberRepository memberRepository;
     private final KeyRepository keyRepository;
-
-    private final LiteLlmCatalogLoader catalogLoader;
 
     @Override
     @Transactional(readOnly = true)
@@ -84,6 +84,19 @@ public class ModelServiceImpl implements ModelService {
                     .modelList(list)
                     .build());
         }
+        return response;
+    }
+
+    @Transactional(readOnly = true)
+    public List<String> getProviders() {
+        List<ProviderCatalog> providers = providerCatalogRepository.findByIsActiveTrueOrderByCodeAsc();
+        if (providers.isEmpty())
+            return List.of();
+
+        List<String> response = new ArrayList<>();
+        for (ProviderCatalog provider : providers)
+            response.add(provider.getCode());
+
         return response;
     }
 }
