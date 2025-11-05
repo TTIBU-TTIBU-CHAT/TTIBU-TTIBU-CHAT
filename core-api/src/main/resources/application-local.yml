@@ -1,13 +1,13 @@
 spring:
   datasource:
-    url: jdbc:postgresql://localhost:5432/ttibu_db
+    url: jdbc:postgresql://localhost:5432/ttibu_local
     username: postgres
     password: postgres
     driver-class-name: org.postgresql.Driver
   
   data:
     mongodb:
-      uri: mongodb://localhost:27017/ttibu_mongo
+      uri: mongodb://localhost:27017/ttibu_mongo_local
   
   jpa:
     hibernate:
@@ -20,14 +20,6 @@ spring:
 
 server:
   port: 8080
-
-app:
-  security:
-    csrf-mode: ignore
-
-ttibu:
-  litellm:
-    config-path: file:../litellm-config.yaml
 
 logging:
   level:
