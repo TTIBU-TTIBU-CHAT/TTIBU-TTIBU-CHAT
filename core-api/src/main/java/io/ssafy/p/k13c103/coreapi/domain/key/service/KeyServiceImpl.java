@@ -50,7 +50,7 @@ public class KeyServiceImpl implements KeyService {
             throw new ApiException(ErrorCode.PROVIDER_NOT_FOUND);
 
         // 1. 제공사에 해당하는 모델이 있는지 확인
-        List<String> models = catalogLoader.models(request.provider());
+        List<String> models = catalogLoader.modelCodes(request.provider());
         if (models.isEmpty())
             throw new ApiException(ErrorCode.MODEL_CATALOG_EMPTY);
 
@@ -98,7 +98,7 @@ public class KeyServiceImpl implements KeyService {
 
         if (!decryptKey(key.getEncryptedKey()).equals(request.key())) {
 
-            List<String> models = catalogLoader.models(request.provider());
+            List<String> models = catalogLoader.modelCodes(request.provider());
             if (models.isEmpty())
                 throw new ApiException(ErrorCode.MODEL_CATALOG_EMPTY);
 
