@@ -37,4 +37,13 @@ public class KeyResponseDto {
 
     ) {
     }
+    /**
+     * 키 리스트 조회 응답 DTO
+     */
+    @Builder
+    public record GetKeyShortInfo(
+            Long keyUid,
+            String provider,
+            Boolean isActive
+    ){}
 }
