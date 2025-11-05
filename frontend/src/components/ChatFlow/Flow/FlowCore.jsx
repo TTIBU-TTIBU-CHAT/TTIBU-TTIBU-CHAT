@@ -64,6 +64,7 @@ const FlowCore = forwardRef(function FlowCore(
     onCanResetChange,
     onSelectionCountChange,
     onNodeClickInViewMode,
+    onEditNodeClick,
     onCreateNode,
     askBranchName,
     onBranchSaved,
@@ -162,12 +163,14 @@ const FlowCore = forwardRef(function FlowCore(
       if (!editMode) {
         e?.preventDefault?.();
         e?.stopPropagation?.();
-        onNodeClickInViewMode?.();
+        onNodeClickInViewMode?.(node?.id);
         return;
       }
       setLastSelectedId(node?.id || null);
+       // ★ 편집 모드에서 노드 클릭 → 부모에 알림 (id 전달)
+      if (node?.id) onEditNodeClick?.(node.id);
     },
-    [editMode, onNodeClickInViewMode]
+    [editMode, onNodeClickInViewMode, onEditNodeClick]
   );
 
   /* + 버튼: 임시 노드 추가 */
