@@ -7,7 +7,7 @@ import ModalShell from "@/components/ModalShell/ModalShell";
 import FlowCanvas from "@/components/Chatflow/FlowCanvas";
 import * as S from "./-styles.ChatFlowPage";
 import InputDialog from "@/components/common/Modal/InputDialog";
-
+import { useRouterState } from "@tanstack/react-router";
 /* ===== 로컬 스토리지 헬퍼 ===== */
 const LS_BRANCH_BY_NODE = "ttibu-branch-by-node"; // { [nodeId]: branchName }
 const LS_PENDING_MSGS = "ttibu-pending-msgs"; // [{ nodeId, text, ts, branchName }]
@@ -42,7 +42,9 @@ export default function ChatFlowPage() {
       ts: Date.now() - 1000,
     },
   ]);
-
+  const routerState = useRouterState();
+  const pathname = routerState.location.pathname;
+  const isGroups = pathname.startsWith("/groups"); // ★ /groups 여부
   const [input, setInput] = useState("");
   const [editingNodeId, setEditingNodeId] = useState(null);
 
@@ -107,13 +109,24 @@ export default function ChatFlowPage() {
   };
 
   /* ===== 새 노드 만들 때: plus면 Search 패널 열고 pending 설정 / dnd면 스킵 ===== */
-  const handleCreateNode = useCallback((newNodeId, payload, meta) => {
-    if (meta?.source === "plus") {
-      setPendingNodeId(newNodeId);
-      setPanelType("search");
-      setPanelOpen(true);
-    }
-  }, []);
+  const handleCreateNode = useCallback(
+    (newNodeId, payload, meta) => {
+      if (meta?.source === "plus") {
+        if (isGroups) {
+          // /groups: + → SearchContent
+          setPendingNodeId(newNodeId);
+          setPanelType("search");
+          setPanelOpen(true);
+        } else {
+          // /chatRooms: + → ChatContent
+          setEditingNodeId(newNodeId); // ★ 이 노드에 입력 반영
+          setPanelType("chat");
+          setPanelOpen(true);
+        }
+      }
+    },
+    [isGroups]
+  );
 
   /* ===== Search/Group에서 항목 선택 → pending 노드에 적용 ===== */
   const handlePick = useCallback(
@@ -262,9 +275,24 @@ export default function ChatFlowPage() {
           setSelectedCount(count);
           setHasGroupInSelection(!!containsGroup);
         }}
-        onNodeClickInViewMode={() => {
-          setPanelType("search");
-          setPanelOpen(true);
+        onNodeClickInViewMode={(nodeId) => {
+          if (isGroups) {
+            // /groups: 뷰 모드 노드 클릭 → 검색 패널
+            setPanelType("search");
+            setPanelOpen(true);
+          } else {
+            // /chatRooms: 뷰 모드 노드 클릭 → 채팅 패널
+            if (nodeId) setEditingNodeId(nodeId); // 채팅 입력 라벨 반영 타깃
+            setPanelType("chat");
+            setPanelOpen(true);
+          }
+        }}
+        onEditNodeClick={(nodeId) => {
+          if (!isGroups) {
+            setEditingNodeId(nodeId); // ★ 이 노드의 라벨/대화 갱신 타깃
+            setPanelType("chat");
+            setPanelOpen(true);
+          }
         }}
         onCreateNode={handleCreateNode}
         askBranchName={askBranchName}
