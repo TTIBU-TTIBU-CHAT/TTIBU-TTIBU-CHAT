@@ -87,6 +87,7 @@ public class ModelServiceImpl implements ModelService {
         return response;
     }
 
+    @Override
     @Transactional(readOnly = true)
     public List<String> getProviders() {
         List<ProviderCatalog> providers = providerCatalogRepository.findByIsActiveTrueOrderByCodeAsc();
