@@ -133,6 +133,27 @@ public class KeyServiceImpl implements KeyService {
     }
 
     @Override
+    public List<KeyResponseDto.GetKeyShortInfo> getKeys(Long memberUid) {
+        if (!memberRepository.existsById(memberUid))
+            throw new ApiException(ErrorCode.MEMBER_NOT_FOUND);
+
+        List<Key> keys = keyRepository.findKeysByMember_MemberUid(memberUid);
+        if (keys.isEmpty())
+            return List.of();
+
+        List<KeyResponseDto.GetKeyShortInfo> response = new ArrayList<>();
+
+        for (Key key : keys) {
+            response.add(KeyResponseDto.GetKeyShortInfo.builder()
+                    .keyUid(key.getKeyUid())
+                    .provider(key.getProvider())
+                    .isActive(key.getIsActive())
+                    .build());
+        }
+        return response;
+    }
+
+    @Override
     @Transactional
     public void delete(Long memberUid, Long keyUid) {
 

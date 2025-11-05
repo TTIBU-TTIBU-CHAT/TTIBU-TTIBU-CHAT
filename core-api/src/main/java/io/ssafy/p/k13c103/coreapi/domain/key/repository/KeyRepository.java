@@ -14,4 +14,6 @@ public interface KeyRepository extends JpaRepository<Key, Long> {
     boolean existsByMember_MemberUidAndProvider(Long memberUid, String provider);
 
     List<Key> findKeysByMember_MemberUidAndIsActiveIsTrue(Long memberUid);
+
+    List<Key> findKeysByMember_MemberUid(Long memberUid);
 }
