@@ -1,3 +1,4 @@
+import { useRouterState } from "@tanstack/react-router";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import * as S from "./ModalShell.styles";
@@ -13,7 +14,7 @@ export default function ModalShell({
   open,
   onOpen,
   onClose,
-  type = "chat",           // 'chat' | 'search' | 'layers'
+  type = "chat", // 'chat' | 'search' | 'layers'
   setType,
   title = "브랜치-2",
   messages = [],
@@ -22,10 +23,13 @@ export default function ModalShell({
   onSend,
   peek = false,
   showDock = true,
-  onSelect, 
+  onSelect,
 }) {
   const panelRef = useRef(null);
-
+  // ✅ 현재 경로 읽기
+  const routerState = useRouterState();
+  const pathname = routerState.location.pathname;
+  const hideChatDock = pathname.startsWith("/groups");
   // 채팅 헤더 드롭다운
   const [branchOpen, setBranchOpen] = useState(false);
   const [modelOpen, setModelOpen] = useState(false);
@@ -33,9 +37,11 @@ export default function ModalShell({
   const [selectedModel, setSelectedModel] = useState("ChatGPT 4o");
 
   const branches = ["브랜치-1", "브랜치-2", "브랜치-3"];
-  const models   = ["ChatGPT 5", "ChatGPT 4o", "ChatGPT 3o"];
+  const models = ["ChatGPT 5", "ChatGPT 4o", "ChatGPT 3o"];
 
-  useEffect(() => { if (open) panelRef.current?.focus(); }, [open]);
+  useEffect(() => {
+    if (open) panelRef.current?.focus();
+  }, [open]);
 
   // 포털 루트
   const portalRoot = useMemo(() => {
@@ -173,7 +179,9 @@ export default function ModalShell({
         </S.HeaderLeft>
 
         <S.HeaderCenter>
-          <S.SearchTitle>{renderType === "search" ? "검색" : "그룹"}</S.SearchTitle>
+          <S.SearchTitle>
+            {renderType === "search" ? "검색" : "그룹"}
+          </S.SearchTitle>
         </S.HeaderCenter>
 
         <S.HeaderRight />
@@ -193,8 +201,8 @@ export default function ModalShell({
         />
       );
     }
-    if (renderType === "search") return <SearchContent onSelect={onSelect} />; 
-    return <GroupContent onSelect={onSelect} />; 
+    if (renderType === "search") return <SearchContent onSelect={onSelect} />;
+    return <GroupContent onSelect={onSelect} />;
   };
 
   return createPortal(
@@ -211,21 +219,37 @@ export default function ModalShell({
       >
         {showDock && (
           <S.Dock>
-            <S.DockButton title="그룹" onClick={() => handleDockToggle("layers")}>
+            <S.DockButton
+              title="그룹"
+              onClick={() => handleDockToggle("layers")}
+            >
               <i className="fa-solid fa-layer-group" />
             </S.DockButton>
-            <S.DockButton title="검색" onClick={() => handleDockToggle("search")}>
+            <S.DockButton
+              title="검색"
+              onClick={() => handleDockToggle("search")}
+            >
               <i className="fa-solid fa-diagram-project" />
             </S.DockButton>
-            <S.DockButton title="채팅" onClick={() => handleDockToggle("chat")}>
-              <i className="fa-solid fa-comments" />
-            </S.DockButton>
+            {/* ✅ /testcopy에서는 채팅 Dock 버튼 숨김 */}
+            {!hideChatDock && (
+              <S.DockButton
+                title="채팅"
+                onClick={() => handleDockToggle("chat")}
+              >
+                <i className="fa-solid fa-comments" />
+              </S.DockButton>
+            )}
           </S.Dock>
         )}
 
         <S.Header>
           {leavingHeader && (
-            <S.HeaderLayer $phase="leave" $dir={dir} key={`header-leave-${leavingHeader}`}>
+            <S.HeaderLayer
+              $phase="leave"
+              $dir={dir}
+              key={`header-leave-${leavingHeader}`}
+            >
               {renderHeaderSlots(leavingHeader)}
             </S.HeaderLayer>
           )}
@@ -236,11 +260,19 @@ export default function ModalShell({
 
         <S.Body>
           {leavingType && (
-            <S.ContentLayer $phase="leave" $dir={dir} key={`content-leave-${leavingType}`}>
+            <S.ContentLayer
+              $phase="leave"
+              $dir={dir}
+              key={`content-leave-${leavingType}`}
+            >
               {renderContentByType(leavingType)}
             </S.ContentLayer>
           )}
-          <S.ContentLayer $phase="enter" $dir={dir} key={`content-enter-${type}`}>
+          <S.ContentLayer
+            $phase="enter"
+            $dir={dir}
+            key={`content-enter-${type}`}
+          >
             {renderContentByType(type)}
           </S.ContentLayer>
         </S.Body>

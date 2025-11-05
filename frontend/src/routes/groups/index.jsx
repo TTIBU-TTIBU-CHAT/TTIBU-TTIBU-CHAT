@@ -30,7 +30,7 @@ const S = {
   `,
   Main: styled.main`
     flex: 1;
-    padding-left: ${({ $collapsed }) => ($collapsed ? '70px' : '240px')};
+    // padding-left: ${({ $collapsed }) => ($collapsed ? '70px' : '240px')};
     transition: padding-left 0.35s cubic-bezier(0.4, 0, 0.2, 1);
     overflow-y: auto;
     background: #fff;

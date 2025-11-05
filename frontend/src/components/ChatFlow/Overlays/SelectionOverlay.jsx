@@ -1,6 +1,6 @@
 import React from "react";
 import { useStore } from "reactflow";
-import { AbsoluteBox, IconBtn } from "@/components/flow/styles";
+import { AbsoluteBox, IconBtn } from "@/components/Chatflow/styles";
 
 export default function SelectionOverlay({ selectedNodes, lastSelectedId, onAdd, onRemove }) {
   if (!selectedNodes || selectedNodes.length === 0) return null;
