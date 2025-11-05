@@ -154,6 +154,36 @@ public class KeyServiceImpl implements KeyService {
     }
 
     @Override
+    @Transactional(readOnly = true)
+    public KeyResponseDto.TokenInfo getTokens(Long memberUid) {
+        if (!memberRepository.existsById(memberUid))
+            throw new ApiException(ErrorCode.MEMBER_NOT_FOUND);
+
+        List<Key> keys = keyRepository.findKeysByMember_MemberUid(memberUid);
+        if (keys.isEmpty()) {
+            return KeyResponseDto.TokenInfo.builder()
+                    .totalToken(0)
+                    .tokenList(List.of())
+                    .build();
+        }
+
+        List<KeyResponseDto.TokenDetailInfo> response = new ArrayList<>();
+        int sum = 0;
+        for (Key key : keys) {
+            response.add(KeyResponseDto.TokenDetailInfo.builder()
+                    .provider(key.getProvider())
+                    .token(key.getTokenUsage())
+                    .build());
+            sum += key.getTokenUsage();
+        }
+
+        return KeyResponseDto.TokenInfo.builder()
+                .totalToken(sum)
+                .tokenList(response)
+                .build();
+    }
+
+    @Override
     @Transactional
     public void delete(Long memberUid, Long keyUid) {
 

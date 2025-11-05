@@ -11,4 +11,5 @@ public interface KeyService {
     void delete(Long memberUid, Long keyUid);
     KeyResponseDto.GetKeyInfo getOne(Long memberUid, Long keyUid);
     List<KeyResponseDto.GetKeyShortInfo> getKeys(Long memberUid);
+    KeyResponseDto.TokenInfo getTokens(Long memberUid);
 }
