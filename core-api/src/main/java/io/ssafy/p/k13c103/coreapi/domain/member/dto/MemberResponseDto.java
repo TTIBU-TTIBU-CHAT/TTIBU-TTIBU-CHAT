@@ -1,6 +1,10 @@
 package io.ssafy.p.k13c103.coreapi.domain.member.dto;
 
+import io.ssafy.p.k13c103.coreapi.domain.key.dto.KeyResponseDto;
+import io.ssafy.p.k13c103.coreapi.domain.model.dto.ModelResponseDto;
 import lombok.Builder;
+
+import java.util.List;
 
 public class MemberResponseDto {
 
@@ -20,6 +24,17 @@ public class MemberResponseDto {
     public record MemberInfo(
             String email,
             String name
+    ) {
+    }
+
+    /**
+     * 내 정보 조회 응답 DTO
+     */
+    @Builder
+    public record MemberDetailInfo(
+            KeyResponseDto.TokenInfo tokens,
+            List<KeyResponseDto.GetKeyShortInfo> keys,
+            List<ModelResponseDto.ModelListInfo> models
     ) {
     }
 }

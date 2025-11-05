@@ -50,7 +50,7 @@ public class KeyServiceImpl implements KeyService {
             throw new ApiException(ErrorCode.PROVIDER_NOT_FOUND);
 
         // 1. 제공사에 해당하는 모델이 있는지 확인
-        List<String> models = catalogLoader.models(request.provider());
+        List<String> models = catalogLoader.modelCodes(request.provider());
         if (models.isEmpty())
             throw new ApiException(ErrorCode.MODEL_CATALOG_EMPTY);
 
@@ -98,7 +98,7 @@ public class KeyServiceImpl implements KeyService {
 
         if (!decryptKey(key.getEncryptedKey()).equals(request.key())) {
 
-            List<String> models = catalogLoader.models(request.provider());
+            List<String> models = catalogLoader.modelCodes(request.provider());
             if (models.isEmpty())
                 throw new ApiException(ErrorCode.MODEL_CATALOG_EMPTY);
 
@@ -129,6 +129,58 @@ public class KeyServiceImpl implements KeyService {
                 .key(decryptKey(key.getEncryptedKey()))
                 .isActive(key.getIsActive())
                 .expirationAt(key.getExpirationAt())
+                .build();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<KeyResponseDto.GetKeyShortInfo> getKeys(Long memberUid) {
+        if (!memberRepository.existsById(memberUid))
+            throw new ApiException(ErrorCode.MEMBER_NOT_FOUND);
+
+        List<Key> keys = keyRepository.findKeysByMember_MemberUid(memberUid);
+        if (keys.isEmpty())
+            return List.of();
+
+        List<KeyResponseDto.GetKeyShortInfo> response = new ArrayList<>();
+
+        for (Key key : keys) {
+            response.add(KeyResponseDto.GetKeyShortInfo.builder()
+                    .keyUid(key.getKeyUid())
+                    .provider(key.getProvider())
+                    .isActive(key.getIsActive())
+                    .build());
+        }
+        return response;
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public KeyResponseDto.TokenInfo getTokens(Long memberUid) {
+        if (!memberRepository.existsById(memberUid))
+            throw new ApiException(ErrorCode.MEMBER_NOT_FOUND);
+
+        List<Key> keys = keyRepository.findKeysByMember_MemberUid(memberUid);
+        if (keys.isEmpty()) {
+            return KeyResponseDto.TokenInfo.builder()
+                    .totalToken(0)
+                    .tokenList(List.of())
+                    .build();
+        }
+
+        List<KeyResponseDto.TokenDetailInfo> response = new ArrayList<>();
+        int sum = 0;
+        for (Key key : keys) {
+            response.add(KeyResponseDto.TokenDetailInfo.builder()
+                    .provider(key.getProvider())
+                    .token(key.getTokenUsage())
+                    .build());
+            sum += key.getTokenUsage();
+        }
+
+        return KeyResponseDto.TokenInfo.builder()
+                .totalToken(sum)
+                .tokenList(response)
                 .build();
     }
 

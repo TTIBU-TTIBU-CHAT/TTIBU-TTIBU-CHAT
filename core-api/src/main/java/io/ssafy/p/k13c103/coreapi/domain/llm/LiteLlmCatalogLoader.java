@@ -20,10 +20,13 @@ public class LiteLlmCatalogLoader implements ResourceLoaderAware {
     private final Yaml yaml = new Yaml();
     private ResourceLoader resourceLoader;
 
-    private volatile Map<String, List<String>> byProvider = Map.of();
+    private volatile Map<String, List<ModelEntry>> byProvider = Map.of();
 
     @Value("${ttibu.litellm.config-path}")
     private String configPath;
+
+    public record ModelEntry(String code, String name) {
+    }
 
     @PostConstruct
     public void init() {
@@ -36,7 +39,7 @@ public class LiteLlmCatalogLoader implements ResourceLoaderAware {
     }
 
     public synchronized void reload(String path) {
-        Map<String, List<String>> tmp = new LinkedHashMap<>();
+        Map<String, List<ModelEntry>> tmp = new LinkedHashMap<>();
 
         try (InputStream inputStream = resourceLoader.getResource(path).getInputStream()) {
             Map<String, Object> root = yaml.load(inputStream);
@@ -61,7 +64,14 @@ public class LiteLlmCatalogLoader implements ResourceLoaderAware {
                 String provider = parts[0].trim(); // ex. openai
                 String code = parts[1].trim(); // ex.gpt-4o
 
-                tmp.computeIfAbsent(provider, k -> new ArrayList<>()).add(code);
+                String name = Optional.ofNullable(model.get("model_name"))
+                        .map(Object::toString)
+                        .map(String::trim)
+                        .filter(s -> !s.isEmpty())
+                        .orElse(code); // 이름이 없으면 code로 대체
+
+                tmp.computeIfAbsent(provider, k -> new ArrayList<>())
+                        .add(new ModelEntry(code, name));
             }
 
             tmp.replaceAll((k, v) -> List.copyOf(v));
@@ -76,8 +86,13 @@ public class LiteLlmCatalogLoader implements ResourceLoaderAware {
         return List.copyOf(byProvider.keySet());
     }
 
-    public List<String> models(String provider) {
+    public List<ModelEntry> models(String provider) {
         return byProvider.getOrDefault(provider, List.of());
+    }
+
+    public List<String> modelCodes(String provider) {
+        return byProvider.getOrDefault(provider, List.of())
+                .stream().map(ModelEntry::code).toList();
     }
 
     public boolean existsProvider(String provider) {
