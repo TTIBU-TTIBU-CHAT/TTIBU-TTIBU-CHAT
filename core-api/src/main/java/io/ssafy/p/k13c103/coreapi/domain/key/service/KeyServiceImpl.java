@@ -133,6 +133,7 @@ public class KeyServiceImpl implements KeyService {
     }
 
     @Override
+    @Transactional(readOnly = true)
     public List<KeyResponseDto.GetKeyShortInfo> getKeys(Long memberUid) {
         if (!memberRepository.existsById(memberUid))
             throw new ApiException(ErrorCode.MEMBER_NOT_FOUND);
