@@ -34,7 +34,7 @@ function makeDragImage(node) {
   return clone;
 }
 
-export function SearchContent({ onPick }) { // ← onSelect → onPick 사용
+export function SearchContent({ onSelect }) {
   const [query, setQuery] = useState("");
   const [chips, setChips] = useState(["알고리즘"]);
   const dragImgRef = useRef(null);
@@ -82,12 +82,13 @@ export function SearchContent({ onPick }) { // ← onSelect → onPick 사용
       tags: item.tags,
       date: item.date,
       type: "chat",
-      // kind 없음 → 일반 결과
+      // kind는 생략 ⇒ FlowCanvas에서 result로 처리
     };
 
+    // 호환을 위해 두 키 모두 채움
     const json = JSON.stringify(payload);
     e.dataTransfer.setData(DND_MIME_RESULT, json);
-    e.dataTransfer.setData(DND_MIME_GROUP, json);
+    e.dataTransfer.setData(DND_MIME_GROUP, json); // ← FlowCanvas가 이 키만 읽어도 OK
     e.dataTransfer.effectAllowed = "copy";
 
     const cardEl = e.currentTarget;
@@ -119,20 +120,6 @@ export function SearchContent({ onPick }) { // ← onSelect → onPick 사용
     }
   };
 
-  /* ✅ 클릭(선택) 시: 임시 노드에 꽂을 ‘풀 페이로드’를 onPick으로 전달 */
-  const handlePick = (item) => {
-    onPick?.({
-      id: item.id,
-      label: item.question,
-      question: item.question,
-      answer: item.answer,
-      date: item.date,
-      tags: item.tags,
-      type: "chat",
-      // kind 없음 → FlowCanvas.applyContentToNode에서 일반 카드로 처리
-    });
-  };
-
   return (
     <>
       <S.SearchBarWrap>
@@ -162,7 +149,9 @@ export function SearchContent({ onPick }) { // ← onSelect → onPick 사용
         {filtered.map((item) => (
           <S.ResultCard
             key={item.id}
-            onClick={() => handlePick(item)}            // ★ 클릭 → onPick(payload)
+            onClick={() =>
+              onSelect?.({ id: item.id, label: item.question, type: "chat" })
+            }
             draggable
             onDragStart={(e) => handleDragStart(e, item)}
             onDragEnd={handleDragEnd}
