@@ -60,7 +60,8 @@ export default function QaNode({ data = {}, sourcePosition, targetPosition }) {
       )}
 
       {/* 좌/우 작은 핸들 */}
-      {typeof targetPosition !== "undefined" && (
+      {typeof targetPosition !== "undefined" && targetPosition !== Position.Top &&(
+        console.log("targetPosition:", targetPosition),
         <Handle
           type="target"
           position={targetPosition ?? Position.Left}

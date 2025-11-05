@@ -23,13 +23,14 @@ export default function ModalShell({
   onSend,
   peek = false,
   showDock = true,
-  onSelect,
+  onPick, // ✅ 클릭 선택 시 부모로 payload 전달 (임시 노드 채우기 등에 사용)
 }) {
   const panelRef = useRef(null);
   // ✅ 현재 경로 읽기
   const routerState = useRouterState();
   const pathname = routerState.location.pathname;
   const hideChatDock = pathname.startsWith("/groups");
+
   // 채팅 헤더 드롭다운
   const [branchOpen, setBranchOpen] = useState(false);
   const [modelOpen, setModelOpen] = useState(false);
@@ -201,8 +202,8 @@ export default function ModalShell({
         />
       );
     }
-    if (renderType === "search") return <SearchContent onSelect={onSelect} />;
-    return <GroupContent onSelect={onSelect} />;
+    if (renderType === "search") return <SearchContent onPick={onPick} />; // ✅ 전달
+    return <GroupContent onPick={onPick} />; // ✅ 전달
   };
 
   return createPortal(
@@ -219,19 +220,22 @@ export default function ModalShell({
       >
         {showDock && (
           <S.Dock>
-            <S.DockButton
-              title="그룹"
-              onClick={() => handleDockToggle("layers")}
-            >
-              <i className="fa-solid fa-layer-group" />
-            </S.DockButton>
+            {!hideChatDock && (
+              <S.DockButton
+                title="그룹"
+                onClick={() => handleDockToggle("layers")}
+              >
+                <i className="fa-solid fa-layer-group" />
+              </S.DockButton>
+            )}
+
             <S.DockButton
               title="검색"
               onClick={() => handleDockToggle("search")}
             >
               <i className="fa-solid fa-diagram-project" />
             </S.DockButton>
-            {/* ✅ /testcopy에서는 채팅 Dock 버튼 숨김 */}
+            {/* ✅ /groups에서는 채팅 Dock 버튼 숨김 */}
             {!hideChatDock && (
               <S.DockButton
                 title="채팅"

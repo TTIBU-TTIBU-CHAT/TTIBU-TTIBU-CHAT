@@ -25,7 +25,7 @@ export const initialNodes = [
     },
     style: nodeStyle,
     sourcePosition: SOURCE_POS,
-    targetPosition: TARGET_POS,
+    // targetPosition: TARGET_POS,
   },
   {
     id: "n2",

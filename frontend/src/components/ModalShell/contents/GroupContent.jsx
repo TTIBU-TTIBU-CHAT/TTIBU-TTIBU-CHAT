@@ -1,3 +1,4 @@
+// GroupContent.jsx
 import { useMemo, useRef } from "react";
 import styled from "styled-components";
 import * as S from "../ModalShell.styles";
@@ -47,10 +48,9 @@ function MiniGraph({ graph, onEdit, onDelete }) {
   );
 }
 
-export function GroupContent({ onSelect }) {
+export function GroupContent({ onPick }) { // ← onSelect → onPick
   const dragGhostRef = useRef(null);
 
-  /* 🗂 그룹 목록 — 실제에선 서버/상태값으로 교체 */
   const groups = useMemo(
     () =>
       Array.from({ length: 4 }).map((_, gi) => {
@@ -80,30 +80,27 @@ export function GroupContent({ onSelect }) {
           },
         ];
 
-        // ✅ 여기서 summary를 생성/보관
         const summary = `다익스트라 핵심 흐름: 우선순위 큐로 최소 비용 정점 확장 · 예시 포함`;
 
         return {
           id: `group-${gi + 1}`,
           title: `Group ${gi + 1}`,
           graph: { nodes, edges },
-          summary, // ← 추가
+          summary,
         };
       }),
     []
   );
 
-  /* ✅ summary까지 함께 담아서 전송 */
   const makeDragPayload = (g) =>
     JSON.stringify({
       kind: "group",
       id: g.id,
       title: g.title,
-      summary: g.summary, // ← 추가
-      graph: g.graph, // nodes/edges 그대로
+      summary: g.summary,
+      graph: g.graph,
     });
 
-  /* 선명한 드래그 프리뷰 */
   const makeDragImage = (cardEl) => {
     if (!cardEl) return null;
     const clone = cardEl.cloneNode(true);
@@ -123,9 +120,20 @@ export function GroupContent({ onSelect }) {
     }
   };
 
+  /* ✅ 클릭(선택) 시: 임시 노드에 꽂을 ‘group 페이로드’를 onPick으로 전달 */
+  const handlePick = (g) => {
+    onPick?.({
+      kind: "group",
+      id: g.id,
+      title: g.title,
+      summary: g.summary,
+      graph: g.graph,
+    });
+  };
+
   return (
     <>
-      <HeaderHint>그룹 카드를 드래그해 오른쪽 캔버스에 놓으세요</HeaderHint>
+      <HeaderHint>그룹 카드를 드래그하거나 클릭하여 추가하세요</HeaderHint>
       <S.SearchScroll>
         {groups.map((g) => (
           <GroupCard
@@ -137,10 +145,8 @@ export function GroupContent({ onSelect }) {
               e.dataTransfer.setData(DND_MIME, makeDragPayload(g));
             }}
             onDragEnd={cleanupDragImage}
-            onClick={() =>
-              onSelect?.({ id: g.id, label: g.title, type: "group" })
-            }
-            title="캔버스로 드래그해보세요"
+            onClick={() => handlePick(g)}  // ★ 클릭 → onPick(group payload)
+            title="캔버스로 드래그하거나 클릭해보세요"
           >
             <CardTop>
               <CardTitleText>{g.title}</CardTitleText>
@@ -158,7 +164,7 @@ export function GroupContent({ onSelect }) {
   );
 }
 
-/* ===== 스타일 ===== */
+/* ===== 스타일 (생략 없는 전체) ===== */
 const bubbleNodeStyle = {
   background: "#fff",
   border: "1px solid rgba(0,0,0,.10)",
