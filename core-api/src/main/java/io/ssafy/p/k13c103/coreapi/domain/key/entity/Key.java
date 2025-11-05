@@ -1,6 +1,7 @@
 package io.ssafy.p.k13c103.coreapi.domain.key.entity;
 
 import io.ssafy.p.k13c103.coreapi.common.entity.BaseTimeEntity;
+import io.ssafy.p.k13c103.coreapi.domain.catalog.entity.ProviderCatalog;
 import io.ssafy.p.k13c103.coreapi.domain.member.entity.Member;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
@@ -26,8 +27,9 @@ public class Key extends BaseTimeEntity {
     @JoinColumn(name = "member_uid", nullable = false)
     private Member member;
 
-    @Column(name = "provider", nullable = false)
-    private String provider;
+    @ManyToOne(fetch=FetchType.LAZY)
+    @JoinColumn(name = "provider_uid", nullable = false)
+    private ProviderCatalog provider;
 
     @Column(name = "encrypted_key", nullable = false, columnDefinition = "TEXT")
     private String encryptedKey;
@@ -44,7 +46,7 @@ public class Key extends BaseTimeEntity {
     private LocalDate expirationAt;
 
     public void update(String provider, String encryptedKey, Boolean isActive, LocalDate expirationAt) {
-        if (provider!=null) this.provider = provider;
+//        if (provider!=null) this.provider = provider;
         if (encryptedKey != null) this.encryptedKey = encryptedKey;
         if (isActive != null) this.isActive = isActive;
         if (expirationAt != null) this.expirationAt = expirationAt;

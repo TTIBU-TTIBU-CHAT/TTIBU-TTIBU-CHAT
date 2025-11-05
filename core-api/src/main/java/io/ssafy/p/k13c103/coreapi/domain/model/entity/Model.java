@@ -1,6 +1,7 @@
 package io.ssafy.p.k13c103.coreapi.domain.model.entity;
 
 import io.ssafy.p.k13c103.coreapi.common.entity.BaseTimeEntity;
+import io.ssafy.p.k13c103.coreapi.domain.catalog.entity.ModelCatalog;
 import io.ssafy.p.k13c103.coreapi.domain.member.entity.Member;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
@@ -24,14 +25,9 @@ public class Model extends BaseTimeEntity {
     @JoinColumn(name = "member_uid", nullable = false)
     private Member member;
 
-    @Column(name = "provider", nullable = false)
-    private String provider;
-
-    @Column(name = "code", nullable = false)
-    private String code;
-
-    @Column(name = "name")
-    private String name;
+    @ManyToOne(fetch=FetchType.LAZY)
+    @JoinColumn(name="model_uid", nullable = false)
+    private ModelCatalog model;
 
     @Builder.Default
     @Column(name = "is_default", nullable = false)
