@@ -4,7 +4,7 @@ export const Item = styled.div`
   display: flex;
   justify-content: space-between;
   align-items: flex-start;
-  padding: 20px 0;
+  padding: 20px 15px;
   border-bottom: 1px solid #e5e7eb;
   cursor: pointer;
   transition: background 0.2s ease;
