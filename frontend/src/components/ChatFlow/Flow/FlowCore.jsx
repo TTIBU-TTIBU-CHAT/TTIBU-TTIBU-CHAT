@@ -68,6 +68,7 @@ const FlowCore = forwardRef(function FlowCore(
     onCreateNode,
     askBranchName,
     onBranchSaved,
+    onError,
   },
   ref
 ) {
@@ -96,6 +97,10 @@ const FlowCore = forwardRef(function FlowCore(
     edges: serializeEdges(initialEdges),
   });
 
+  const emitError = useCallback(
+    (msg) => onError?.({ message: msg }),
+    [onError]
+  );
   /* ----- 엣지 삭제 핸들러 & 초기 주입 ----- */
   const removeEdgeById = useCallback(
     (edgeId) => setEdges((eds) => eds.filter((e) => e.id !== edgeId)),
@@ -157,18 +162,23 @@ const FlowCore = forwardRef(function FlowCore(
     },
     [editMode, onSelectionCountChange]
   );
+  // 빈 노드 판별: 임시 노드거나(kind/QA 없음)
+  const isEmptyNode = (n) =>
+    !!n?.data?.__temp ||
+    (!n?.data?.kind && !n?.data?.question && !n?.data?.answer);
 
   const onNodeClick = useCallback(
     (e, node) => {
       if (!editMode) {
         e?.preventDefault?.();
         e?.stopPropagation?.();
-        onNodeClickInViewMode?.(node?.id);
+        // 뷰 모드에서도 빈 노드 여부 넘겨주면 활용 가능
+        onNodeClickInViewMode?.(node?.id, { empty: isEmptyNode(node) });
         return;
       }
       setLastSelectedId(node?.id || null);
-       // ★ 편집 모드에서 노드 클릭 → 부모에 알림 (id 전달)
-      if (node?.id) onEditNodeClick?.(node.id);
+      // ★ 편집 모드에서 노드 클릭 → 부모에 (id + empty 여부) 전달
+      if (node?.id) onEditNodeClick?.(node.id, { empty: isEmptyNode(node) });
     },
     [editMode, onNodeClickInViewMode, onEditNodeClick]
   );
@@ -178,6 +188,21 @@ const FlowCore = forwardRef(function FlowCore(
     if (!lastSelectedId) return;
     const base = nodes.find((n) => n.id === lastSelectedId);
     if (!base) return;
+    
+    // ★ 가드: 현재(기준) 노드가 비어 있으면 새 노드 생성 차단 + 오류 알림
+    if (isEmptyNode(base)) {
+      const msg =
+        "현재 노드에 내용이 없습니다. 내용을 채운 뒤에 새 분기를 추가하세요.";
+      if (typeof onError === "function") {
+        onError({ code: "EMPTY_BASE_NODE", nodeId: base.id, message: msg });
+      } else {
+        // 부모에서 onError를 안 넘기면 기본 alert로 폴백
+        // (디자인 모달이 필요하면 페이지 쪽에서 onError로 예쁜 모달 띄워줘!)
+        alert(msg);
+      }
+      emitError("현재 노드에 내용이 없습니다. 먼저 내용을 채워주세요.");
+      return;
+    }
 
     const childIds = getChildren(edges, base.id);
     const idx = childIds.length;
@@ -249,6 +274,7 @@ const FlowCore = forwardRef(function FlowCore(
     setNodes,
     setEdges,
     removeEdgeById,
+    emitError,
   ]);
 
   /* 노드 삭제 */
@@ -268,7 +294,8 @@ const FlowCore = forwardRef(function FlowCore(
           .map((e) => ({ s: parentId, t: e.target }))
           .filter(({ s, t }) => s && t && s !== t)
           .filter(
-            ({ s, t }) => !other.some((oe) => oe.source === s && oe.target === t)
+            ({ s, t }) =>
+              !other.some((oe) => oe.source === s && oe.target === t)
           )
           .map(({ s, t }) => ({
             ...makeEdge(s, t),
@@ -285,13 +312,19 @@ const FlowCore = forwardRef(function FlowCore(
     setLastSelectedId(null);
     setSelectedNodes([]);
     onSelectionCountChange?.(0, false);
-  }, [lastSelectedId, setEdges, setNodes, onSelectionCountChange, removeEdgeById]);
+  }, [
+    lastSelectedId,
+    setEdges,
+    setNodes,
+    onSelectionCountChange,
+    removeEdgeById,
+  ]);
 
   /* 루트 핸들/오프셋 */
   const didInitialRootOffset = useRef(false);
 
   useEffect(() => {
-    setNodes((prev) => withHandlesByRoot(prev, edges));
+    setNodes((prev) => withHandlesByRoot(prev, edges, { keepTargetForRoots: true }));
   }, [edges, setNodes]);
 
   useEffect(() => {
@@ -321,7 +354,8 @@ const FlowCore = forwardRef(function FlowCore(
     setNodes(
       withHandlesByRoot(
         initialNodes.map((n) => ({ ...n, type: "qa", style: nodeStyle })),
-        initialEdges
+        initialEdges,
+        { keepTargetForRoots: true }
       )
     );
     setEdges(initialEdges.map(stripRuntimeEdge));
@@ -333,9 +367,7 @@ const FlowCore = forwardRef(function FlowCore(
   const updateNodeLabel = useCallback(
     (id, label) => {
       setNodes((nds) =>
-        nds.map((n) =>
-          n.id === id ? { ...n, data: { ...n.data, label } } : n
-        )
+        nds.map((n) => (n.id === id ? { ...n, data: { ...n.data, label } } : n))
       );
     },
     [setNodes]
@@ -447,7 +479,7 @@ const FlowCore = forwardRef(function FlowCore(
       nodesDraggable: editMode,
       nodesConnectable: editMode,
       elementsSelectable: editMode,
-      edgesFocusable: true,  // ★ 명시
+      edgesFocusable: true, // ★ 명시
       connectOnClick: editMode,
       panOnDrag: true,
       panOnScroll: !editMode,

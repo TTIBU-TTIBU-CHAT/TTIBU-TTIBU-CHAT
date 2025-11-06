@@ -24,9 +24,7 @@ import { FlowWrap } from "../styles";
 import { nodeStyle, edgeStyle } from "../styles";
 import {
   H_SPACING,
-  V_SPACING,
   MIN_ZOOM,
-  COLLIDE_EPS,
   ROOT_X_OFFSET,
   countIncoming,
   countOutgoing,
@@ -42,7 +40,12 @@ import { initialNodes, initialEdges } from "../initialData";
 import DeletableEdge from "../edges/DeletableEdge";
 import SelectionOverlay from "../overlays/SelectionOverlay";
 import QaNode from "../QaNode";
-import { edge as makeEdge, stripRuntimeEdge, serializeEdges, serializeNodes } from "../utils";
+import {
+  edge as makeEdge,
+  stripRuntimeEdge,
+  serializeEdges,
+  serializeNodes,
+} from "../utils";
 
 /* ✅ 임시 노드 스타일만 여기서 오버라이드 (nodeStyle 기반) */
 const tempNodeStyle = {
@@ -60,10 +63,10 @@ const FlowCore = forwardRef(function FlowCore(
     onSelectionCountChange,
     onNodeClickInViewMode,
     onCreateNode,
+    onError,
   },
   ref
 ) {
-  const { screenToFlowPosition } = useReactFlow();
   const didInitRef = useRef(false);
 
   const nodeTypes = useMemo(() => ({ qa: QaNode }), []);
@@ -72,7 +75,8 @@ const FlowCore = forwardRef(function FlowCore(
   const [nodes, setNodes, onNodesChange] = useNodesState(
     withHandlesByRoot(
       initialNodes.map((n) => ({ ...n, type: "qa", style: nodeStyle })),
-      initialEdges
+      initialEdges,
+      { keepTargetForRoots: true }
     )
   );
   const [edges, setEdges, onEdgesChange] = useEdgesState(
@@ -97,7 +101,10 @@ const FlowCore = forwardRef(function FlowCore(
 
   const [selectedNodes, setSelectedNodes] = useState([]);
   const [lastSelectedId, setLastSelectedId] = useState(null);
-
+  /* 빈 노드(내용 없음/임시) 판별 */
+  const isEmptyNode = (n) =>
+    !!n?.data?.__temp ||
+    (!n?.data?.kind && !n?.data?.question && !n?.data?.answer);
   const initialSnapshotRef = useRef({
     nodes: serializeNodes(
       initialNodes.map((n) => ({ ...n, type: "qa", style: nodeStyle }))
@@ -143,8 +150,8 @@ const FlowCore = forwardRef(function FlowCore(
         console.warn("[Linear] Reject onConnect", params);
         return;
       }
-      setEdges((eds) =>
-        addEdge(
+      setEdges((eds) => {
+        const next = addEdge(
           {
             ...params,
             ...edgeStyle,
@@ -152,8 +159,13 @@ const FlowCore = forwardRef(function FlowCore(
             data: { onRemove: removeEdgeById },
           },
           eds
-        )
-      );
+        );
+        // ★ 엣지 변경 즉시 핸들 재계산
+        setNodes((prev) =>
+          withHandlesByRoot(prev, next, { keepTargetForRoots: true })
+        );
+        return next;
+      });
     },
     [edges, setEdges, removeEdgeById]
   );
@@ -167,11 +179,19 @@ const FlowCore = forwardRef(function FlowCore(
         const hasChild = remaining.some((e) => e.source === newConn.source);
         const hasParent = remaining.some((e) => e.target === newConn.target);
         if (hasChild || hasParent) {
-          console.warn("[Linear] Reject onEdgeUpdate", { hasChild, hasParent, newConn });
-          return [...remaining, oldEdge]; // 되돌리기
+          console.warn("[Linear] Reject onEdgeUpdate", {
+            hasChild,
+            hasParent,
+            newConn,
+          });
+          const back = [...remaining, oldEdge];
+          setNodes((prev) =>
+            withHandlesByRoot(prev, back, { keepTargetForRoots: true })
+          );
+          return back;
         }
 
-        return addEdge(
+        const next = addEdge(
           {
             id: oldEdge.id,
             ...edgeStyle,
@@ -182,6 +202,10 @@ const FlowCore = forwardRef(function FlowCore(
           },
           remaining
         );
+        setNodes((prev) =>
+          withHandlesByRoot(prev, next, { keepTargetForRoots: true })
+        );
+        return next;
       });
     },
     [setEdges, removeEdgeById]
@@ -190,7 +214,8 @@ const FlowCore = forwardRef(function FlowCore(
   /* ===== 선택/보기 모드 ===== */
   useEffect(() => {
     if (!editMode) {
-      setSelectedNodes([]); setLastSelectedId(null);
+      setSelectedNodes([]);
+      setLastSelectedId(null);
       onSelectionCountChange?.(0);
     }
   }, [editMode, onSelectionCountChange]);
@@ -198,7 +223,8 @@ const FlowCore = forwardRef(function FlowCore(
   const handleSelectionChange = useCallback(
     ({ nodes: selNodes }) => {
       if (!editMode) {
-        setSelectedNodes([]); setLastSelectedId(null);
+        setSelectedNodes([]);
+        setLastSelectedId(null);
         onSelectionCountChange?.(0);
         return;
       }
@@ -213,11 +239,20 @@ const FlowCore = forwardRef(function FlowCore(
   const onNodeClick = useCallback(
     (e, node) => {
       if (!editMode) {
-        e?.preventDefault?.(); e?.stopPropagation?.();
-        onNodeClickInViewMode?.(); // 페이지에서 검색패널 열림
+        e?.preventDefault?.();
+        e?.stopPropagation?.();
+        onNodeClickInViewMode?.(node?.id, { empty: isEmptyNode(node) }); // 뷰 모드 클릭 메타 전달
         return;
       }
       setLastSelectedId(node?.id || null);
+      // 편집 모드에서도 빈 노드면 부모에 메타 전달 → 패널 열어 카드 꽂기
+      // if (node?.id) {
+      //   // onEditNodeClick은 선택적 prop
+      //   typeof onNodeClickInViewMode === "function" &&
+      //     onNodeClickInViewMode(node.id, { empty: isEmptyNode(node) });
+      //   // 별도로 전용 콜백을 쓰고 싶다면 아래를 사용 (부모에서 onEditNodeClick 받기)
+      //   // onEditNodeClick?.(node.id, { empty: isEmptyNode(node) });
+      // }
     },
     [editMode, onNodeClickInViewMode]
   );
@@ -225,9 +260,18 @@ const FlowCore = forwardRef(function FlowCore(
   /* ===== (+) 새 "임시" 노드 추가: 내용은 나중에 주입 ===== */
   const addNextNode = useCallback(() => {
     const tail = getTail(nodes, edges);
-    const baseX = tail ? tail.position?.x ?? 0 : 0;
-    const baseY = tail ? tail.position?.y ?? 0 : 0;
+    const baseX = tail ? (tail.position?.x ?? 0) : 0;
+    const baseY = tail ? (tail.position?.y ?? 0) : 0;
 
+    // ★ 부모(꼬리)가 비어 있으면 추가 차단
+    if (tail && isEmptyNode(tail)) {
+      onError?.({
+        code: "EMPTY_PARENT",
+        message:
+          "현재 노드에 내용이 없어요. 먼저 내용을 채우거나 카드/그룹을 꽂은 뒤 새 노드를 추가하세요.",
+      });
+      return;
+    }
     const draftX = baseX + H_SPACING;
     const draftY = baseY;
 
@@ -254,7 +298,7 @@ const FlowCore = forwardRef(function FlowCore(
 
     // source: 'plus' 로 알려서 페이지가 Search 패널 열도록
     onCreateNode?.(newId, null, { source: "plus" });
-  }, [nodes, edges, setNodes, onCreateNode, tryAddLinearEdge]);
+  }, [nodes, edges, setNodes, onCreateNode, tryAddLinearEdge, onError]);
 
   /* ===== 노드 삭제 ===== */
   const removeSelectedNode = useCallback(() => {
@@ -267,14 +311,14 @@ const FlowCore = forwardRef(function FlowCore(
         (e) => e.source !== lastSelectedId && e.target !== lastSelectedId
       );
 
+      let next = other;
       if (incoming.length === 1 && outgoing.length === 1) {
         const parentId = incoming[0].source;
         const childId = outgoing[0].target;
-
         const parentHasChild = other.some((e) => e.source === parentId);
         const childHasParent = other.some((e) => e.target === childId);
         if (!parentHasChild && !childHasParent) {
-          return [
+          next = [
             ...other,
             {
               ...makeEdge(parentId, childId),
@@ -285,18 +329,30 @@ const FlowCore = forwardRef(function FlowCore(
           ];
         }
       }
-      return other;
+      setNodes((prev) =>
+        withHandlesByRoot(prev, next, { keepTargetForRoots: true })
+      );
+      return next;
     });
 
     setNodes((nds) => nds.filter((n) => n.id !== lastSelectedId));
     setLastSelectedId(null);
-    setSelectedNodes([]); onSelectionCountChange?.(0);
-  }, [lastSelectedId, setEdges, setNodes, onSelectionCountChange, removeEdgeById]);
+    setSelectedNodes([]);
+    onSelectionCountChange?.(0);
+  }, [
+    lastSelectedId,
+    setEdges,
+    setNodes,
+    onSelectionCountChange,
+    removeEdgeById,
+  ]);
 
   /* 루트 핸들/오프셋 */
   const didInitialRootOffset = useRef(false);
   useEffect(() => {
-    setNodes((prev) => withHandlesByRoot(prev, edges));
+    setNodes((prev) =>
+      withHandlesByRoot(prev, edges, { keepTargetForRoots: true })
+    );
   }, [edges, setNodes]);
 
   useEffect(() => {
@@ -304,8 +360,14 @@ const FlowCore = forwardRef(function FlowCore(
     setNodes((prev) => {
       const incoming = computeIncomingMap(edges);
       return prev.map((n) =>
-        !incoming.get(n.id)
-          ? { ...n, position: { x: (n.position?.x ?? 0) - ROOT_X_OFFSET, y: n.position?.y ?? 0 } }
+        !incoming.has(n.id)
+          ? {
+              ...n,
+              position: {
+                x: (n.position?.x ?? 0) - ROOT_X_OFFSET,
+                y: n.position?.y ?? 0,
+              },
+            }
           : n
       );
     });
@@ -317,12 +379,14 @@ const FlowCore = forwardRef(function FlowCore(
     setNodes(
       withHandlesByRoot(
         initialNodes.map((n) => ({ ...n, type: "qa", style: nodeStyle })),
-        initialEdges
+        initialEdges,
+        { keepTargetForRoots: true }
       )
     );
     setEdges(initialEdges.map(stripRuntimeEdge));
     setLastSelectedId(null);
-    setSelectedNodes([]); onSelectionCountChange?.(0);
+    setSelectedNodes([]);
+    onSelectionCountChange?.(0);
   }, [setNodes, setEdges, onSelectionCountChange]);
 
   const updateNodeLabel = useCallback(
@@ -341,7 +405,9 @@ const FlowCore = forwardRef(function FlowCore(
       setNodes((nds) => {
         const target = nds.find((n) => n.id === nodeId);
         if (!target || !target.data?.__temp) return nds;
-        setEdges((eds) => eds.filter((e) => e.source !== nodeId && e.target !== nodeId));
+        setEdges((eds) =>
+          eds.filter((e) => e.source !== nodeId && e.target !== nodeId)
+        );
         return nds.filter((n) => n.id !== nodeId);
       });
     },
@@ -432,12 +498,24 @@ const FlowCore = forwardRef(function FlowCore(
   const onDrop = useCallback(
     (e) => {
       e.preventDefault();
-      const payload = getPayloadFromDT(e.dataTransfer, [DND_MIME_RESULT, DND_MIME_GROUP]);
+      const payload = getPayloadFromDT(e.dataTransfer, [
+        DND_MIME_RESULT,
+        DND_MIME_GROUP,
+      ]);
       if (!payload) return;
 
       const tail = getTail(nodes, edges);
-      const baseX = tail ? tail.position?.x ?? 0 : 0;
-      const baseY = tail ? tail.position?.y ?? 0 : 0;
+      // 드롭으로도 tail에 자동 연결되므로, tail이 비어있으면 차단
+      if (tail && isEmptyNode(tail)) {
+        onError?.({
+          code: "EMPTY_PARENT",
+          message:
+            "현재 마지막 노드가 비어있습니다. 내용을 채운 뒤에 카드를 드롭해 연결해주세요.",
+        });
+        return;
+      }
+      const baseX = tail ? (tail.position?.x ?? 0) : 0;
+      const baseY = tail ? (tail.position?.y ?? 0) : 0;
       const draftX = baseX + H_SPACING;
       const draftY = baseY;
       const { x, y } = findFreeSpot(nodes, draftX, draftY);

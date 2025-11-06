@@ -13,7 +13,8 @@ export const MIN_ZOOM = 0.5;
 export const getChildren = (edges, parentId) =>
   edges.filter((e) => e.source === parentId).map((e) => e.target);
 
-export const zigzag = (n) => (n === 0 ? 0 : n % 2 === 1 ? Math.ceil(n / 2) : -n / 2);
+export const zigzag = (n) =>
+  n === 0 ? 0 : n % 2 === 1 ? Math.ceil(n / 2) : -n / 2;
 
 export const findFreeSpot = (nodes, startX, startY) => {
   let x = startX;
@@ -37,18 +38,41 @@ export const computeIncomingMap = (edges) => {
   return map;
 };
 
-export const withHandlesByRoot = (nodes, edges) => {
+export const withHandlesByRoot = (
+  nodes,
+  edges,
+  { keepTargetForRoots = false } = {}
+) => {
   const incoming = computeIncomingMap(edges);
+
   return nodes.map((n) => {
-    const isRoot = !incoming.get(n.id);
+    const isRoot = !incoming.has(n.id); // ★ .has 로 판정
+
     if (isRoot) {
-      const { targetPosition, ...rest } = n; // 루트는 target 핸들 제거
-      return { ...rest, sourcePosition: Position.Right };
+      if (keepTargetForRoots) {
+        // ★ 루트여도 타깃 핸들 유지 (없으면 기본 Left)
+        return {
+          ...n,
+          sourcePosition: n.sourcePosition ?? Position.Right,
+          targetPosition: n.targetPosition ?? Position.Left,
+        };
+      }
+      // 루트면 타깃 핸들 제거 모드
+      return {
+        ...n,
+        sourcePosition: n.sourcePosition ?? Position.Right,
+        targetPosition: undefined,
+      };
     }
-    return { ...n, sourcePosition: Position.Right, targetPosition: Position.Left };
+
+    // 루트가 아니면 양쪽 핸들 보유
+    return {
+      ...n,
+      sourcePosition: n.sourcePosition ?? Position.Right,
+      targetPosition: n.targetPosition ?? Position.Left,
+    };
   });
 };
-
 /* ===== 뷰포트 중앙 정렬 ===== */
 export function centerGraphOnce(instance, zoom = MIN_ZOOM) {
   requestAnimationFrame(() => {
@@ -57,8 +81,12 @@ export function centerGraphOnce(instance, zoom = MIN_ZOOM) {
       instance.setViewport({ x: 0, y: 0, zoom });
       return;
     }
-    const F_W = 160, F_H = 40;
-    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+    const F_W = 160,
+      F_H = 40;
+    let minX = Infinity,
+      minY = Infinity,
+      maxX = -Infinity,
+      maxY = -Infinity;
 
     for (const n of rendered) {
       const x = n.position?.x ?? 0;

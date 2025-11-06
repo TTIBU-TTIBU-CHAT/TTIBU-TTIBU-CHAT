@@ -7,7 +7,9 @@ import ModalShell from "@/components/ModalShell/ModalShell";
 import FlowCanvas from "@/components/Chatflow/FlowCanvas";
 import * as S from "./-styles.ChatFlowPage";
 import InputDialog from "@/components/common/Modal/InputDialog";
+import ErrorDialog from "@/components/common/Modal/ErrorDialog";
 import { useRouterState } from "@tanstack/react-router";
+
 /* ===== 로컬 스토리지 헬퍼 ===== */
 const LS_BRANCH_BY_NODE = "ttibu-branch-by-node"; // { [nodeId]: branchName }
 const LS_PENDING_MSGS = "ttibu-pending-msgs"; // [{ nodeId, text, ts, branchName }]
@@ -70,9 +72,16 @@ export default function ChatFlowPage() {
 
   // (+)로 생성한 임시 노드 id
   const [pendingNodeId, setPendingNodeId] = useState(null);
+  const [pendingSource, setPendingSource] = useState(null);
+
+  const [errorOpen, setErrorOpen] = useState(false);
+  const [errorMsg, setErrorMsg] = useState("");
 
   const canvasRef = useRef(null);
-
+  const handleCoreError = useCallback(({ message }) => {
+    setErrorMsg(message || "오류가 발생했습니다.");
+    setErrorOpen(true);
+  }, []);
   /* ===== 채팅 전송 + 로컬 보관 ===== */
   const handleSend = useCallback(() => {
     const t = input.trim();
@@ -112,17 +121,11 @@ export default function ChatFlowPage() {
   const handleCreateNode = useCallback(
     (newNodeId, payload, meta) => {
       if (meta?.source === "plus") {
-        if (isGroups) {
-          // /groups: + → SearchContent
-          setPendingNodeId(newNodeId);
-          setPanelType("search");
-          setPanelOpen(true);
-        } else {
-          // /chatRooms: + → ChatContent
-          setEditingNodeId(newNodeId); // ★ 이 노드에 입력 반영
-          setPanelType("chat");
-          setPanelOpen(true);
-        }
+        // 경로와 무관하게: 새 노드에 컨텐츠를 꽂아야 하므로 pending 타깃으로 지정
+        setPendingNodeId(newNodeId);
+        setPendingSource("plus");
+        setPanelType("search"); // 검색/선택 패널에서 payload를 받아 applyContentToNode로 주입
+        setPanelOpen(true);
       }
     },
     [isGroups]
@@ -134,19 +137,35 @@ export default function ChatFlowPage() {
       if (pendingNodeId) {
         canvasRef.current?.applyContentToNode(pendingNodeId, payload);
         setPendingNodeId(null);
+        setPendingSource(null);
       }
       setPanelOpen(false);
     },
     [pendingNodeId]
   );
 
+  /* ===== 빈 노드 클릭 시: 해당 노드를 펜딩 타깃으로 사용 ===== */
+  const handleEmptyNodeClick = useCallback(
+    (nodeId) => {
+      if (!nodeId) return;
+      setPendingNodeId(nodeId);
+      setPendingSource("emptyClick");
+      // 라우트별 기본 열 패널: /groups → search, /chatRooms → search(원하면 chat로 바꿔도 됨)
+      setPanelType(isGroups ? "search" : "search");
+      setPanelOpen(true);
+    },
+    [isGroups]
+  );
   /* ===== 패널 닫기: pending 노드가 남아있으면 취소(삭제) ===== */
   const handleClosePanel = useCallback(() => {
     setPanelOpen(false);
-    if (pendingNodeId) {
+    if (pendingNodeId && pendingSource === "plus") {
+      // '+'로 만든 임시노드는 닫으면 롤백
       canvasRef.current?.discardTempNode(pendingNodeId);
-      setPendingNodeId(null);
     }
+    // 빈 노드 클릭으로 연 건 삭제하지 않음
+    setPendingNodeId(null);
+    setPendingSource(null);
   }, [pendingNodeId]);
 
   // 버튼 노출: 그룹 포함 시 숨김
@@ -265,7 +284,12 @@ export default function ChatFlowPage() {
         onCancel={cancelBranchModal}
         onConfirm={confirmBranchModal}
       />
-
+      <ErrorDialog
+        open={errorOpen}
+        title="알림"
+        message={errorMsg}
+        onClose={() => setErrorOpen(false)}
+      />
       <FlowCanvas
         ref={canvasRef}
         editMode={editMode}
@@ -275,28 +299,33 @@ export default function ChatFlowPage() {
           setSelectedCount(count);
           setHasGroupInSelection(!!containsGroup);
         }}
-        onNodeClickInViewMode={(nodeId) => {
+        onNodeClickInViewMode={(nodeId, meta) => {
+          // 뷰 모드에서 빈 노드라면 곧바로 search 열어서 꽂을 수도 있음(선택)
+          if (meta?.empty) {
+            handleEmptyNodeClick(nodeId);
+            return;
+          }
           if (isGroups) {
-            // /groups: 뷰 모드 노드 클릭 → 검색 패널
             setPanelType("search");
             setPanelOpen(true);
           } else {
-            // /chatRooms: 뷰 모드 노드 클릭 → 채팅 패널
-            if (nodeId) setEditingNodeId(nodeId); // 채팅 입력 라벨 반영 타깃
+            if (nodeId) setEditingNodeId(nodeId);
             setPanelType("chat");
             setPanelOpen(true);
           }
         }}
-        onEditNodeClick={(nodeId) => {
-          if (!isGroups) {
-            setEditingNodeId(nodeId); // ★ 이 노드의 라벨/대화 갱신 타깃
-            setPanelType("chat");
-            setPanelOpen(true);
+        onEditNodeClick={(nodeId, meta) => {
+          if (meta?.empty && nodeId) {
+            // 편집 모드에서도 '빈 노드'를 누르면 그 노드를 pending 타깃으로 모달 오픈
+            handleEmptyNodeClick(nodeId); // 내부에서 setPendingNodeId + setPanelOpen(true)
+            return;
           }
+          // (채워진 노드를 클릭했을 때는 모달을 안 열고 싶다면 아무 것도 하지 않으면 됨)
         }}
         onCreateNode={handleCreateNode}
         askBranchName={askBranchName}
         onBranchSaved={handleBranchSaved}
+        onError={handleCoreError}
       />
     </S.Page>
   );
