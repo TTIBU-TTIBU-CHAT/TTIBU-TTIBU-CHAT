@@ -135,7 +135,7 @@ public class KeyServiceImpl implements KeyService {
 
         return KeyResponseDto.GetKeyInfo.builder()
                 .keyUid(key.getKeyUid())
-                .provider(key.getProvider())
+                .providerCode(key.getProvider().getCode())
                 .key(decryptKey(key.getEncryptedKey()))
                 .isActive(key.getIsActive())
                 .expirationAt(key.getExpirationAt())
