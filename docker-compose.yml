@@ -27,6 +27,18 @@ services:
     networks:
       - ttibu-network
 
+  # Redis Cache
+  redis:
+    image: redis:7-alpine
+    container_name: ttibu-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - ttibu-network
+    command: redis-server --appendonly yes
+
   # Spring Boot Core API
   core-api:
     build:
@@ -45,6 +57,7 @@ services:
     depends_on:
       - postgres
       - mongo
+      - redis
       - litellm
     networks:
       - ttibu-network
@@ -91,6 +104,7 @@ services:
 volumes:
   postgres_data:
   mongo_data:
+  redis_data:
 
 networks:
   ttibu-network:
