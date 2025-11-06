@@ -1,6 +1,7 @@
 package io.ssafy.p.k13c103.coreapi.domain.model.controller;
 
 import io.ssafy.p.k13c103.coreapi.common.jsend.JSend;
+import io.ssafy.p.k13c103.coreapi.domain.model.dto.ModelResponseDto;
 import io.ssafy.p.k13c103.coreapi.domain.model.service.ModelService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -25,7 +26,7 @@ public class ModelController {
     @GetMapping("/providers")
     public ResponseEntity<JSend> getProviders() {
 
-        List<String> providers = modelService.getProviders();
+        List<ModelResponseDto.ProviderListInfo> providers = modelService.getProviders();
 
         return ResponseEntity.status(HttpStatus.OK).body(JSend.success(providers));
     }

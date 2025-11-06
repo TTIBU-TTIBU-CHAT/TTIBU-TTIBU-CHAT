@@ -8,5 +8,5 @@ public interface ModelService {
 
     List<ModelResponseDto.ModelListInfo> getModels(Long memberUid);
 
-    List<String> getProviders();
+    List<ModelResponseDto.ProviderListInfo> getProviders();
 }

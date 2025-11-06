@@ -80,14 +80,20 @@ public class ModelServiceImpl implements ModelService {
 
     @Override
     @Transactional(readOnly = true)
-    public List<String> getProviders() {
+    public List<ModelResponseDto.ProviderListInfo> getProviders() {
         List<ProviderCatalog> providers = providerCatalogRepository.findByIsActiveTrueOrderByCodeAsc();
         if (providers.isEmpty())
             return List.of();
 
-        List<String> response = new ArrayList<>();
+        providers.sort(Comparator.comparing(ProviderCatalog::getProviderUid));
+
+        List<ModelResponseDto.ProviderListInfo> response = new ArrayList<>();
         for (ProviderCatalog provider : providers)
-            response.add(provider.getCode());
+            response.add(ModelResponseDto.ProviderListInfo
+                    .builder()
+                    .providerUid(provider.getProviderUid())
+                    .providerCode(provider.getCode())
+                    .build());
 
         return response;
     }

@@ -1,6 +1,5 @@
 package io.ssafy.p.k13c103.coreapi.domain.model.dto;
 
-import io.ssafy.p.k13c103.coreapi.domain.catalog.entity.ModelCatalog;
 import lombok.Builder;
 
 import java.util.List;
@@ -21,6 +20,13 @@ public class ModelResponseDto {
             String modelCode, // 식별용 이름
             boolean isSelected, // 사용자의 선택 여부
             boolean isDefault // 디폴트 여부
+    ) {
+    }
+
+    @Builder
+    public record ProviderListInfo(
+            Long providerUid,
+            String providerCode
     ) {
     }
 }
