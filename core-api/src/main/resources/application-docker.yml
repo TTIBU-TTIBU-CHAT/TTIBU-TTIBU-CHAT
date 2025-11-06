@@ -31,8 +31,10 @@ litellm:
   api-key: ${LITELLM_MASTER_KEY}
   model: gpt-3.5-turbo
 
-# TTIBU Security
+# TTIBU Configuration
 ttibu:
+  litellm:
+    config-path: file:/litellm-config.yaml
   crypto:
     secret: ${TTIBU_CRYPTO_SECRET}
 

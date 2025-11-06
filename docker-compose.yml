@@ -30,8 +30,8 @@ services:
   # Spring Boot Core API
   core-api:
     build:
-      context: ./core-api
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: ./core-api/Dockerfile
     container_name: ttibu-core-api
     environment:
       SPRING_PROFILES_ACTIVE: docker
@@ -40,6 +40,8 @@ services:
       TTIBU_CRYPTO_SECRET: ${TTIBU_CRYPTO_SECRET}
     ports:
       - "8080:8080"
+    volumes:
+      - ./litellm-config.yaml:/litellm-config.yaml
     depends_on:
       - postgres
       - mongo
