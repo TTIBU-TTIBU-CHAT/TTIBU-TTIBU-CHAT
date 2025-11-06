@@ -93,29 +93,31 @@ public class KeyServiceImpl implements KeyService {
         if (!memberRepository.existsById(memberUid))
             throw new ApiException(ErrorCode.MEMBER_NOT_FOUND);
 
-        if (!catalogLoader.existsProvider(request.provider()))
-            throw new ApiException(ErrorCode.PROVIDER_NOT_FOUND);
+        ProviderCatalog provider = providerCatalogRepository.findById(request.providerUid())
+                .orElseThrow(() -> new ApiException(ErrorCode.PROVIDER_NOT_FOUND));
 
         Key key = keyRepository.findByKeyUidAndMember_MemberUid(request.keyUid(), memberUid)
                 .orElseThrow(() -> new ApiException(ErrorCode.KEY_NOT_FOUND));
 
-        if (!key.getProvider().equals(request.provider())
-                && keyRepository.existsByMember_MemberUidAndProvider(memberUid, request.provider())) {
+        if (keyRepository.existsByMember_MemberUidAndProvider_ProviderUid(memberUid, provider.getProviderUid()))
             throw new ApiException(ErrorCode.DUPLICATED_KEY);
-        }
 
-        if (!decryptKey(key.getEncryptedKey()).equals(request.key())) {
+        if (!decryptKey(key.getEncryptedKey()).equals(request.key())) { // 키가 변경된 경우
 
-            List<String> models = catalogLoader.modelCodes(request.provider());
+            List<CatalogModelEntry> models = modelCatalogRepository.findEntriesByProviderCode(provider.getCode());
             if (models.isEmpty())
                 throw new ApiException(ErrorCode.MODEL_CATALOG_EMPTY);
 
-//        String testModel = request.provider() + "/" + models.get(0); // FIXME: 운영 환경에서 주석 해제
-            String testModel = models.get(0); // FIXME: 운영 환경에서 주석 처리
-            liteLlmClient.test(request.key(), testModel); // 문제 있다면 에러 발생
+            // FIXME: 운영 환경에서 주석 해제
+//        String testModel = provider.getCode() + "/" + models.get(0).code();
+//        liteLlmClient.test(reques t.key(), testModel); // 문제 있다면 에러 발생
+
+            // FIXME: 운영 환경에서 주석 처리
+            String testModel = models.get(0).code();
+            liteLlmClient.gmsTest(request.key(), testModel, provider.getCode());
         }
 
-        key.update(request.provider(), encryptKey(request.key()), request.isActive(), request.expirationAt());
+        key.update(provider, encryptKey(request.key()), request.isActive(), request.expirationAt());
 
         return KeyResponseDto.EditKeyInfo.builder()
                 .keyUid(key.getKeyUid())

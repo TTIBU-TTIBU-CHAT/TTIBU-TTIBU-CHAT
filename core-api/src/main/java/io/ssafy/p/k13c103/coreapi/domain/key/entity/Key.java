@@ -27,7 +27,7 @@ public class Key extends BaseTimeEntity {
     @JoinColumn(name = "member_uid", nullable = false)
     private Member member;
 
-    @ManyToOne(fetch=FetchType.LAZY)
+    @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "provider_catalog_uid", nullable = false)
     private ProviderCatalog provider;
 
@@ -45,8 +45,8 @@ public class Key extends BaseTimeEntity {
     @Column(name = "expiration_at", nullable = false)
     private LocalDate expirationAt;
 
-    public void update(String provider, String encryptedKey, Boolean isActive, LocalDate expirationAt) {
-//        if (provider!=null) this.provider = provider;
+    public void update(ProviderCatalog provider, String encryptedKey, Boolean isActive, LocalDate expirationAt) {
+        if (provider != null) this.provider = provider;
         if (encryptedKey != null) this.encryptedKey = encryptedKey;
         if (isActive != null) this.isActive = isActive;
         if (expirationAt != null) this.expirationAt = expirationAt;
