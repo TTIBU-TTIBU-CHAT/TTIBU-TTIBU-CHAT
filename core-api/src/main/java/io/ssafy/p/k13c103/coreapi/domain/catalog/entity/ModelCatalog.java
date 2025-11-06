@@ -15,18 +15,18 @@ import lombok.NoArgsConstructor;
 @Table(
         name = "model_catalog",
         uniqueConstraints = @UniqueConstraint(
-                columnNames = {"provider_uid", "code"}
+                columnNames = {"provider_catalog_uid", "code"}
         )
 )
 public class ModelCatalog extends BaseTimeEntity {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
-    @Column(name = "model_uid")
+    @Column(name = "model_catalog_uid")
     private Long modelUid;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "provider_uid", nullable = false)
+    @JoinColumn(name = "provider_catalog_uid", nullable = false)
     private ProviderCatalog provider;
 
     @Column(name = "code", nullable = false)

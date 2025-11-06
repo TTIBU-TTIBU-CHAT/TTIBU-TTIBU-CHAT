@@ -28,7 +28,7 @@ public class Key extends BaseTimeEntity {
     private Member member;
 
     @ManyToOne(fetch=FetchType.LAZY)
-    @JoinColumn(name = "provider_uid", nullable = false)
+    @JoinColumn(name = "provider_catalog_uid", nullable = false)
     private ProviderCatalog provider;
 
     @Column(name = "encrypted_key", nullable = false, columnDefinition = "TEXT")

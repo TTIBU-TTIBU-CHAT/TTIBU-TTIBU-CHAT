@@ -26,8 +26,8 @@ public class Model extends BaseTimeEntity {
     private Member member;
 
     @ManyToOne(fetch=FetchType.LAZY)
-    @JoinColumn(name="model_uid", nullable = false)
-    private ModelCatalog model;
+    @JoinColumn(name="model_catalog_uid", nullable = false)
+    private ModelCatalog modelCatalog;
 
     @Builder.Default
     @Column(name = "is_default", nullable = false)
