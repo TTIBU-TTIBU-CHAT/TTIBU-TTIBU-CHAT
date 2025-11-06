@@ -7,5 +7,7 @@ public interface LiteLlmClient {
      */
     void test(String apiKey, String model);
 
+    void gmsTest(String apiKey, String model, String provider);
+
     // TODO: 채팅 생성
 }
