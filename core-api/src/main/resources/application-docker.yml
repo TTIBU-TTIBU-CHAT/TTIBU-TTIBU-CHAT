@@ -4,11 +4,11 @@ spring:
     username: postgres
     password: postgres
     driver-class-name: org.postgresql.Driver
-  
+
   data:
     mongodb:
       uri: mongodb://mongo:27017/ttibu_mongo
-  
+
   jpa:
     hibernate:
       ddl-auto: update
@@ -21,11 +21,20 @@ spring:
 server:
   port: 8080
 
+# GMS Configuration
+gms:
+  base-url: ${GMS_BASE_URL}
+
 # LiteLLM Configuration
 litellm:
   base-url: http://litellm:4000
-  api-key: sk-1234
+  api-key: ${LITELLM_MASTER_KEY}
   model: gpt-3.5-turbo
+
+# TTIBU Security
+ttibu:
+  crypto:
+    secret: ${TTIBU_CRYPTO_SECRET}
 
 logging:
   level:
