@@ -6,6 +6,9 @@ import java.util.List;
 
 public class ModelResponseDto {
 
+    /**
+     * 모델 리스트 조회 응답 DTO
+     */
     @Builder
     public record ModelListInfo(
             String providerCode,
@@ -13,6 +16,9 @@ public class ModelResponseDto {
     ) {
     }
 
+    /**
+     * 모델 상세 조회 응답 DTO
+     */
     @Builder
     public record ModelInfoDetail(
             Long modelCatalogUid,
@@ -23,6 +29,9 @@ public class ModelResponseDto {
     ) {
     }
 
+    /**
+     * 제공사 리스트 조회 응답 DTO
+     */
     @Builder
     public record ProviderListInfo(
             Long providerUid,
