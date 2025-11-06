@@ -27,7 +27,7 @@ app:
 
 ttibu:
   litellm:
-    config-path: file:../litellm-config.yaml
+    config-path: ../litellm-config.yaml
     poll-ms: 30000
 
 logging:
