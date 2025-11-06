@@ -61,7 +61,8 @@ public class SecurityConfig {
                 // 보안 헤더
                 .headers(h -> h.frameOptions(f -> f.sameOrigin()))
                 // CORS
-                .cors(Customizer.withDefaults());
+                .cors(Customizer.withDefaults())
+                .securityContext(sc->sc.securityContextRepository(securityContextRepository()));
 
         CookieCsrfTokenRepository repo = CookieCsrfTokenRepository.withHttpOnlyFalse();
         repo.setCookieCustomizer(c -> {
