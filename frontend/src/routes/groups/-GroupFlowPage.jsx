@@ -111,7 +111,11 @@ export default function GroupFlowPage() {
       alert("저장할 수 없습니다:\n" + result.errors.join("\n"));
       return;
     }
-    // TODO: 정상 저장 로직
+    if (!result.ok) {
+      setErrorMsg(result.errors.join("\n"));
+      setErrorOpen(true);
+      return;
+    }
     console.log("✅ 검증 통과! 저장 진행");
   }, []);
 

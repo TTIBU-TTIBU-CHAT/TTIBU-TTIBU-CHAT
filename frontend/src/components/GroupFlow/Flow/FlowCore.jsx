@@ -1,4 +1,3 @@
-// src/components/Flow/FlowCore.jsx
 import React, {
   forwardRef,
   useCallback,
@@ -47,6 +46,9 @@ import {
   serializeNodes,
 } from "../utils";
 
+/* 최대 노드 개수 제약 */
+const MAX_NODES = 10;
+
 /* ✅ 임시 노드 스타일만 여기서 오버라이드 (nodeStyle 기반) */
 const tempNodeStyle = {
   ...nodeStyle,
@@ -82,6 +84,18 @@ const FlowCore = forwardRef(function FlowCore(
   const [edges, setEdges, onEdgesChange] = useEdgesState(
     initialEdges.map(stripRuntimeEdge)
   );
+
+  /* 공통: 노드 용량 가드 */
+  const ensureCapacity = useCallback(() => {
+    if (nodes.length >= MAX_NODES) {
+      onError?.({
+        code: "MAX_NODES",
+        message: `노드는 최대 ${MAX_NODES}개까지 추가할 수 있어요.`,
+      });
+      return false;
+    }
+    return true;
+  }, [nodes.length, onError]);
 
   /* 엣지 삭제 핸들러 + 초기 주입 */
   const removeEdgeById = useCallback(
@@ -167,7 +181,7 @@ const FlowCore = forwardRef(function FlowCore(
         return next;
       });
     },
-    [edges, setEdges, removeEdgeById]
+    [edges, setEdges, removeEdgeById, setNodes]
   );
 
   /* ===== 엣지 업데이트(드래그로 재연결) ===== */
@@ -208,7 +222,7 @@ const FlowCore = forwardRef(function FlowCore(
         return next;
       });
     },
-    [setEdges, removeEdgeById]
+    [setEdges, removeEdgeById, setNodes]
   );
 
   /* ===== 선택/보기 모드 ===== */
@@ -245,20 +259,14 @@ const FlowCore = forwardRef(function FlowCore(
         return;
       }
       setLastSelectedId(node?.id || null);
-      // 편집 모드에서도 빈 노드면 부모에 메타 전달 → 패널 열어 카드 꽂기
-      // if (node?.id) {
-      //   // onEditNodeClick은 선택적 prop
-      //   typeof onNodeClickInViewMode === "function" &&
-      //     onNodeClickInViewMode(node.id, { empty: isEmptyNode(node) });
-      //   // 별도로 전용 콜백을 쓰고 싶다면 아래를 사용 (부모에서 onEditNodeClick 받기)
-      //   // onEditNodeClick?.(node.id, { empty: isEmptyNode(node) });
-      // }
     },
     [editMode, onNodeClickInViewMode]
   );
 
   /* ===== (+) 새 "임시" 노드 추가: 내용은 나중에 주입 ===== */
   const addNextNode = useCallback(() => {
+    if (!ensureCapacity()) return; // ★ 용량 가드
+
     const tail = getTail(nodes, edges);
     const baseX = tail ? (tail.position?.x ?? 0) : 0;
     const baseY = tail ? (tail.position?.y ?? 0) : 0;
@@ -298,7 +306,15 @@ const FlowCore = forwardRef(function FlowCore(
 
     // source: 'plus' 로 알려서 페이지가 Search 패널 열도록
     onCreateNode?.(newId, null, { source: "plus" });
-  }, [nodes, edges, setNodes, onCreateNode, tryAddLinearEdge, onError]);
+  }, [
+    nodes,
+    edges,
+    setNodes,
+    onCreateNode,
+    tryAddLinearEdge,
+    onError,
+    ensureCapacity,
+  ]);
 
   /* ===== 노드 삭제 ===== */
   const removeSelectedNode = useCallback(() => {
@@ -454,6 +470,35 @@ const FlowCore = forwardRef(function FlowCore(
     },
     [setNodes]
   );
+  const validateForSaveNow = useCallback(() => {
+    const errors = [];
+    // 1) 루트 개수 확인
+    const incoming = computeIncomingMap(edges);
+    const roots = nodes.filter((n) => !incoming.has(n.id));
+    if (roots.length !== 1) {
+      errors.push(`루트 노드는 1개여야 해요. (현재 ${roots.length}개)`);
+    }
+    // 2) 노드 개수 확인
+    if (nodes.length > MAX_NODES) {
+      errors.push(
+        `노드는 최대 ${MAX_NODES}개까지 저장할 수 있어요. (현재 ${nodes.length}개)`
+      );
+    }
+
+    // 3) 임시 노드 존재 여부 (__temp)
+    const tempCount = nodes.filter((n) => n?.data?.__temp).length;
+    if (tempCount > 0) {
+      errors.push(
+        `아직 검색하지 않은 노드 ${tempCount}개가 남아 있어요. 내용을 채우거나 제거해 주세요.`
+      );
+    }
+    // (옵션) 선형 제약 검증도 병행
+    const linear = validateLinear(nodes, edges);
+    if (linear && !linear.ok) {
+      errors.push(...(linear.errors || []));
+    }
+    return { ok: errors.length === 0, errors };
+  }, [nodes, edges]);
 
   // 저장 검증/조작 메서드 노출
   useImperativeHandle(
@@ -461,13 +506,18 @@ const FlowCore = forwardRef(function FlowCore(
     () => ({
       reset,
       updateNodeLabel,
-      validateForSave: () => validateLinear(nodes, edges),
+      validateForSave: validateForSaveNow,
       applyContentToNode,
       discardTempNode,
     }),
-    [reset, updateNodeLabel, nodes, edges, applyContentToNode, discardTempNode]
+    [
+      reset,
+      updateNodeLabel,
+      validateForSaveNow,
+      applyContentToNode,
+      discardTempNode,
+    ]
   );
-
   /* 변경 감지 */
   useEffect(() => {
     const now = { nodes: serializeNodes(nodes), edges: serializeEdges(edges) };
@@ -498,6 +548,8 @@ const FlowCore = forwardRef(function FlowCore(
   const onDrop = useCallback(
     (e) => {
       e.preventDefault();
+      if (!ensureCapacity()) return; // ★ 용량 가드 (드롭도 차단)
+
       const payload = getPayloadFromDT(e.dataTransfer, [
         DND_MIME_RESULT,
         DND_MIME_GROUP,
@@ -561,7 +613,15 @@ const FlowCore = forwardRef(function FlowCore(
       if (tail) tryAddLinearEdge(tail.id, id);
       onCreateNode?.(id, payload, { source: "dnd" });
     },
-    [nodes, edges, setNodes, onCreateNode, tryAddLinearEdge]
+    [
+      nodes,
+      edges,
+      setNodes,
+      onCreateNode,
+      tryAddLinearEdge,
+      ensureCapacity,
+      onError,
+    ]
   );
 
   return (

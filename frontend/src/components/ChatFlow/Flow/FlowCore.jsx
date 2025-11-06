@@ -101,6 +101,7 @@ const FlowCore = forwardRef(function FlowCore(
     (msg) => onError?.({ message: msg }),
     [onError]
   );
+
   /* ----- 엣지 삭제 핸들러 & 초기 주입 ----- */
   const removeEdgeById = useCallback(
     (edgeId) => setEdges((eds) => eds.filter((e) => e.id !== edgeId)),
@@ -162,6 +163,7 @@ const FlowCore = forwardRef(function FlowCore(
     },
     [editMode, onSelectionCountChange]
   );
+
   // 빈 노드 판별: 임시 노드거나(kind/QA 없음)
   const isEmptyNode = (n) =>
     !!n?.data?.__temp ||
@@ -177,7 +179,7 @@ const FlowCore = forwardRef(function FlowCore(
         return;
       }
       setLastSelectedId(node?.id || null);
-      // ★ 편집 모드에서 노드 클릭 → 부모에 (id + empty 여부) 전달
+      // 편집 모드에서 노드 클릭 → 부모에 (id + empty 여부) 전달
       if (node?.id) onEditNodeClick?.(node.id, { empty: isEmptyNode(node) });
     },
     [editMode, onNodeClickInViewMode, onEditNodeClick]
@@ -188,16 +190,14 @@ const FlowCore = forwardRef(function FlowCore(
     if (!lastSelectedId) return;
     const base = nodes.find((n) => n.id === lastSelectedId);
     if (!base) return;
-    
-    // ★ 가드: 현재(기준) 노드가 비어 있으면 새 노드 생성 차단 + 오류 알림
+
+    // 가드: 현재(기준) 노드가 비어 있으면 새 노드 생성 차단 + 오류 알림
     if (isEmptyNode(base)) {
       const msg =
         "현재 노드에 내용이 없습니다. 내용을 채운 뒤에 새 분기를 추가하세요.";
       if (typeof onError === "function") {
         onError({ code: "EMPTY_BASE_NODE", nodeId: base.id, message: msg });
       } else {
-        // 부모에서 onError를 안 넘기면 기본 alert로 폴백
-        // (디자인 모달이 필요하면 페이지 쪽에서 onError로 예쁜 모달 띄워줘!)
         alert(msg);
       }
       emitError("현재 노드에 내용이 없습니다. 먼저 내용을 채워주세요.");
@@ -275,6 +275,7 @@ const FlowCore = forwardRef(function FlowCore(
     setEdges,
     removeEdgeById,
     emitError,
+    onError,
   ]);
 
   /* 노드 삭제 */
@@ -288,7 +289,7 @@ const FlowCore = forwardRef(function FlowCore(
         (e) => e.source !== lastSelectedId && e.target !== lastSelectedId
       );
 
-      if (incoming.length === 1) {
+    if (incoming.length === 1) {
         const parentId = incoming[0].source;
         const reattached = outgoing
           .map((e) => ({ s: parentId, t: e.target }))
@@ -324,7 +325,9 @@ const FlowCore = forwardRef(function FlowCore(
   const didInitialRootOffset = useRef(false);
 
   useEffect(() => {
-    setNodes((prev) => withHandlesByRoot(prev, edges, { keepTargetForRoots: true }));
+    setNodes((prev) =>
+      withHandlesByRoot(prev, edges, { keepTargetForRoots: true })
+    );
   }, [edges, setNodes]);
 
   useEffect(() => {
@@ -434,6 +437,23 @@ const FlowCore = forwardRef(function FlowCore(
     [setNodes]
   );
 
+  /* === 저장 검증: 루트 1개 & 임시 노드 0개 === */
+  const validateForSave = useCallback(() => {
+    const errors = [];
+    const incoming = computeIncomingMap(edges);
+    const roots = nodes.filter((n) => !incoming.has(n.id));
+    if (roots.length !== 1) {
+      errors.push(`루트 노드는 1개여야 해요. (현재 ${roots.length}개)`);
+    }
+    const tempCount = nodes.filter((n) => n?.data?.__temp).length;
+    if (tempCount > 0) {
+      errors.push(
+        `아직 검색하지 않은 노드 ${tempCount}개가 남아 있어요. 내용을 채우거나 제거해 주세요.`
+      );
+    }
+    return { ok: errors.length === 0, errors };
+  }, [nodes, edges]);
+
   /* 메서드 외부 노출 */
   useImperativeHandle(
     ref,
@@ -443,8 +463,9 @@ const FlowCore = forwardRef(function FlowCore(
       updateNodeLabel,
       applyContentToNode,
       discardTempNode,
+      validateForSave, // ★ 저장 검증 노출
     }),
-    [reset, updateNodeLabel, applyContentToNode, discardTempNode]
+    [reset, updateNodeLabel, applyContentToNode, discardTempNode, validateForSave]
   );
 
   /* 변경 감지 → Reset 가능 여부 */
@@ -479,7 +500,7 @@ const FlowCore = forwardRef(function FlowCore(
       nodesDraggable: editMode,
       nodesConnectable: editMode,
       elementsSelectable: editMode,
-      edgesFocusable: true, // ★ 명시
+      edgesFocusable: true,
       connectOnClick: editMode,
       panOnDrag: true,
       panOnScroll: !editMode,
