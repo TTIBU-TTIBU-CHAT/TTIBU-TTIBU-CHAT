@@ -35,6 +35,9 @@ services:
     container_name: ttibu-core-api
     environment:
       SPRING_PROFILES_ACTIVE: docker
+      GMS_BASE_URL: ${GMS_BASE_URL}
+      LITELLM_MASTER_KEY: ${LITELLM_MASTER_KEY}
+      TTIBU_CRYPTO_SECRET: ${TTIBU_CRYPTO_SECRET}
     ports:
       - "8080:8080"
     depends_on:
@@ -51,7 +54,7 @@ services:
     ports:
       - "4000:4000"
     environment:
-      - LITELLM_MASTER_KEY=sk-1234
+      - LITELLM_MASTER_KEY=${LITELLM_MASTER_KEY}
       - LITELLM_LOG=INFO
     volumes:
       - ./litellm-config.yaml:/app/config.yaml
