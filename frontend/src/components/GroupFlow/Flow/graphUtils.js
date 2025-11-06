@@ -9,15 +9,20 @@ export const ROOT_X_OFFSET = 120;
 export const MIN_ZOOM = 0.5;
 
 /* 기본 유틸 */
-export const countIncoming = (eds, id) => eds.filter((e) => e.target === id).length;
-export const countOutgoing = (eds, id) => eds.filter((e) => e.source === id).length;
+export const countIncoming = (eds, id) =>
+  eds.filter((e) => e.target === id).length;
+export const countOutgoing = (eds, id) =>
+  eds.filter((e) => e.source === id).length;
 
-export const getRoots = (nds, eds) => nds.filter((n) => countIncoming(eds, n.id) === 0);
+export const getRoots = (nds, eds) =>
+  nds.filter((n) => countIncoming(eds, n.id) === 0);
 
 export const getTail = (nds, eds) => {
   const cands = nds.filter((n) => countOutgoing(eds, n.id) === 0);
   if (!cands.length) return null;
-  return cands.sort((a, b) => (a.position?.x ?? 0) - (b.position?.x ?? 0))[cands.length - 1];
+  return cands.sort((a, b) => (a.position?.x ?? 0) - (b.position?.x ?? 0))[
+    cands.length - 1
+  ];
 };
 
 export const findFreeSpot = (nodes, startX, startY) => {
@@ -41,15 +46,39 @@ export const computeIncomingMap = (edges) => {
   return map;
 };
 
-export const withHandlesByRoot = (nodes, edges) => {
+export const withHandlesByRoot = (
+  nodes,
+  edges,
+  { keepTargetForRoots = false } = {}
+) => {
   const incoming = computeIncomingMap(edges);
+
   return nodes.map((n) => {
-    const isRoot = !incoming.get(n.id);
+    const isRoot = !incoming.has(n.id); // ★ .has 로 판정
+
     if (isRoot) {
-      const { targetPosition, ...rest } = n;
-      return { ...rest, sourcePosition: Position.Right };
+      if (keepTargetForRoots) {
+        // ★ 루트여도 타깃 핸들 유지 (없으면 기본 Left)
+        return {
+          ...n,
+          sourcePosition: n.sourcePosition ?? Position.Right,
+          targetPosition: n.targetPosition ?? Position.Left,
+        };
+      }
+      // 루트면 타깃 핸들 제거 모드
+      return {
+        ...n,
+        sourcePosition: n.sourcePosition ?? Position.Right,
+        targetPosition: undefined,
+      };
     }
-    return { ...n, sourcePosition: Position.Right, targetPosition: Position.Left };
+
+    // 루트가 아니면 양쪽 핸들 보유
+    return {
+      ...n,
+      sourcePosition: n.sourcePosition ?? Position.Right,
+      targetPosition: n.targetPosition ?? Position.Left,
+    };
   });
 };
 
@@ -60,8 +89,12 @@ export function centerGraphOnce(instance, zoom = MIN_ZOOM) {
       instance.setViewport({ x: 0, y: 0, zoom });
       return;
     }
-    const F_W = 160, F_H = 40;
-    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+    const F_W = 160,
+      F_H = 40;
+    let minX = Infinity,
+      minY = Infinity,
+      maxX = -Infinity,
+      maxY = -Infinity;
     for (const n of rendered) {
       const x = n.position?.x ?? 0;
       const y = n.position?.y ?? 0;
@@ -88,8 +121,10 @@ export function validateLinear(nodes, edges) {
   for (const n of nodes) {
     const inCnt = countIncoming(edges, n.id);
     const outCnt = countOutgoing(edges, n.id);
-    if (inCnt > 1) errors.push(`노드 ${n.id}는 부모가 ${inCnt}개입니다(최대 1개).`);
-    if (outCnt > 1) errors.push(`노드 ${n.id}는 자식이 ${outCnt}개입니다(최대 1개).`);
+    if (inCnt > 1)
+      errors.push(`노드 ${n.id}는 부모가 ${inCnt}개입니다(최대 1개).`);
+    if (outCnt > 1)
+      errors.push(`노드 ${n.id}는 자식이 ${outCnt}개입니다(최대 1개).`);
   }
   return { ok: errors.length === 0, errors };
 }

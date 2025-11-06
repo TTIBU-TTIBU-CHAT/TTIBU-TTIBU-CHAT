@@ -22,7 +22,7 @@ const slideOutBackward = keyframes`
 export const Overlay = styled.div`
   position: fixed;
   inset: 0;
-  z-index: 9999;
+  z-index: 10;
   display: flex;
   justify-content: end;
   background: transparent;

@@ -15,17 +15,15 @@ function useZoomTier() {
 export default function QaNode({ data = {}, sourcePosition, targetPosition }) {
   const { tier: baseTier } = useZoomTier();
 
-  const {
-    label = "제목 없음",
-    summary,
-    question,
-    answer,
-    date,
-  } = data;
-  console.log("QaNode data:", data);
+  const { label = "제목 없음", summary, question, answer, date } = data;
+  console.log("QaNode data:", data, sourcePosition, targetPosition);
   // ✅ 그룹 노드는 2단계: <1.0 => label / >=1.0 => summary
   const isGroup = data?.kind === "group";
-  const tier = isGroup ? (baseTier === "label" ? "label" : "summary") : baseTier;
+  const tier = isGroup
+    ? baseTier === "label"
+      ? "label"
+      : "summary"
+    : baseTier;
 
   const showFull = !isGroup && tier === "full";
 
@@ -60,15 +58,11 @@ export default function QaNode({ data = {}, sourcePosition, targetPosition }) {
       )}
 
       {/* 좌/우 작은 핸들 */}
-      {typeof targetPosition !== "undefined" && targetPosition !== Position.Top &&(
-        console.log("targetPosition:", targetPosition),
-
-        <Handle
-          type="target"
-          position={targetPosition ?? Position.Left}
-          className="mini-handle"
-        />
-      )}
+      <Handle
+        type="target"
+        position={targetPosition ?? Position.Left}
+        className="mini-handle"
+      />
       {typeof sourcePosition !== "undefined" && (
         <Handle
           type="source"
@@ -99,7 +93,8 @@ const LiteCard = styled.div`
   width: ${CARD_W}px;
   padding: 16px 18px;
   border-radius: 14px;
-  background: ${({ $group }) => ($group ? "#F4FAF7" : "#ffffff")}; /* 그룹은 연녹색 */
+  background: ${({ $group }) =>
+    $group ? "#F4FAF7" : "#ffffff"}; /* 그룹은 연녹색 */
   border: 1px solid ${({ $group }) => ($group ? "#BFEAD0" : "rgba(0,0,0,0.08)")};
   box-shadow: 0 6px 12px rgba(31, 41, 55, 0.06);
 `;
