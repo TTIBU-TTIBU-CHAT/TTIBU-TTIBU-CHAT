@@ -1,3 +1,4 @@
+// src/routes/.../ChatFlowPage.jsx
 import { useCallback, useRef, useState } from "react";
 import { useParams } from "@tanstack/react-router";
 import { useChatList } from "@/hooks/useChatList";
@@ -44,9 +45,11 @@ export default function ChatFlowPage() {
       ts: Date.now() - 1000,
     },
   ]);
+
   const routerState = useRouterState();
   const pathname = routerState.location.pathname;
   const isGroups = pathname.startsWith("/groups"); // ★ /groups 여부
+
   const [input, setInput] = useState("");
   const [editingNodeId, setEditingNodeId] = useState(null);
 
@@ -74,14 +77,17 @@ export default function ChatFlowPage() {
   const [pendingNodeId, setPendingNodeId] = useState(null);
   const [pendingSource, setPendingSource] = useState(null);
 
+  // 에러 다이얼로그
   const [errorOpen, setErrorOpen] = useState(false);
   const [errorMsg, setErrorMsg] = useState("");
 
   const canvasRef = useRef(null);
+
   const handleCoreError = useCallback(({ message }) => {
     setErrorMsg(message || "오류가 발생했습니다.");
     setErrorOpen(true);
   }, []);
+
   /* ===== 채팅 전송 + 로컬 보관 ===== */
   const handleSend = useCallback(() => {
     const t = input.trim();
@@ -111,6 +117,22 @@ export default function ChatFlowPage() {
   /* ===== 초기화 ===== */
   const handleInit = () => canvasRef.current?.reset();
 
+  /* ===== 저장: 루트 1개 & 임시노드 0개 검증 ===== */
+  const handleSave = useCallback(() => {
+    const result = canvasRef.current?.validateForSave?.();
+    if (!result) return;
+
+    if (!result.ok) {
+      setErrorMsg(result.errors.join("\n"));
+      setErrorOpen(true);
+      return;
+    }
+
+    // ✅ 통과 시 실제 저장 로직 실행
+    console.log("✅ 검증 통과! 저장 진행");
+    // TODO: saveGraph API 호출 등으로 연결
+  }, []);
+
   /* ===== 보기 모드에서 노드 클릭 → Search 패널 열기 ===== */
   const openSearchPanel = () => {
     setPanelType("search");
@@ -121,10 +143,9 @@ export default function ChatFlowPage() {
   const handleCreateNode = useCallback(
     (newNodeId, payload, meta) => {
       if (meta?.source === "plus") {
-        // 경로와 무관하게: 새 노드에 컨텐츠를 꽂아야 하므로 pending 타깃으로 지정
         setPendingNodeId(newNodeId);
         setPendingSource("plus");
-        setPanelType("search"); // 검색/선택 패널에서 payload를 받아 applyContentToNode로 주입
+        setPanelType("search");
         setPanelOpen(true);
       }
     },
@@ -150,12 +171,12 @@ export default function ChatFlowPage() {
       if (!nodeId) return;
       setPendingNodeId(nodeId);
       setPendingSource("emptyClick");
-      // 라우트별 기본 열 패널: /groups → search, /chatRooms → search(원하면 chat로 바꿔도 됨)
       setPanelType(isGroups ? "search" : "search");
       setPanelOpen(true);
     },
     [isGroups]
   );
+
   /* ===== 패널 닫기: pending 노드가 남아있으면 취소(삭제) ===== */
   const handleClosePanel = useCallback(() => {
     setPanelOpen(false);
@@ -166,7 +187,7 @@ export default function ChatFlowPage() {
     // 빈 노드 클릭으로 연 건 삭제하지 않음
     setPendingNodeId(null);
     setPendingSource(null);
-  }, [pendingNodeId]);
+  }, [pendingNodeId, pendingSource]);
 
   // 버튼 노출: 그룹 포함 시 숨김
   const showGroupButton = editMode && selectedCount > 1 && !hasGroupInSelection;
@@ -228,7 +249,7 @@ export default function ChatFlowPage() {
       <TopleftCard
         editMode={editMode}
         setEditMode={setEditMode}
-        onSave={() => console.log("저장!")}
+        onSave={handleSave}
         onInit={handleInit}
         canReset={canReset}
       />
@@ -263,7 +284,7 @@ export default function ChatFlowPage() {
         onPick={handlePick}
       />
 
-      {/* 그룹명 입력 모달 -> 공용 InputDialog 재사용 */}
+      {/* 그룹명 입력 모달 */}
       <InputDialog
         open={groupModalOpen}
         title="그룹명 입력"
@@ -274,7 +295,7 @@ export default function ChatFlowPage() {
         onConfirm={confirmGroupName}
       />
 
-      {/* 브랜치명 입력 모달 -> 공용 InputDialog 재사용 */}
+      {/* 브랜치명 입력 모달 */}
       <InputDialog
         open={branchModalOpen}
         title="브랜치명 입력"
@@ -284,12 +305,15 @@ export default function ChatFlowPage() {
         onCancel={cancelBranchModal}
         onConfirm={confirmBranchModal}
       />
+
+      {/* 에러 다이얼로그 */}
       <ErrorDialog
         open={errorOpen}
         title="알림"
         message={errorMsg}
         onClose={() => setErrorOpen(false)}
       />
+
       <FlowCanvas
         ref={canvasRef}
         editMode={editMode}
@@ -316,11 +340,9 @@ export default function ChatFlowPage() {
         }}
         onEditNodeClick={(nodeId, meta) => {
           if (meta?.empty && nodeId) {
-            // 편집 모드에서도 '빈 노드'를 누르면 그 노드를 pending 타깃으로 모달 오픈
-            handleEmptyNodeClick(nodeId); // 내부에서 setPendingNodeId + setPanelOpen(true)
+            handleEmptyNodeClick(nodeId);
             return;
           }
-          // (채워진 노드를 클릭했을 때는 모달을 안 열고 싶다면 아무 것도 하지 않으면 됨)
         }}
         onCreateNode={handleCreateNode}
         askBranchName={askBranchName}
