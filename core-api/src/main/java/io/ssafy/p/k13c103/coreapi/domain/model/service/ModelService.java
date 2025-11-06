@@ -7,4 +7,6 @@ import java.util.List;
 public interface ModelService {
 
     List<ModelResponseDto.ModelListInfo> getModels(Long memberUid);
+
+    List<ModelResponseDto.ProviderListInfo> getProviders();
 }

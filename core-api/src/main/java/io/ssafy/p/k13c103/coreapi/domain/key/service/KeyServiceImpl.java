@@ -2,11 +2,14 @@ package io.ssafy.p.k13c103.coreapi.domain.key.service;
 
 import io.ssafy.p.k13c103.coreapi.common.error.ApiException;
 import io.ssafy.p.k13c103.coreapi.common.error.ErrorCode;
+import io.ssafy.p.k13c103.coreapi.domain.catalog.dto.CatalogModelEntry;
+import io.ssafy.p.k13c103.coreapi.domain.catalog.entity.ProviderCatalog;
+import io.ssafy.p.k13c103.coreapi.domain.catalog.repository.ModelCatalogRepository;
+import io.ssafy.p.k13c103.coreapi.domain.catalog.repository.ProviderCatalogRepository;
 import io.ssafy.p.k13c103.coreapi.domain.key.entity.Key;
 import io.ssafy.p.k13c103.coreapi.domain.key.repository.KeyRepository;
 import io.ssafy.p.k13c103.coreapi.domain.key.dto.KeyRequestDto;
 import io.ssafy.p.k13c103.coreapi.domain.key.dto.KeyResponseDto;
-import io.ssafy.p.k13c103.coreapi.domain.llm.LiteLlmCatalogLoader;
 import io.ssafy.p.k13c103.coreapi.domain.llm.LiteLlmClient;
 import io.ssafy.p.k13c103.coreapi.domain.member.repository.MemberRepository;
 import lombok.RequiredArgsConstructor;
@@ -34,8 +37,9 @@ public class KeyServiceImpl implements KeyService {
     private final SecureRandom secureRandom = new SecureRandom();
 
     private final LiteLlmClient liteLlmClient;
-    private final LiteLlmCatalogLoader catalogLoader;
 
+    private final ProviderCatalogRepository providerCatalogRepository;
+    private final ModelCatalogRepository modelCatalogRepository;
     private final MemberRepository memberRepository;
     private final KeyRepository keyRepository;
 
@@ -46,27 +50,31 @@ public class KeyServiceImpl implements KeyService {
         if (!memberRepository.existsById(memberUid))
             throw new ApiException(ErrorCode.MEMBER_NOT_FOUND);
 
-        if (!catalogLoader.existsProvider(request.provider()))
-            throw new ApiException(ErrorCode.PROVIDER_NOT_FOUND);
-
         // 1. 제공사에 해당하는 모델이 있는지 확인
-        List<String> models = catalogLoader.modelCodes(request.provider());
+        ProviderCatalog provider = providerCatalogRepository.findById(request.providerUid())
+                .orElseThrow(() -> new ApiException(ErrorCode.PROVIDER_NOT_FOUND));
+
+        List<CatalogModelEntry> models = modelCatalogRepository.findEntriesByProviderCode(provider.getCode());
         if (models.isEmpty())
             throw new ApiException(ErrorCode.MODEL_CATALOG_EMPTY);
 
         // 2. 중복 키 체크
-        if (keyRepository.existsByMember_MemberUidAndProvider(memberUid, request.provider()))
+        if (keyRepository.existsByMember_MemberUidAndProvider_ProviderUid(memberUid, request.providerUid()))
             throw new ApiException(ErrorCode.DUPLICATED_KEY);
 
         // 3. 1토큰 테스트
-//        String testModel = request.provider() + "/" + models.get(0); // FIXME: 운영 환경에서 주석 해제
-        String testModel = models.get(0); // FIXME: 운영 환경에서 주석 처리
-        liteLlmClient.test(request.key(), testModel); // 문제 있다면 에러 발생
+        // FIXME: 운영 환경에서 주석 해제
+//        String testModel = provider.getCode() + "/" + models.get(0).code();
+//        liteLlmClient.test(reques t.key(), testModel); // 문제 있다면 에러 발생
+
+        // FIXME: 운영 환경에서 주석 처리
+        String testModel = models.get(0).code();
+        liteLlmClient.gmsTest(request.key(), testModel, provider.getCode());
 
         // 4. 키 암호화 후 저장
         Key key = Key.builder()
                 .member(memberRepository.getReferenceById(memberUid))
-                .provider(request.provider())
+                .provider(provider)
                 .encryptedKey(encryptKey(request.key()))
                 .isActive(request.isActive())
                 .expirationAt(request.expirationAt())
@@ -85,29 +93,31 @@ public class KeyServiceImpl implements KeyService {
         if (!memberRepository.existsById(memberUid))
             throw new ApiException(ErrorCode.MEMBER_NOT_FOUND);
 
-        if (!catalogLoader.existsProvider(request.provider()))
-            throw new ApiException(ErrorCode.PROVIDER_NOT_FOUND);
+        ProviderCatalog provider = providerCatalogRepository.findById(request.providerUid())
+                .orElseThrow(() -> new ApiException(ErrorCode.PROVIDER_NOT_FOUND));
 
         Key key = keyRepository.findByKeyUidAndMember_MemberUid(request.keyUid(), memberUid)
                 .orElseThrow(() -> new ApiException(ErrorCode.KEY_NOT_FOUND));
 
-        if (!key.getProvider().equals(request.provider())
-                && keyRepository.existsByMember_MemberUidAndProvider(memberUid, request.provider())) {
+        if (keyRepository.existsByMember_MemberUidAndProvider_ProviderUid(memberUid, provider.getProviderUid()))
             throw new ApiException(ErrorCode.DUPLICATED_KEY);
-        }
 
-        if (!decryptKey(key.getEncryptedKey()).equals(request.key())) {
+        if (!decryptKey(key.getEncryptedKey()).equals(request.key())) { // 키가 변경된 경우
 
-            List<String> models = catalogLoader.modelCodes(request.provider());
+            List<CatalogModelEntry> models = modelCatalogRepository.findEntriesByProviderCode(provider.getCode());
             if (models.isEmpty())
                 throw new ApiException(ErrorCode.MODEL_CATALOG_EMPTY);
 
-//        String testModel = request.provider() + "/" + models.get(0); // FIXME: 운영 환경에서 주석 해제
-            String testModel = models.get(0); // FIXME: 운영 환경에서 주석 처리
-            liteLlmClient.test(request.key(), testModel); // 문제 있다면 에러 발생
+            // FIXME: 운영 환경에서 주석 해제
+//        String testModel = provider.getCode() + "/" + models.get(0).code();
+//        liteLlmClient.test(reques t.key(), testModel); // 문제 있다면 에러 발생
+
+            // FIXME: 운영 환경에서 주석 처리
+            String testModel = models.get(0).code();
+            liteLlmClient.gmsTest(request.key(), testModel, provider.getCode());
         }
 
-        key.update(request.provider(), encryptKey(request.key()), request.isActive(), request.expirationAt());
+        key.update(provider, encryptKey(request.key()), request.isActive(), request.expirationAt());
 
         return KeyResponseDto.EditKeyInfo.builder()
                 .keyUid(key.getKeyUid())
@@ -125,7 +135,7 @@ public class KeyServiceImpl implements KeyService {
 
         return KeyResponseDto.GetKeyInfo.builder()
                 .keyUid(key.getKeyUid())
-                .provider(key.getProvider())
+                .providerCode(key.getProvider().getCode())
                 .key(decryptKey(key.getEncryptedKey()))
                 .isActive(key.getIsActive())
                 .expirationAt(key.getExpirationAt())
@@ -147,7 +157,7 @@ public class KeyServiceImpl implements KeyService {
         for (Key key : keys) {
             response.add(KeyResponseDto.GetKeyShortInfo.builder()
                     .keyUid(key.getKeyUid())
-                    .provider(key.getProvider())
+                    .providerCode(key.getProvider().getCode())
                     .isActive(key.getIsActive())
                     .build());
         }
@@ -172,7 +182,7 @@ public class KeyServiceImpl implements KeyService {
         int sum = 0;
         for (Key key : keys) {
             response.add(KeyResponseDto.TokenDetailInfo.builder()
-                    .provider(key.getProvider())
+                    .providerCode(key.getProvider().getCode())
                     .token(key.getTokenUsage())
                     .build());
             sum += key.getTokenUsage();
