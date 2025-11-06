@@ -63,18 +63,26 @@ public class SecurityConfig {
                 // CORS
                 .cors(Customizer.withDefaults());
 
+        CookieCsrfTokenRepository repo = CookieCsrfTokenRepository.withHttpOnlyFalse();
+        repo.setCookieCustomizer(c -> {
+            boolean isProd = !"ignore".equalsIgnoreCase(csrfMode);
+            c.sameSite(isProd ? "None" : "Lax");
+            c.secure(isProd);
+            c.path("/");
+        });
+
         // CSRF
         if ("ignore".equalsIgnoreCase(csrfMode)) {
             // 개발 모드
             http.csrf(csrf -> csrf
-                    .ignoringRequestMatchers("/v3/api-doc/**", "/swagger-ui.html", "/swagger-ui/**")
+                    .ignoringRequestMatchers("/v3/api-docs/**", "/swagger-ui.html", "/swagger-ui/**")
                     .ignoringRequestMatchers("/api/v1/members", "/api/v1/members/login", "/api/v1/members/logout")
-                    .csrfTokenRepository(CookieCsrfTokenRepository.withHttpOnlyFalse())
+                    .csrfTokenRepository(repo)
             );
         } else {
             // 운영 모드
             http.csrf(csrf -> csrf
-                    .csrfTokenRepository(CookieCsrfTokenRepository.withHttpOnlyFalse())
+                    .csrfTokenRepository(repo)
             );
         }
 
@@ -104,7 +112,8 @@ public class SecurityConfig {
         CorsConfiguration c = new CorsConfiguration();
         c.setAllowedOrigins(List.of("http://localhost:5173"));
         c.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"));
-        c.setAllowedHeaders(List.of("*"));
+        c.setAllowedHeaders(List.of("Content-Type", "Authorization", "X-XSRF-TOKEN"));
+        c.setExposedHeaders(List.of("Set-Cookie"));
         c.setAllowCredentials(true);
         UrlBasedCorsConfigurationSource s = new UrlBasedCorsConfigurationSource();
         s.registerCorsConfiguration("/**", c);
