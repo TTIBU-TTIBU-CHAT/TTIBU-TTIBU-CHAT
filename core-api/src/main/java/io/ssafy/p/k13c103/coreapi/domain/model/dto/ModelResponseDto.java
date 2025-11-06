@@ -12,7 +12,7 @@ public class ModelResponseDto {
     @Builder
     public record ModelListInfo(
             String providerCode,
-            List<ModelInfoDetail> modelList
+            List<ModelDetailInfo> modelList
     ) {
     }
 
@@ -20,7 +20,7 @@ public class ModelResponseDto {
      * 모델 상세 조회 응답 DTO
      */
     @Builder
-    public record ModelInfoDetail(
+    public record ModelDetailInfo(
             Long modelCatalogUid,
             String modelName, // 표시용 이름
             String modelCode, // 식별용 이름

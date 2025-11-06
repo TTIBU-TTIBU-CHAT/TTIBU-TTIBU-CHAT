@@ -60,9 +60,9 @@ public class ModelServiceImpl implements ModelService {
             List<ModelCatalog> catalogs = modelCatalogRepository.findModelCatalogsByProvider(provider); // 제공사에서 제공하는 모델 카탈로그
             if (catalogs.isEmpty()) continue; // 제공할 모델이 없는 경우 continue
 
-            List<ModelResponseDto.ModelInfoDetail> list = new ArrayList<>();
+            List<ModelResponseDto.ModelDetailInfo> list = new ArrayList<>();
             for (ModelCatalog catalog : catalogs) {
-                list.add(ModelResponseDto.ModelInfoDetail.builder()
+                list.add(ModelResponseDto.ModelDetailInfo.builder()
                         .modelCatalogUid(catalog.getModelUid())
                         .modelName(catalog.getName())
                         .modelCode(catalog.getCode())

@@ -20,7 +20,7 @@ public class KeyResponseDto {
      * 키 수정 응답 DTO
      */
     @Builder
-    public record EditKeyInfo(
+    public record EditedKeyInfo(
             Long keyUid
     ) {
     }
@@ -29,7 +29,7 @@ public class KeyResponseDto {
      * 키 조회 응답 DTO
      */
     @Builder
-    public record GetKeyInfo(
+    public record KeyInfo(
             Long keyUid,
             String providerCode,
             String key, // 복호화한 키
@@ -43,7 +43,7 @@ public class KeyResponseDto {
      * 키 리스트 조회 응답 DTO
      */
     @Builder
-    public record GetKeyShortInfo(
+    public record KeyListInfo(
             Long keyUid,
             String providerCode,
             Boolean isActive
