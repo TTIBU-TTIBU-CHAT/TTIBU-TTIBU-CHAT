@@ -28,13 +28,16 @@ public interface ModelCatalogRepository extends JpaRepository<ModelCatalog, Long
             """)
     List<String> findActiveProviderCodes();
 
+    /**
+     * 전달된 seenKeys(providerCode|modelCode) 집합에 포함되지 않는 모델들을 soft delete 처리
+     */
     @Modifying(clearAutomatically = true, flushAutomatically = true)
     @Query(value = """
             UPDATE model_catalog m
                SET is_active = false, updated_at = now()
              WHERE (SELECT p.code || '|' || m.code
                       FROM provider_catalog p
-                     WHERE p.provider_uid = m.provider_uid) NOT IN (:seenKeys)
+                     WHERE p.provider_catalog_uid = m.provider_catalog_uid) NOT IN (:seenKeys)
             """, nativeQuery = true)
     int softDeleteNotInKeys(Collection<String> seenKeys);
 }
