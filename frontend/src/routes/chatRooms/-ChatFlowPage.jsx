@@ -43,6 +43,7 @@ export default function ChatFlowPage() {
       role: "assistant",
       content: "다익스트라 알고리즘의 예시입니다.",
       ts: Date.now() - 1000,
+      model: "Claude-Sonnet-4"
     },
   ]);
 

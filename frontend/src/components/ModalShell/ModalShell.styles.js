@@ -270,14 +270,21 @@ export const Bubble = styled.div`
   max-width: 85%;
   padding: 12px 14px;
   font-size: 16px;
-  border: 1px solid rgba(0, 0, 0, 0.08);
   border-radius: 16px;
-  background: ${({ $me }) => ($me ? "#fff" : "#f3f4f6")};
+  background: ${({ $me }) => ($me ? "#fff" : "#F1F4F8")};
   color: ${({ $me }) => ($me ? "#111827" : "#374151")};
   box-shadow: ${({ $me }) => ($me ? "0 4px 8px rgba(0,0,0,0.06)" : "none")};
   margin-left: ${({ $me }) => ($me ? "auto" : "0")};
 `;
-
+export const ModelTag = styled.div`
+  margin-top: 4px;
+  margin-left: ${({ $me }) => ($me ? "auto" : "8px")};
+  max-width: 85%;
+  font-size: 12px;
+  color: #9ca3af;
+  text-align: ${({ $me }) => ($me ? "left" : "right")};
+  padding-right:10px;
+`;
 /* ===== Footer & Input ===== */
 export const Footer = styled.footer`
   padding: 12px;
