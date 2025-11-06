@@ -6,5 +6,6 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import java.util.List;
 
 public interface ModelRepository extends JpaRepository<Model, Long> {
-    List<Model> findAllByMember_MemberUidAndProviderAndCodeIn(Long memberUid, String provider, List<String> codes);
+    List<Model> findAllByMember_MemberUid(Long memberUid);
+    Model findModelByMember_MemberUidAndIsDefaultTrue(Long memberUid);
 }

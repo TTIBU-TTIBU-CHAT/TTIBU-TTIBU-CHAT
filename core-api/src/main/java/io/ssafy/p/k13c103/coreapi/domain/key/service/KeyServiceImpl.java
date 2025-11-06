@@ -157,7 +157,7 @@ public class KeyServiceImpl implements KeyService {
         for (Key key : keys) {
             response.add(KeyResponseDto.GetKeyShortInfo.builder()
                     .keyUid(key.getKeyUid())
-                    .provider(key.getProvider())
+                    .providerCode(key.getProvider().getCode())
                     .isActive(key.getIsActive())
                     .build());
         }
@@ -182,7 +182,7 @@ public class KeyServiceImpl implements KeyService {
         int sum = 0;
         for (Key key : keys) {
             response.add(KeyResponseDto.TokenDetailInfo.builder()
-                    .provider(key.getProvider())
+                    .providerCode(key.getProvider().getCode())
                     .token(key.getTokenUsage())
                     .build());
             sum += key.getTokenUsage();

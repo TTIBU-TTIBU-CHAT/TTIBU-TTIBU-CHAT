@@ -2,6 +2,7 @@ package io.ssafy.p.k13c103.coreapi.domain.catalog.repository;
 
 import io.ssafy.p.k13c103.coreapi.domain.catalog.dto.CatalogModelEntry;
 import io.ssafy.p.k13c103.coreapi.domain.catalog.entity.ModelCatalog;
+import io.ssafy.p.k13c103.coreapi.domain.catalog.entity.ProviderCatalog;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
@@ -20,14 +21,6 @@ public interface ModelCatalogRepository extends JpaRepository<ModelCatalog, Long
             """)
     List<CatalogModelEntry> findEntriesByProviderCode(String providerCode);
 
-    @Query("""
-              select p.code
-              from ProviderCatalog p
-              where p.isActive = true
-              order by p.code asc
-            """)
-    List<String> findActiveProviderCodes();
-
     /**
      * 전달된 seenKeys(providerCode|modelCode) 집합에 포함되지 않는 모델들을 soft delete 처리
      */
@@ -40,4 +33,6 @@ public interface ModelCatalogRepository extends JpaRepository<ModelCatalog, Long
                      WHERE p.provider_catalog_uid = m.provider_catalog_uid) NOT IN (:seenKeys)
             """, nativeQuery = true)
     int softDeleteNotInKeys(Collection<String> seenKeys);
+
+    List<ModelCatalog> findModelCatalogsByProvider(ProviderCatalog provider);
 }
