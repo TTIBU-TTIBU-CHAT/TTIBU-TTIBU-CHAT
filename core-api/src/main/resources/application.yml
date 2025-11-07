@@ -3,3 +3,9 @@ spring:
     name: core-api
   profiles:
     active: local
+
+server:
+  servlet:
+    session:
+      cookie:
+        http-only: true

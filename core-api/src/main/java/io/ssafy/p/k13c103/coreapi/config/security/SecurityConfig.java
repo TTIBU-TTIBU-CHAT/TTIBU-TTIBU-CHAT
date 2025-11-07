@@ -1,10 +1,14 @@
 package io.ssafy.p.k13c103.coreapi.config.security;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
+import io.ssafy.p.k13c103.coreapi.common.jsend.JSend;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.authentication.configuration.AuthenticationConfiguration;
@@ -14,14 +18,19 @@ import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.web.authentication.session.ChangeSessionIdAuthenticationStrategy;
+import org.springframework.security.web.authentication.session.SessionAuthenticationStrategy;
 import org.springframework.security.web.context.HttpSessionSecurityContextRepository;
 import org.springframework.security.web.context.SecurityContextRepository;
-import org.springframework.security.web.csrf.CookieCsrfTokenRepository;
+import org.springframework.security.web.csrf.CsrfTokenRequestAttributeHandler;
+import org.springframework.security.web.csrf.HttpSessionCsrfTokenRepository;
+import org.springframework.security.web.csrf.InvalidCsrfTokenException;
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 
 import java.util.List;
+import java.util.Map;
 
 @Configuration
 @EnableWebSecurity
@@ -30,8 +39,15 @@ public class SecurityConfig {
     @Value("${app.security.csrf-mode:token}")
     String csrfMode;
 
+    private final ObjectMapper objectMapper;
+
     @Bean
     public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
+        HttpSessionCsrfTokenRepository repository = new HttpSessionCsrfTokenRepository();
+        repository.setHeaderName("X-CSRF-TOKEN");
+        var requestHandler = new CsrfTokenRequestAttributeHandler();
+        requestHandler.setCsrfRequestAttributeName(null);
+
         http
                 // 인가 규칙
                 .authorizeHttpRequests(auth -> auth
@@ -41,6 +57,8 @@ public class SecurityConfig {
                         .requestMatchers("/", "/css/**", "/js/**", "/images/**").permitAll()
                         // CSRF 토큰 발급 허용
                         .requestMatchers(HttpMethod.GET, "/api/v1/members/csrf").permitAll()
+                        // 세션 상태 확인 허용
+                        .requestMatchers(HttpMethod.GET, "/api/v1/members/session").permitAll()
                         // 로그인 전 허용
                         .requestMatchers(HttpMethod.POST, "/api/v1/members").permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/v1/members/login").permitAll()
@@ -61,22 +79,45 @@ public class SecurityConfig {
                 // 보안 헤더
                 .headers(h -> h.frameOptions(f -> f.sameOrigin()))
                 // CORS
-                .cors(Customizer.withDefaults());
+                .cors(Customizer.withDefaults())
+                .securityContext(sc -> sc.securityContextRepository(securityContextRepository()))
+                .csrf(csrf -> {
+                    csrf.csrfTokenRepository(repository)
+                            .csrfTokenRequestHandler(requestHandler);
 
-        // CSRF
-        if ("ignore".equalsIgnoreCase(csrfMode)) {
-            // 개발 모드
-            http.csrf(csrf -> csrf
-                    .ignoringRequestMatchers("/v3/api-doc/**", "/swagger-ui.html", "/swagger-ui/**")
-                    .ignoringRequestMatchers("/api/v1/members", "/api/v1/members/login", "/api/v1/members/logout")
-                    .csrfTokenRepository(CookieCsrfTokenRepository.withHttpOnlyFalse())
-            );
-        } else {
-            // 운영 모드
-            http.csrf(csrf -> csrf
-                    .csrfTokenRepository(CookieCsrfTokenRepository.withHttpOnlyFalse())
-            );
-        }
+//                    if ("ignore".equalsIgnoreCase(csrfMode)) {
+//                        csrf.ignoringRequestMatchers(
+//                                "/v3/api-docs/**", "/swagger-ui.html", "/swagger-ui/**",
+//                                "/api/v1/members", "/api/v1/members/login", "/api/v1/members/logout"
+//                        );
+//                    }
+                })
+                .exceptionHandling(ex -> {
+                    // 401
+                    ex.authenticationEntryPoint((request, response, exception) -> {
+                        response.setContentType(MediaType.APPLICATION_JSON_VALUE);
+                        response.setCharacterEncoding("UTF-8");
+                        response.setStatus(HttpStatus.UNAUTHORIZED.value());
+                        Map<String, String> data = Map.of("reason", "인증이 필요합니다.");
+                        JSend fail = JSend.fail(data);
+                        response.getWriter().write(objectMapper.writeValueAsString(fail));
+                    });
+                    // 403
+                    ex.accessDeniedHandler((request, response, exception) -> {
+                        response.setContentType(MediaType.APPLICATION_JSON_VALUE);
+                        response.setCharacterEncoding("UTF-8");
+                        response.setStatus(HttpStatus.FORBIDDEN.value());
+                        Map<String, String> data;
+                        if (exception instanceof InvalidCsrfTokenException || exception.getMessage().toLowerCase().contains("csrf")) {
+                            // CSRF 토큰 이슈인 경우
+                            data = Map.of("reason", "CSRF 토큰이 유효하지 않습니다.");
+                        } else {
+                            data = Map.of("reason", "해당 리소스에 접근할 권한이 없습니다.");
+                        }
+                        JSend fail = JSend.fail(data);
+                        response.getWriter().write(objectMapper.writeValueAsString(fail));
+                    });
+                });
 
         return http.build();
     }
@@ -104,10 +145,16 @@ public class SecurityConfig {
         CorsConfiguration c = new CorsConfiguration();
         c.setAllowedOrigins(List.of("http://localhost:5173"));
         c.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"));
-        c.setAllowedHeaders(List.of("*"));
+        c.setAllowedHeaders(List.of("Content-Type", "Authorization", "X-CSRF-TOKEN"));
+        c.setExposedHeaders(List.of("Set-Cookie"));
         c.setAllowCredentials(true);
         UrlBasedCorsConfigurationSource s = new UrlBasedCorsConfigurationSource();
         s.registerCorsConfiguration("/**", c);
         return s;
+    }
+
+    @Bean
+    public SessionAuthenticationStrategy sessionAuthenticationStrategy() {
+        return new ChangeSessionIdAuthenticationStrategy();
     }
 }

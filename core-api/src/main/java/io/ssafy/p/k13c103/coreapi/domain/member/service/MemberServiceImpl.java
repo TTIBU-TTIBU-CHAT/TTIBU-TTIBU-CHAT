@@ -19,6 +19,7 @@ import org.springframework.security.core.context.SecurityContext;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.authentication.logout.SecurityContextLogoutHandler;
+import org.springframework.security.web.authentication.session.SessionAuthenticationStrategy;
 import org.springframework.security.web.context.SecurityContextRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -32,6 +33,7 @@ public class MemberServiceImpl implements MemberService {
     private final PasswordEncoder passwordEncoder;
     private final AuthenticationManager authenticationManager;
     private final SecurityContextRepository securityContextRepository; // NPE 방지를 위해 빈 주입
+    private final SessionAuthenticationStrategy sessionAuthenticationStrategy;
 
     @Override
     @Transactional
@@ -57,6 +59,9 @@ public class MemberServiceImpl implements MemberService {
         // 로그인 검증
         UsernamePasswordAuthenticationToken authToken = new UsernamePasswordAuthenticationToken(loginMember.email(), loginMember.password());
         Authentication auth = authenticationManager.authenticate(authToken);
+
+        // 세션 교체 및 새 JSESSIONID를 response에 심어줌
+        sessionAuthenticationStrategy.onAuthentication(auth, request, response);
 
         // 인증 성공 -> 세션에 정보 저장
         SecurityContext context = SecurityContextHolder.createEmptyContext();
@@ -84,11 +89,5 @@ public class MemberServiceImpl implements MemberService {
         } else {
             log.warn("Security context is null");
         }
-
-        Cookie cookie = new Cookie("JSESSIONID", "");
-        cookie.setPath("/");
-        cookie.setHttpOnly(true);
-        cookie.setMaxAge(0);
-        response.addCookie(cookie);
     }
 }

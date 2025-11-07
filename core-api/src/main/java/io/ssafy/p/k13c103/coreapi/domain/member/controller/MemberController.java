@@ -11,12 +11,14 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import jakarta.servlet.http.HttpSession;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.web.csrf.CsrfToken;
+import org.springframework.security.web.csrf.HttpSessionCsrfTokenRepository;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.Map;
@@ -31,6 +33,7 @@ public class MemberController {
     private final MemberService memberService;
     private final KeyService keyService;
     private final ModelService modelService;
+    private final HttpSessionCsrfTokenRepository httpSessionCsrfTokenRepository = new HttpSessionCsrfTokenRepository();
 
     @Operation(summary = "회원가입", description = "")
     @PostMapping
@@ -62,7 +65,7 @@ public class MemberController {
 
     @Operation(summary = "내 정보 조회", description = "")
     @GetMapping("/me")
-    public ResponseEntity<JSend> getMe(@AuthenticationPrincipal CustomMemberDetails member){
+    public ResponseEntity<JSend> getMe(@AuthenticationPrincipal CustomMemberDetails member) {
 
         MemberResponseDto.MemberDetailInfo info = MemberResponseDto.MemberDetailInfo.builder()
                 .tokens(keyService.getTokens(member.getMemberUid()))
@@ -75,7 +78,25 @@ public class MemberController {
 
     @Operation(summary = "csrf 토큰 발급", description = "")
     @GetMapping("/csrf")
-    public Map<String, String> getCsrfToken(CsrfToken token) {
+    public Map<String, String> getCsrfToken(HttpServletRequest request, HttpServletResponse response) {
+        CsrfToken token = httpSessionCsrfTokenRepository.loadToken(request);
+
+        if (token == null) {
+            token = httpSessionCsrfTokenRepository.generateToken(request);
+            httpSessionCsrfTokenRepository.saveToken(token, request, response);
+        }
+
         return Map.of("token", token.getToken());
+    }
+
+    @Operation(summary = "세션 상태 조회", description = "")
+    @GetMapping("/session")
+    public ResponseEntity<JSend> getSessionStatus(HttpServletRequest request, @AuthenticationPrincipal CustomMemberDetails member) {
+        HttpSession session = request.getSession(false);
+
+        if (member != null && session != null)
+            return ResponseEntity.status(HttpStatus.OK).body(JSend.success(member.getMemberUid()));
+        else
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(JSend.fail(Map.of("reason", "인증이 필요합니다.")));
     }
 }
