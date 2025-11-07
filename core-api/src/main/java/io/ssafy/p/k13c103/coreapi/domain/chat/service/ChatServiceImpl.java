@@ -1,173 +1,193 @@
 package io.ssafy.p.k13c103.coreapi.domain.chat.service;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.ssafy.p.k13c103.coreapi.common.error.ApiException;
 import io.ssafy.p.k13c103.coreapi.common.error.ErrorCode;
 import io.ssafy.p.k13c103.coreapi.common.sse.SseEmitterManager;
-import io.ssafy.p.k13c103.coreapi.domain.branch.entity.Branch;
-import io.ssafy.p.k13c103.coreapi.domain.branch.repository.BranchRepository;
-import io.ssafy.p.k13c103.coreapi.domain.chat.dto.AiSummaryKeywordResponseDto;
-import io.ssafy.p.k13c103.coreapi.domain.chat.dto.ChatCreateRequestDto;
-import io.ssafy.p.k13c103.coreapi.domain.chat.dto.ChatCreateResponseDto;
 import io.ssafy.p.k13c103.coreapi.domain.chat.dto.ChatSseEvent;
 import io.ssafy.p.k13c103.coreapi.domain.chat.entity.Chat;
 import io.ssafy.p.k13c103.coreapi.domain.chat.enums.ChatSseEventType;
 import io.ssafy.p.k13c103.coreapi.domain.chat.repository.ChatRepository;
-import io.ssafy.p.k13c103.coreapi.domain.member.Member;
 import io.ssafy.p.k13c103.coreapi.domain.room.entity.Room;
 import io.ssafy.p.k13c103.coreapi.domain.room.repository.RoomRepository;
+import io.ssafy.p.k13c103.coreapi.infrastructure.ai.AiAsyncClient;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Propagation;
-import org.springframework.transaction.annotation.Transactional;
 
+import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Objects;
+import java.util.Map;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.Executor;
 
 @Slf4j
 @Service
 @RequiredArgsConstructor
-@Transactional
 public class ChatServiceImpl implements ChatService {
 
     private final ChatRepository chatRepository;
-    private final BranchRepository branchRepository;
     private final RoomRepository roomRepository;
     private final SseEmitterManager sseEmitterManager;
-    private final AiAnswerService aiAnswerService;
-    private final AiSummaryService aiSummaryService;
+    private final AiAsyncClient aiAsyncClient;
+    private final ObjectMapper objectMapper;
+    private final Executor aiTaskExecutor;  // 동일 스레드풀 명시적으로 주입
 
-    @Override
-    public ChatCreateResponseDto createChat(ChatCreateRequestDto request, Long memberId) {
-        // Room 검증
-        Room room;
-        if (request.getRoomID()!= null) {
-            // 기존 Room 조회
-            room = roomRepository.findById(request.getRoomID())
-                    .orElseThrow(() -> new ApiException(ErrorCode.ROOM_NOT_FOUND));
-
-            if (!room.getOwner().getMemberUid().equals(memberId)) {
-                throw new ApiException(ErrorCode.FORBIDDEN);
-            }
-        } else {
-            Member owner = Member.builder().memberUid(memberId).build();
-            room = Room.create(owner, "새 대화방");
-            roomRepository.save(room);
-
-            sendRoomSse(room, ChatSseEventType.ROOM_CREATED);
-
-            log.info("[INFO] 새 Room 자동 생성됨 - roomId: {}", room.getRoomUid());
-        }
-
-        // Branch 검증 or 생성
-        Branch branch;
-        if (request.getBranchId() != null) {
-            // 기존 브랜치가 존재하는 경우
-            branch = branchRepository.findById(request.getBranchId())
-                    .orElseThrow(() -> new ApiException(ErrorCode.BRANCH_NOT_FOUND));
-
-            if (!branch.getRoom().getOwner().getMemberUid().equals(memberId)) {
-                throw new ApiException(ErrorCode.FORBIDDEN);
-            }
-        } else {
-            // 새 브랜치 생성
-            String branchName = request.getBranchName() != null ? request.getBranchName() : "새 브랜치";
-
-            branch = Branch.builder()
-                    .room(room)
-                    .name(branchName)
-                    .build();
-
-            branchRepository.save(branch);
-        }
-
-        // Chat 생성 (답변은 비워둔 상태)
-        Chat chat = Chat.create(branch, request.getQuestion(), request.getParentId());
-        chatRepository.save(chat);
-
-        // SSE 전송: CHAT_CREATED
-        sendSse(chat, ChatSseEventType.CHAT_CREATED);
-
-        // 비동기 체인 시작
-        CompletableFuture.runAsync(() -> processAiAndSummary(chat.getChatUid(), request.getModelId()));
-
-        return ChatCreateResponseDto.from(chat);
-    }
-
-    // TODO: 추후 수정
+    /**
+     * 채팅 처리 비동기 실행
+     * 1. 답변 생성
+     * 2. 짧은 요약 생성
+     * 3. 긴 요약 + 키워드 생성
+     */
     @Async("aiTaskExecutor")
-    @Transactional(propagation = Propagation.REQUIRES_NEW)
-    public void processAiAndSummary(Long chatId, Long modelId) {
-        try {
-            Chat chat = chatRepository.findById(chatId)
-                    .orElseThrow(() -> new ApiException(ErrorCode.CHAT_NOT_FOUND));
-
-            // AI 답변 생성
-            String aiAnswer = aiAnswerService.generateAnswer(chat.getQuestion(), modelId);
-            chat.updateAnswer(aiAnswer);
-            chatRepository.save(chat);
-
-            // SSE 전송: CHAT_ANSWERED
-            sendSse(chat, ChatSseEventType.CHAT_ANSWERED);
-
-            // FastAPI 요약 및 키워드 생성
-            AiSummaryKeywordResponseDto result = aiSummaryService.generateSummaryAndKeywords(aiAnswer);
-            Chat.updateSummaryAndKeywords(chat, result.getSummary(), new ObjectMapper().writeValueAsString(result.getKeywords()));
-            chatRepository.save(chat);
-
-            // SSE 전송: CHAT_SUMMARIZED
-            sendSse(chat, ChatSseEventType.CHAT_SUMMARIZED);
-        } catch (Exception e) {
-            log.error("[ERROR] AI 비동기 처리 중 예외 발생: {}", e.getMessage());
-        }
-    }
-
     @Override
-    public void updateSummaryAndKeywords(Long chatId, String summary, String keywords) {
-        // Chat 검증
+    public void processChatAsync(Long chatId, Long branchId) {
         Chat chat = chatRepository.findById(chatId)
                 .orElseThrow(() -> new ApiException(ErrorCode.CHAT_NOT_FOUND));
+        Room room = chat.getRoom();
 
-        // 요약 및 키워드 정보 업데이트
-        Chat.updateSummaryAndKeywords(chat, summary, keywords);
-        chatRepository.save(chat);
+        log.info("[ASYNC] Chat {} -> 비동기 AI 처리 시작", chatId);
 
-        // SSE 전송: CHAT_UPDATED
-        ChatSseEvent<ChatCreateResponseDto> event = new ChatSseEvent<>(
-                ChatSseEventType.CHAT_UPDATED,
-                ChatCreateResponseDto.from(chat)
+        // 1. 답변 생성
+        CompletableFuture<String> answerFuture = CompletableFuture.supplyAsync(() -> {
+            log.info("[STEP 1] Chat {} → 답변 생성 시작", chat.getChatUid());
+            try {
+                // TODO: LiteLLM API 호출
+                String aiAnswer = "AI 호출 결과 (LiteLLM 응답)";
+
+                chat.updateAnswer(aiAnswer);
+                chatRepository.save(chat);
+
+                sendChatAnsweredEvent(room, chat, branchId, aiAnswer);
+                log.info("[STEP 1] Chat {} → 답변 생성 완료", chat.getChatUid());
+                return aiAnswer;
+            } catch (Exception e) {
+                log.error("[STEP 1] 답변 생성 실패: {}", e.getMessage());
+                return "AI 응답 생성 실패";
+            }
+        }, aiTaskExecutor);
+
+        // 2. 짧은 요약
+        CompletableFuture<Void> shortSummaryFuture = answerFuture.thenComposeAsync(aiAnswer ->
+                        aiAsyncClient.shortSummaryAsync(aiAnswer)
+                                .thenAccept(res -> {
+                                    try {
+                                        log.info("[STEP 2] 짧은 요약 생성 완료: {}", res.getTitle());
+
+                                        // 방 이름 업데이트
+                                        room.updateName(res.getTitle());
+                                        roomRepository.save(room);
+
+                                        sendRoomShortSummaryEvent(room, branchId, res.getTitle());
+                                    } catch (Exception e) {
+                                        log.error("[STEP 2] 짧은 요약 처리 실패: {}", e.getMessage());
+                                    }
+                                })
+                                .exceptionally(e -> {
+                                    log.error("[STEP 2] FastAPI 짧은 요약 호출 실패: {}", e.getMessage());
+                                    return null;
+                                })
+                , aiTaskExecutor);
+
+        // 3. 긴 요약 + 키워드
+        CompletableFuture<Void> longSummaryFuture = answerFuture.thenComposeAsync(aiAnswer ->
+                        aiAsyncClient.summarizeAsync(aiAnswer)
+                                .thenAccept(aiResult -> {
+                                    try {
+                                        log.info("[STEP 3] 긴 요약 + 키워드 처리 시작");
+                                        chat.updateSummaryAndKeywords(aiResult.getSummary(), convertToJson(aiResult.getKeywords()));
+                                        chatRepository.save(chat);
+
+                                        sendChatSummaryKeywordsEvent(room, chat, branchId, aiResult.getSummary(), aiResult.getKeywords());
+                                        log.info("[STEP 3] 긴 요약 + 키워드 처리 완료");
+                                    } catch (Exception e) {
+                                        log.error("[STEP 3] 긴 요약 처리 실패: {}", e.getMessage());
+                                    }
+                                })
+                                .exceptionally(e -> {
+                                    log.error("[STEP 3] FastAPI 호출 중 오류: {}", e.getMessage());
+                                    return null;
+                                })
+                , aiTaskExecutor);
+
+        // 4. 2, 3번 작업이 모두 끝나면 완료 로그
+        CompletableFuture.allOf(shortSummaryFuture, longSummaryFuture)
+                .thenRun(() -> log.info("[ASYNC] Chat {} 전체 처리 완료", chatId))
+                .exceptionally(e -> {
+                    log.error("[ASYNC] Chat {} 처리 중 오류: {}", chatId, e.getMessage());
+                    return null;
+                });
+    }
+
+    /**
+     * SSE: 답변
+     */
+    private void sendChatAnsweredEvent(Room room, Chat chat, Long branchId, String answer) {
+        Map<String, Object> payload = new LinkedHashMap<>();
+        payload.put("room_id", room.getRoomUid());
+        payload.put("branch_id", branchId);
+        payload.put("updated_at", room.getUpdatedAt());
+        payload.put("chat_id", chat.getChatUid());
+        payload.put("answer", answer);
+        payload.put("answered_at", chat.getAnsweredAt());
+
+        sseEmitterManager.sendEvent(
+                room.getRoomUid(),
+                new ChatSseEvent<>(ChatSseEventType.CHAT_ANSWERED, payload)
         );
-        sseEmitterManager.sendEvent(chat.getBranch().getRoom().getRoomUid(), event);
+
+        log.info("[SSE] CHAT_ANSWERED 전송 완료 → roomId={}, chatId={}", room.getRoomUid(), chat.getChatUid());
     }
 
-    @Override
-    public List<String> getRecentContextForPrompt(Branch branch) {
-        List<Chat> recentChats = chatRepository.findTop5ByBranchOrderByCreatedAtDesc(branch);
+    /**
+     * SSE: 짧은 요약
+     */
+    private void sendRoomShortSummaryEvent(Room room, Long branchId, String shortSummary) {
+        Map<String, Object> payload = new LinkedHashMap<>();
+        payload.put("room_id", room.getRoomUid());
+        payload.put("branch_id", branchId);
+        payload.put("updated_at", room.getUpdatedAt());
+        payload.put("short_summary", shortSummary);
 
-        return recentChats.stream()
-                .map(chat -> {
-                    if (chat.getSummary() != null && !chat.getSummary().isBlank()) {
-                        return chat.getSummary();
-                    } else if (chat.getAnswer() != null && !chat.getAnswer().isBlank()) {
-                        return chat.getAnswer();
-                    } else {
-                        return null; // 둘 다 없으면 skip
-                    }
-                })
-                .filter(Objects::nonNull)
-                .toList();
+        sseEmitterManager.sendEvent(
+                room.getRoomUid(),
+                new ChatSseEvent<>(ChatSseEventType.ROOM_SHORT_SUMMARY, payload)
+        );
+
+        log.info("[SSE] ROOM_SHORT_SUMMARY 전송 완료 → roomId={}", room.getRoomUid());
     }
 
-    private void sendSse(Chat chat, ChatSseEventType type) {
-        ChatSseEvent<ChatCreateResponseDto> event = new ChatSseEvent<>(type, ChatCreateResponseDto.from(chat));
-        sseEmitterManager.sendEvent(chat.getBranch().getRoom().getRoomUid(), event);
+    /**
+     * SSE: 요약 + 키워드
+     */
+    private void sendChatSummaryKeywordsEvent(Room room, Chat chat, Long branchId, String summary, List<String> keywords) {
+        Map<String, Object> payload = new LinkedHashMap<>();
+        payload.put("room_id", room.getRoomUid());
+        payload.put("branch_id", branchId);
+        payload.put("updated_at", chat.getUpdatedAt());
+        payload.put("chat_id", chat.getChatUid());
+        payload.put("summary", summary);
+        payload.put("keywords", keywords);
+
+        sseEmitterManager.sendEvent(
+                room.getRoomUid(),
+                new ChatSseEvent<>(ChatSseEventType.CHAT_SUMMARY_KEYWORDS, payload)
+        );
+
+        log.info("[SSE] CHAT_SUMMARY_KEYWORDS 전송 완료 → roomId={}, chatId={}", room.getRoomUid(), chat.getChatUid());
     }
 
-    private void sendRoomSse(Room room, ChatSseEventType type) {
-        ChatSseEvent<String> event = new ChatSseEvent<>(type, "새 Room이 생성되었습니다: " + room.getName());
-        sseEmitterManager.sendEvent(room.getRoomUid(), event);
+    /**
+     * 키워드 직렬화
+     */
+    private String convertToJson(List<String> keywords) {
+        try {
+            return objectMapper.writeValueAsString(keywords);
+        } catch (JsonProcessingException e) {
+            log.warn("[ChatService] 키워드 직렬화 실패: {}", e.getMessage());
+            return "[]";
+        }
     }
 }
