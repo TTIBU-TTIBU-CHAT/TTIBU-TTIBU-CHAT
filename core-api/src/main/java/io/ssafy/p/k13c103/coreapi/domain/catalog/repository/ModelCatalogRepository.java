@@ -35,4 +35,6 @@ public interface ModelCatalogRepository extends JpaRepository<ModelCatalog, Long
     int softDeleteNotInKeys(Collection<String> seenKeys);
 
     List<ModelCatalog> findModelCatalogsByProvider(ProviderCatalog provider);
+
+    List<ModelCatalog> findByModelUidInAndIsActiveTrue(Collection<Long> modelUids);
 }
