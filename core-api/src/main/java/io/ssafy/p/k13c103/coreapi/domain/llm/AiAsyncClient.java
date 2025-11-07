@@ -1,9 +1,9 @@
-package io.ssafy.p.k13c103.coreapi.infrastructure.ai;
+package io.ssafy.p.k13c103.coreapi.domain.llm;
 
 import io.ssafy.p.k13c103.coreapi.domain.chat.dto.AiShortSummaryResponseDto;
 import io.ssafy.p.k13c103.coreapi.domain.chat.dto.AiSummaryKeywordsResponseDto;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 import org.springframework.web.reactive.function.client.WebClient;
@@ -15,10 +15,13 @@ import java.util.concurrent.CompletableFuture;
 
 @Slf4j
 @Service
-@RequiredArgsConstructor
 public class AiAsyncClient {
 
     private final WebClient webClient;
+
+    public AiAsyncClient(@Qualifier("aiWebClient") WebClient webClient) {
+        this.webClient = webClient;
+    }
 
     /**
      * FastAPI: 긴 요약 + 키워드
