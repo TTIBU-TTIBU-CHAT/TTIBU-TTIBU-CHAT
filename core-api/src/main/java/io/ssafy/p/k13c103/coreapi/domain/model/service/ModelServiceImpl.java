@@ -53,9 +53,9 @@ public class ModelServiceImpl implements ModelService {
         if (targetSelectedIds.isEmpty())
             catalogs = List.of();
         else {
-            catalogs = modelCatalogRepository.findByModelUidInAndIsActiveTrue(new ArrayList<>(targetSelectedIds));
+            catalogs = modelCatalogRepository.findAllowedActiveCatalogsForMember(memberUid, new ArrayList<>(targetSelectedIds));
             if (catalogs.size() != targetSelectedIds.size())
-                throw new ApiException(ErrorCode.MODEL_CATALOG_EMPTY);
+                throw new ApiException(ErrorCode.INVALID_MODEL_PROVIDER);
         }
 
         Map<Long, ModelCatalog> catalogMap = new HashMap<>(); // 빠른 조회용
