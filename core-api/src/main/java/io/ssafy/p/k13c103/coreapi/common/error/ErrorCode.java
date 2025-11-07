@@ -28,6 +28,13 @@ public enum ErrorCode {
     /* === 채팅 === */
     CHAT_NOT_FOUND(HttpStatus.NOT_FOUND, "채팅을 찾을 수 없습니다."),
 
+    /* === 그룹 === */
+    GROUP_NOT_FOUND(HttpStatus.NOT_FOUND, "존재하지 않는 그룹입니다."),
+
+    /* === FastAPI === */
+    EXTERNAL_API_ERROR(HttpStatus.BAD_GATEWAY, "외부 API 호출 중 알 수 없는 오류가 발생했습니다."),
+    EXTERNAL_API_CONNECTION_FAILED(HttpStatus.SERVICE_UNAVAILABLE, "외부 API 서버에 연결할 수 없습니다."),
+
     /* === 회원 === */
     MEMBER_NOT_FOUND(HttpStatus.NOT_FOUND, "존재하지 않는 회원입니다."),
     MEMBER_EMAIL_DUPLICATED(HttpStatus.CONFLICT, "이미 존재하는 이메일입니다.");
