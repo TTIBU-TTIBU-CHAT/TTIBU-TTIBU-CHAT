@@ -30,7 +30,7 @@ public class CatalogReloadScheduler { // 카탈로그 파일(litellm-config.yaml
 
     @Scheduled(fixedDelayString = "${ttibu.litellm.poll-ms}")
     public void pollAndApplyIfChanged() {
-        Path path = Path.of(yamlPath);
+        Path path = Path.of(yamlPath.replace("file:", ""));
         String sha = safeSha256(path);
 
         /*
