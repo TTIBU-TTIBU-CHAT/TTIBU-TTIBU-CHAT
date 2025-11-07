@@ -19,9 +19,13 @@ export function ChatContent({ messages, input, onInputChange, onSend }) {
     <>
       <S.ChatScroll>
         {messages.map((msg) => (
-          <S.Bubble key={msg.id} $me={msg.role === "user"}>
-            {msg.content}
-          </S.Bubble>
+          <div key={msg.id}>
+            <S.Bubble $me={msg.role === "user"}>{msg.content}</S.Bubble>
+            {/* 모델명(출처) 표시 */}
+            {msg.role === "assistant" && msg.model && (
+              <S.ModelTag>모델 : {msg.model}</S.ModelTag>
+            )}
+          </div>
         ))}
         <div ref={bottomRef} />
       </S.ChatScroll>

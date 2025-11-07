@@ -2,7 +2,7 @@ import { createRootRoute, Outlet, useRouterState, Navigate } from '@tanstack/rea
 import styled from 'styled-components'
 import Sidebar from '@/components/layout/Sidebar'
 import { useSidebarStore } from '@/store/useSidebarStore'
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef } from 'react'
 import { useAuthStore } from '@/store/useAuthStore'
 
 const TRANS_MS = 280
@@ -13,24 +13,20 @@ export const Route = createRootRoute({
 
 function RootLayout() {
   const { isCollapsed } = useSidebarStore()
-  const { isAuthed, initialize } = useAuthStore()
+  // ✅ authChecked로 가드 타이밍 제어
+  const { isAuthed, initialize, authChecked } = useAuthStore()
   const routerState = useRouterState()
-  const [initialized, setInitialized] = useState(false)
+
   const sidebarW = useMemo(() => (isCollapsed ? 72 : 240), [isCollapsed])
   const mainRef = useRef(null)
   const pathname = routerState.location.pathname
   const isAuthPage = pathname.startsWith('/login') || pathname.startsWith('/signup')
 
   useEffect(() => {
-    const init = async () => {
-      try {
-        if (!isAuthed) await initialize()
-      } finally {
-        setInitialized(true)
-      }
-    }
-    init()
-  }, [])
+    // ✅ 새로고침 시: persist 하이드레이션된 값(이전 로그인 상태)을 기준으로 가드 판단
+    //    실제 세션 만료는 첫 API 401에서 signOut → 다음 렌더에서 가드가 /login 으로 보냄
+    initialize()
+  }, [initialize])
 
   useEffect(() => {
     const el = mainRef.current
@@ -42,16 +38,11 @@ function RootLayout() {
     return () => el.removeEventListener('transitionend', onEnd)
   }, [])
 
-  if (!initialized) return <div>로딩 중...</div>
+  // ✅ 세션 확인/하이드레이션 완료 전에는 가드를 보류
+  if (!authChecked) return <div>로딩 중...</div>
 
-  if (initialized) {
-    if (!isAuthed && !isAuthPage) {
-      return <Navigate to="/login" replace />
-    }
-    if (isAuthed && isAuthPage) {
-      return <Navigate to="/" replace />
-    }
-  }
+  if (!isAuthed && !isAuthPage) return <Navigate to="/login" replace />
+  if (isAuthed && isAuthPage) return <Navigate to="/" replace />
 
   return (
     <Shell>
@@ -76,7 +67,6 @@ const Shell = styled.div`
   min-height: 100dvh;
   background: #f5f7fb;
 `
-
 const AsideWrap = styled.aside`
   position: fixed;
   top: 0;
@@ -88,7 +78,6 @@ const AsideWrap = styled.aside`
   background: transparent;
   will-change: width;
 `
-
 const Main = styled.main`
   position: relative;
   min-height: 100dvh;
