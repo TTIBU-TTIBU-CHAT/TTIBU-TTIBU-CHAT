@@ -1,6 +1,8 @@
 package io.ssafy.p.k13c103.coreapi.domain.model.controller;
 
 import io.ssafy.p.k13c103.coreapi.common.jsend.JSend;
+import io.ssafy.p.k13c103.coreapi.config.security.CustomMemberDetails;
+import io.ssafy.p.k13c103.coreapi.domain.model.dto.ModelRequestDto;
 import io.ssafy.p.k13c103.coreapi.domain.model.dto.ModelResponseDto;
 import io.ssafy.p.k13c103.coreapi.domain.model.service.ModelService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -9,6 +11,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -21,6 +24,15 @@ import java.util.List;
 public class ModelController {
 
     private final ModelService modelService;
+
+    @Operation(summary = "사용 모델 다중 선택", description = "")
+    @PostMapping
+    public ResponseEntity<JSend> select(@RequestBody List<ModelRequestDto.SelectModel> request, @AuthenticationPrincipal CustomMemberDetails member) {
+
+        modelService.select(request, member.getMemberUid());
+
+        return ResponseEntity.status(HttpStatus.CREATED).body(JSend.success("사용 모델 갱신 완료"));
+    }
 
     @Operation(summary = "제공사 리스트 조회", description = "")
     @GetMapping("/providers")
