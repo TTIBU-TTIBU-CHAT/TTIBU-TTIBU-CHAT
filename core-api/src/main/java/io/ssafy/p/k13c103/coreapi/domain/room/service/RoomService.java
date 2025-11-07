@@ -1,12 +1,10 @@
 package io.ssafy.p.k13c103.coreapi.domain.room.service;
 
-import io.ssafy.p.k13c103.coreapi.domain.room.entity.Room;
+import io.ssafy.p.k13c103.coreapi.domain.room.dto.RoomCreateRequestDto;
 
 public interface RoomService {
 
-    /* roomId로 채팅방 조회 */
-    Room findById(Long roomId);
+    Long createRoom(Long memberId, RoomCreateRequestDto request);
 
-    /* 특정 회원이 해당 채팅방의 소유자인지 여부 확인 */
-    boolean isOwner(Long memberId, Long roomId);
+    void isOwner(Long memberId, Long roomId);
 }
