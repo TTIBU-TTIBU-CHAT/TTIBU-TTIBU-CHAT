@@ -43,10 +43,8 @@ public class ModelServiceImpl implements ModelService {
 
         // 1. 선택한 모델 카탈로그 로드
         Set<Long> targetSelectedIds = new HashSet<>();
-        for (ModelRequestDto.SelectModel model : request) {
-            if (model.isSelected())
+        for (ModelRequestDto.SelectModel model : request)
                 targetSelectedIds.add(model.modelCatalogUid());
-        }
 
         // 2. 선택한 모델이 실제로 존재하는지 (사용 가능한지)
         List<ModelCatalog> catalogs;
