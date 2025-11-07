@@ -1,12 +1,12 @@
 package io.ssafy.p.k13c103.coreapi.domain.group.entity;
 
 import io.ssafy.p.k13c103.coreapi.common.entity.BaseTimeEntity;
-import io.ssafy.p.k13c103.coreapi.domain.member.Member;
+import io.ssafy.p.k13c103.coreapi.domain.member.entity.Member;
 import jakarta.persistence.*;
 import lombok.*;
 
 @Entity
-@Table(name = "group")
+@Table(name = "groups")
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 @AllArgsConstructor(access = AccessLevel.PRIVATE)
