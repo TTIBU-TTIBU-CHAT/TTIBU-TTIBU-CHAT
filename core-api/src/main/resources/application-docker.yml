@@ -6,8 +6,6 @@ spring:
     driver-class-name: org.postgresql.Driver
 
   data:
-    mongodb:
-      uri: mongodb://mongo:27017/ttibu_mongo
     redis:
       host: redis
       port: 6379

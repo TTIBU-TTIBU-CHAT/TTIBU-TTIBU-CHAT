@@ -5,10 +5,6 @@ spring:
     password: ${DB_PASSWORD:postgres}
     driver-class-name: org.postgresql.Driver
   
-  data:
-    mongodb:
-      uri: ${MONGODB_URI:mongodb://localhost:27017/ttibu_mongo_prod}
-  
   jpa:
     hibernate:
       ddl-auto: validate
