@@ -23,8 +23,8 @@ server:
   servlet:
     session:
       cookie:
-        secure: false
-        same-site: Lax
+        secure: true
+        same-site: None
 
 app:
   security:
