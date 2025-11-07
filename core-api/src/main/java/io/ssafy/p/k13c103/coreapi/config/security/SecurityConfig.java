@@ -1,10 +1,14 @@
 package io.ssafy.p.k13c103.coreapi.config.security;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
+import io.ssafy.p.k13c103.coreapi.common.jsend.JSend;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.authentication.configuration.AuthenticationConfiguration;
@@ -20,11 +24,13 @@ import org.springframework.security.web.context.HttpSessionSecurityContextReposi
 import org.springframework.security.web.context.SecurityContextRepository;
 import org.springframework.security.web.csrf.CsrfTokenRequestAttributeHandler;
 import org.springframework.security.web.csrf.HttpSessionCsrfTokenRepository;
+import org.springframework.security.web.csrf.InvalidCsrfTokenException;
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 
 import java.util.List;
+import java.util.Map;
 
 @Configuration
 @EnableWebSecurity
@@ -32,6 +38,8 @@ import java.util.List;
 public class SecurityConfig {
     @Value("${app.security.csrf-mode:token}")
     String csrfMode;
+
+    private final ObjectMapper objectMapper;
 
     @Bean
     public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
@@ -83,6 +91,32 @@ public class SecurityConfig {
 //                                "/api/v1/members", "/api/v1/members/login", "/api/v1/members/logout"
 //                        );
 //                    }
+                })
+                .exceptionHandling(ex -> {
+                    // 401
+                    ex.authenticationEntryPoint((request, response, exception) -> {
+                        response.setContentType(MediaType.APPLICATION_JSON_VALUE);
+                        response.setCharacterEncoding("UTF-8");
+                        response.setStatus(HttpStatus.UNAUTHORIZED.value());
+                        Map<String, String> data = Map.of("reason", "인증이 필요합니다.");
+                        JSend fail = JSend.fail(data);
+                        response.getWriter().write(objectMapper.writeValueAsString(fail));
+                    });
+                    // 403
+                    ex.accessDeniedHandler((request, response, exception) -> {
+                        response.setContentType(MediaType.APPLICATION_JSON_VALUE);
+                        response.setCharacterEncoding("UTF-8");
+                        response.setStatus(HttpStatus.FORBIDDEN.value());
+                        Map<String, String> data;
+                        if (exception instanceof InvalidCsrfTokenException || exception.getMessage().toLowerCase().contains("csrf")) {
+                            // CSRF 토큰 이슈인 경우
+                            data = Map.of("reason", "CSRF 토큰이 유효하지 않습니다.");
+                        } else {
+                            data = Map.of("reason", "해당 리소스에 접근할 권한이 없습니다.");
+                        }
+                        JSend fail = JSend.fail(data);
+                        response.getWriter().write(objectMapper.writeValueAsString(fail));
+                    });
                 });
 
         return http.build();

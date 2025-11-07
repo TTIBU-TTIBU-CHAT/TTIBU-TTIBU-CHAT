@@ -97,6 +97,6 @@ public class MemberController {
         if (member != null && session != null)
             return ResponseEntity.status(HttpStatus.OK).body(JSend.success(member.getMemberUid()));
         else
-            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(JSend.fail(Map.of("reason", "NOT_AUTHENTICATED")));
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(JSend.fail(Map.of("reason", "인증이 필요합니다.")));
     }
 }
