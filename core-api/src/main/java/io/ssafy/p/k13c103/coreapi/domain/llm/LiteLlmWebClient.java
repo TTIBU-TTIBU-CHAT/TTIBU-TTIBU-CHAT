@@ -2,7 +2,6 @@ package io.ssafy.p.k13c103.coreapi.domain.llm;
 
 import io.ssafy.p.k13c103.coreapi.common.error.ApiException;
 import io.ssafy.p.k13c103.coreapi.common.error.ErrorCode;
-import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpHeaders;
@@ -16,17 +15,17 @@ import java.util.List;
 import java.util.Map;
 
 @Service
-@RequiredArgsConstructor
 public class LiteLlmWebClient implements LiteLlmClient {
 
+    private final WebClient liteLlmWebClient;
     @Value("${litellm.master.key}")
     private String masterKey;
-
     @Value("${gms.base.url}")
     private String gmsBaseUrl;
 
-    @Qualifier("liteLlmClient")
-    private final WebClient liteLlmWebClient;
+    public LiteLlmWebClient(@Qualifier("liteLlmClient") WebClient liteLlmWebClient) {
+        this.liteLlmWebClient = liteLlmWebClient;
+    }
 
     /**
      * 실제 운영용
@@ -132,7 +131,7 @@ public class LiteLlmWebClient implements LiteLlmClient {
         }
     }
 
-    // TODO: 채팅 생성
+    // TODO: 채팅 생성 -> GMS 버전 (우리 개발 테스트용) / LiteLLM 버전 (배포용)
 
     private Mono<? extends Throwable> map4xxToApiEx(ClientResponse response) {
         return response.bodyToMono(String.class).defaultIfEmpty("")
