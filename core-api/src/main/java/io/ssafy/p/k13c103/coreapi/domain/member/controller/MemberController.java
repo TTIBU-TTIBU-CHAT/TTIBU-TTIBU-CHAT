@@ -11,6 +11,7 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import jakarta.servlet.http.HttpSession;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
@@ -86,5 +87,16 @@ public class MemberController {
         }
 
         return Map.of("token", token.getToken());
+    }
+
+    @Operation(summary = "세션 상태 조회", description = "")
+    @GetMapping("/session")
+    public ResponseEntity<JSend> getSessionStatus(HttpServletRequest request, @AuthenticationPrincipal CustomMemberDetails member) {
+        HttpSession session = request.getSession(false);
+
+        if (member != null && session != null)
+            return ResponseEntity.status(HttpStatus.OK).body(JSend.success(member.getMemberUid()));
+        else
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(JSend.fail(Map.of("reason", "NOT_AUTHENTICATED")));
     }
 }

@@ -49,6 +49,8 @@ public class SecurityConfig {
                         .requestMatchers("/", "/css/**", "/js/**", "/images/**").permitAll()
                         // CSRF 토큰 발급 허용
                         .requestMatchers(HttpMethod.GET, "/api/v1/members/csrf").permitAll()
+                        // 세션 상태 확인 허용
+                        .requestMatchers(HttpMethod.GET, "/api/v1/members/session").permitAll()
                         // 로그인 전 허용
                         .requestMatchers(HttpMethod.POST, "/api/v1/members").permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/v1/members/login").permitAll()
