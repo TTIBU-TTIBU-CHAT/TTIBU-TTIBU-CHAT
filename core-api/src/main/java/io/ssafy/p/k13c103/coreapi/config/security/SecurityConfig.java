@@ -15,14 +15,11 @@ import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.session.ChangeSessionIdAuthenticationStrategy;
-import org.springframework.security.web.authentication.session.CompositeSessionAuthenticationStrategy;
 import org.springframework.security.web.authentication.session.SessionAuthenticationStrategy;
 import org.springframework.security.web.context.HttpSessionSecurityContextRepository;
 import org.springframework.security.web.context.SecurityContextRepository;
-import org.springframework.security.web.csrf.CsrfAuthenticationStrategy;
+import org.springframework.security.web.csrf.CsrfTokenRequestAttributeHandler;
 import org.springframework.security.web.csrf.HttpSessionCsrfTokenRepository;
-import org.springframework.session.web.http.CookieSerializer;
-import org.springframework.session.web.http.DefaultCookieSerializer;
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
@@ -38,6 +35,11 @@ public class SecurityConfig {
 
     @Bean
     public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
+        HttpSessionCsrfTokenRepository repository = new HttpSessionCsrfTokenRepository();
+        repository.setHeaderName("X-CSRF-TOKEN");
+        var requestHandler = new CsrfTokenRequestAttributeHandler();
+        requestHandler.setCsrfRequestAttributeName(null);
+
         http
                 // 인가 규칙
                 .authorizeHttpRequests(auth -> auth
@@ -68,22 +70,18 @@ public class SecurityConfig {
                 .headers(h -> h.frameOptions(f -> f.sameOrigin()))
                 // CORS
                 .cors(Customizer.withDefaults())
-                .securityContext(sc -> sc.securityContextRepository(securityContextRepository()));
+                .securityContext(sc -> sc.securityContextRepository(securityContextRepository()))
+                .csrf(csrf -> {
+                    csrf.csrfTokenRepository(repository)
+                            .csrfTokenRequestHandler(requestHandler);
 
-        // CSRF
-        if ("ignore".equalsIgnoreCase(csrfMode)) {
-            // 개발 모드
-            http.csrf(csrf -> csrf
-                    .ignoringRequestMatchers("/v3/api-docs/**", "/swagger-ui.html", "/swagger-ui/**")
-                    .ignoringRequestMatchers("/api/v1/members", "/api/v1/members/login", "/api/v1/members/logout")
-                    .csrfTokenRepository(new HttpSessionCsrfTokenRepository())
-            );
-        } else {
-            // 운영 모드
-            http.csrf(csrf -> csrf
-                    .csrfTokenRepository(new HttpSessionCsrfTokenRepository())
-            );
-        }
+//                    if ("ignore".equalsIgnoreCase(csrfMode)) {
+//                        csrf.ignoringRequestMatchers(
+//                                "/v3/api-docs/**", "/swagger-ui.html", "/swagger-ui/**",
+//                                "/api/v1/members", "/api/v1/members/login", "/api/v1/members/logout"
+//                        );
+//                    }
+                });
 
         return http.build();
     }
@@ -111,7 +109,7 @@ public class SecurityConfig {
         CorsConfiguration c = new CorsConfiguration();
         c.setAllowedOrigins(List.of("http://localhost:5173"));
         c.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"));
-        c.setAllowedHeaders(List.of("Content-Type", "Authorization", "X-XSRF-TOKEN"));
+        c.setAllowedHeaders(List.of("Content-Type", "Authorization", "X-CSRF-TOKEN"));
         c.setExposedHeaders(List.of("Set-Cookie"));
         c.setAllowCredentials(true);
         UrlBasedCorsConfigurationSource s = new UrlBasedCorsConfigurationSource();
@@ -120,24 +118,7 @@ public class SecurityConfig {
     }
 
     @Bean
-    public CookieSerializer sessionCookieSerializer() {
-        DefaultCookieSerializer serializer = new DefaultCookieSerializer();
-        boolean isProd = !"ignore".equalsIgnoreCase(csrfMode);
-
-        serializer.setSameSite("None"); // "None"으로 설정
-        serializer.setUseSecureCookie(isProd);
-        serializer.setCookiePath("/");
-
-        return serializer;
-    }
-
-    @Bean
     public SessionAuthenticationStrategy sessionAuthenticationStrategy() {
-        return new CompositeSessionAuthenticationStrategy(
-                List.of(
-                        new ChangeSessionIdAuthenticationStrategy(),
-                        new CsrfAuthenticationStrategy(new HttpSessionCsrfTokenRepository())
-                )
-        );
+        return new ChangeSessionIdAuthenticationStrategy();
     }
 }
