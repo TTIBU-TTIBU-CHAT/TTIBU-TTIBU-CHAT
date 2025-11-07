@@ -1,0 +1,89 @@
+package io.ssafy.p.k13c103.coreapi.infrastructure.ai;
+
+import io.ssafy.p.k13c103.coreapi.domain.chat.dto.AiShortSummaryResponseDto;
+import io.ssafy.p.k13c103.coreapi.domain.chat.dto.AiSummaryKeywordsResponseDto;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.scheduling.annotation.Async;
+import org.springframework.stereotype.Service;
+import org.springframework.web.reactive.function.client.WebClient;
+import reactor.core.publisher.Mono;
+
+import java.util.List;
+import java.util.Map;
+import java.util.concurrent.CompletableFuture;
+
+@Slf4j
+@Service
+@RequiredArgsConstructor
+public class AiAsyncClient {
+
+    private final WebClient webClient;
+
+    /**
+     * FastAPI: 긴 요약 + 키워드
+     * - ChatServiceImpl 등에서 @Async("aiTaskExecutor")와 함께 사용
+     * - CompletableFuture로 결과 반환
+     */
+    @Async("aiTaskExecutor")
+    public CompletableFuture<AiSummaryKeywordsResponseDto> summarizeAsync(String text) {
+        return webClient.post()
+                .uri("/summarize")
+                .bodyValue(Map.of(
+                        "text", text,
+                        "maxLength", 150,
+                        "minLength", 30
+                ))
+                .retrieve()
+                .bodyToMono(AiSummaryKeywordsResponseDto.class)
+                .doOnSubscribe(sub -> log.info("[AiAsyncClient] FastAPI 요약 요청 시작"))
+                .doOnSuccess(res -> log.info("[AiAsyncClient] FastAPI 응답 수신 완료"))
+                .doOnError(e -> log.error("[AiAsyncClient] FastAPI 요청 실패: {}", e.getMessage()))
+                .onErrorResume(e -> Mono.just(fallbackResponse(e)))
+                .toFuture();
+    }
+
+    /**
+     * FastAPI: 짧은 요약 (제목)
+     */
+    @Async("aiTaskExecutor")
+    public CompletableFuture<AiShortSummaryResponseDto> shortSummaryAsync(String text) {
+        return webClient.post()
+                .uri("/title-summarize")
+                .bodyValue(Map.of(
+                        "text", text,
+                        "maxLength", 30,
+                        "minLength", 5
+                ))
+                .retrieve()
+                .bodyToMono(AiShortSummaryResponseDto.class)
+                .doOnSubscribe(sub -> log.info("[AiAsyncClient] FastAPI 짧은 요약 요청 시작"))
+                .doOnSuccess(res -> log.info("[AiAsyncClient] 짧은 요약 응답 완료: {}", res.getTitle()))
+                .doOnError(e -> log.error("[AiAsyncClient] FastAPI 짧은 요약 요청 실패: {}", e.getMessage()))
+                .onErrorResume(e -> Mono.just(fallbackShortResponse(e)))
+                .toFuture();
+    }
+
+    /**
+     * FastAPI 실패 시 응답 반환 - AiSummaryKeywordsResponseDto
+     */
+    private AiSummaryKeywordsResponseDto fallbackResponse(Throwable e) {
+        log.warn("[AiAsyncClient] Fallback 처리 - {}", e.getMessage());
+        AiSummaryKeywordsResponseDto fallback = new AiSummaryKeywordsResponseDto();
+        fallback.setSummary("요약 생성 실패 (Fallback)");
+        fallback.setKeywords(List.of());
+        fallback.setProcessingTimeMs(0);
+        return fallback;
+    }
+
+    /**
+     * FastAPI 실패 시 응답 반환 - AiShortSummaryResponseDto
+     */
+    private AiShortSummaryResponseDto fallbackShortResponse(Throwable e) {
+        log.warn("[AiAsyncClient] 짧은 요약 실패 Fallback - {}", e.getMessage());
+        AiShortSummaryResponseDto fallback = new AiShortSummaryResponseDto();
+        fallback.setTitle("짧은 요약 생성 실패 (Fallback)");
+        fallback.setProcessingTimeMs(0);
+        return fallback;
+    }
+}
