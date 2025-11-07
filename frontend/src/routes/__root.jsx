@@ -1,82 +1,72 @@
-// /src/routes/__root.jsx
-import { createRootRoute, Outlet } from "@tanstack/react-router";
-import styled from "styled-components";
-import Sidebar from "@/components/layout/Sidebar";
-import { useSidebarStore } from "@/store/useSidebarStore";
-import { useEffect, useMemo, useRef } from "react";
-
+import { createRootRoute, Outlet, useRouterState, Navigate } from '@tanstack/react-router'
+import styled from 'styled-components'
+import Sidebar from '@/components/layout/Sidebar'
+import { useSidebarStore } from '@/store/useSidebarStore'
+import { useEffect, useMemo, useRef } from 'react'
+import { useAuthStore } from '@/store/useAuthStore'
 
 const TRANS_MS = 280
 
 export const Route = createRootRoute({
   component: RootLayout,
-});
+})
 
 function RootLayout() {
+  const { isCollapsed } = useSidebarStore()
+  // ✅ authChecked로 가드 타이밍 제어
+  const { isAuthed, initialize, authChecked } = useAuthStore()
+  const routerState = useRouterState()
 
-  const { isCollapsed } = useSidebarStore();
-  const sidebarW = useMemo(() => (isCollapsed ? 72 : 240), [isCollapsed]);
+  const sidebarW = useMemo(() => (isCollapsed ? 72 : 240), [isCollapsed])
+  const mainRef = useRef(null)
+  const pathname = routerState.location.pathname
+  const isAuthPage = pathname.startsWith('/login') || pathname.startsWith('/signup')
 
-  const mainRef = useRef(null);
-  // ✅ 사이드바 너비를 전역 CSS 변수로 publish (모달이 어디서든 참조 가능)
   useEffect(() => {
-    document.documentElement.style.setProperty("--sidebar-w", `${sidebarW}px`);
-  }, [sidebarW]);
-  // 전환 종료 시점에 resize 이벤트를 날려 ReactFlow가 최종 레이아웃에서 리사이즈하도록
-  useEffect(() => {
-    const el = mainRef.current;
-    if (!el) return;
+    // ✅ 새로고침 시: persist 하이드레이션된 값(이전 로그인 상태)을 기준으로 가드 판단
+    //    실제 세션 만료는 첫 API 401에서 signOut → 다음 렌더에서 가드가 /login 으로 보냄
+    initialize()
+  }, [initialize])
 
+  useEffect(() => {
+    const el = mainRef.current
+    if (!el) return
     const onEnd = (e) => {
-      if (e.propertyName === "margin-left") {
-        // 메인 margin-left 전환이 끝났을 때만
-        window.dispatchEvent(new Event("resize"));
-      }
-    };
-    el.addEventListener("transitionend", onEnd);
-    return () => el.removeEventListener("transitionend", onEnd);
-  }, []);
-
-
-  if (!initialized) return <div>로딩 중...</div>
-
-  if (initialized) {
-    if (!isAuthed && !isAuthPage) {
-      return <Navigate to="/login" replace />
+      if (e.propertyName === 'margin-left') window.dispatchEvent(new Event('resize'))
     }
-    if (isAuthed && isAuthPage) {
-      return <Navigate to="/" replace />
-    }
-  }
+    el.addEventListener('transitionend', onEnd)
+    return () => el.removeEventListener('transitionend', onEnd)
+  }, [])
+
+  // ✅ 세션 확인/하이드레이션 완료 전에는 가드를 보류
+  if (!authChecked) return <div>로딩 중...</div>
+
+  if (!isAuthed && !isAuthPage) return <Navigate to="/login" replace />
+  if (isAuthed && isAuthPage) return <Navigate to="/" replace />
 
   return (
     <Shell>
-      {/* 고정 사이드바(너비에 트랜지션) */}
-      <AsideWrap $w={sidebarW} style={{ "--sbw": `${sidebarW}px` }}>
-        <Sidebar />
-      </AsideWrap>
-
-      {/* 메인(왼쪽 마진에 트랜지션) */}
+      {isAuthed && !isAuthPage && (
+        <AsideWrap $w={sidebarW} style={{ '--sbw': `${sidebarW}px` }}>
+          <Sidebar />
+        </AsideWrap>
+      )}
       <Main
         ref={mainRef}
-        $left={sidebarW}
-        style={{ "--left": `${sidebarW}px` }}
-
+        $left={isAuthed && !isAuthPage ? sidebarW : 0}
+        style={{ '--left': isAuthed && !isAuthPage ? `${sidebarW}px` : '0px' }}
       >
         <Outlet />
       </Main>
     </Shell>
-  );
+  )
 }
 
 const Shell = styled.div`
   position: relative;
   min-height: 100dvh;
   background: #f5f7fb;
-  font-family: "Pretendard", "Noto Sans KR", sans-serif;
-`;
-
-
+`
 const AsideWrap = styled.aside`
   position: fixed;
   top: 0;
@@ -87,12 +77,11 @@ const AsideWrap = styled.aside`
   z-index: 5;
   background: transparent;
   will-change: width;
-`;
-
+`
 const Main = styled.main`
   position: relative;
   min-height: 100dvh;
   margin-left: var(--left, 260px);
   transition: margin-left ${TRANS_MS}ms ease;
   will-change: margin-left;
-`;
+`
