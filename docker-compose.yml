@@ -16,17 +16,6 @@ services:
     networks:
       - ttibu-network
 
-  # MongoDB Database
-  mongo:
-    image: mongo:7
-    container_name: ttibu-mongo
-    ports:
-      - "27017:27017"
-    volumes:
-      - mongo_data:/data/db
-    networks:
-      - ttibu-network
-
   # Redis Cache
   redis:
     image: redis:7-alpine
@@ -56,7 +45,6 @@ services:
       - ./litellm-config.yaml:/litellm-config.yaml
     depends_on:
       - postgres
-      - mongo
       - redis
       - litellm
     networks:
@@ -103,7 +91,6 @@ services:
 
 volumes:
   postgres_data:
-  mongo_data:
   redis_data:
 
 networks:
