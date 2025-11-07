@@ -1,44 +1,44 @@
 // /src/routes/__root.jsx
-import { createRootRoute, Outlet } from '@tanstack/react-router'
-import styled from 'styled-components'
-import Sidebar from '@/components/layout/Sidebar'
-import { useSidebarStore } from '@/store/useSidebarStore'
-import { useEffect, useMemo, useRef } from 'react'
+import { createRootRoute, Outlet } from "@tanstack/react-router";
+import styled from "styled-components";
+import Sidebar from "@/components/layout/Sidebar";
+import { useSidebarStore } from "@/store/useSidebarStore";
+import { useEffect, useMemo, useRef } from "react";
 
 const TRANS_MS = 280; // 사이드바/메인 전환 시간(ms)
 
 export const Route = createRootRoute({
   component: RootLayout,
-})
+});
 
 function RootLayout() {
-  const { isCollapsed } = useSidebarStore()
-  const sidebarW = useMemo(() => (isCollapsed ? 72 : 240), [isCollapsed])
+  const { isCollapsed } = useSidebarStore();
+  const sidebarW = useMemo(() => (isCollapsed ? 72 : 240), [isCollapsed]);
 
-  const mainRef = useRef(null)
-
+  const mainRef = useRef(null);
+  // ✅ 사이드바 너비를 전역 CSS 변수로 publish (모달이 어디서든 참조 가능)
+  useEffect(() => {
+    document.documentElement.style.setProperty("--sidebar-w", `${sidebarW}px`);
+  }, [sidebarW]);
   // 전환 종료 시점에 resize 이벤트를 날려 ReactFlow가 최종 레이아웃에서 리사이즈하도록
   useEffect(() => {
-    const el = mainRef.current
-    if (!el) return
+    const el = mainRef.current;
+    if (!el) return;
 
     const onEnd = (e) => {
-      if (e.propertyName === 'margin-left') {
+      if (e.propertyName === "margin-left") {
         // 메인 margin-left 전환이 끝났을 때만
-        window.dispatchEvent(new Event('resize'))
+        window.dispatchEvent(new Event("resize"));
       }
-    }
-    el.addEventListener('transitionend', onEnd)
-    return () => el.removeEventListener('transitionend', onEnd)
-  }, [])
+    };
+    el.addEventListener("transitionend", onEnd);
+    return () => el.removeEventListener("transitionend", onEnd);
+  }, []);
 
   return (
     <Shell>
       {/* 고정 사이드바(너비에 트랜지션) */}
-      <AsideWrap
-        $w={sidebarW}
-        style={{ '--sbw': `${sidebarW}px` }}
-      >
+      <AsideWrap $w={sidebarW} style={{ "--sbw": `${sidebarW}px` }}>
         <Sidebar />
       </AsideWrap>
 
@@ -46,12 +46,12 @@ function RootLayout() {
       <Main
         ref={mainRef}
         $left={sidebarW}
-        style={{ '--left': `${sidebarW}px` }}
+        style={{ "--left": `${sidebarW}px` }}
       >
         <Outlet />
       </Main>
     </Shell>
-  )
+  );
 }
 
 /* ===== styled ===== */
@@ -59,8 +59,8 @@ const Shell = styled.div`
   position: relative;
   min-height: 100dvh;
   background: #f5f7fb;
-  font-family: 'Pretendard', 'Noto Sans KR', sans-serif;
-`
+  font-family: "Pretendard", "Noto Sans KR", sans-serif;
+`;
 
 const AsideWrap = styled.aside`
   position: fixed;
@@ -75,7 +75,7 @@ const AsideWrap = styled.aside`
   z-index: 5; /* 메인(1)보다 위, 모달보다 아래여도 OK */
   background: transparent; /* 실제 배경은 Sidebar 내부에서 처리 */
   will-change: width;
-`
+`;
 
 const Main = styled.main`
   position: relative;
@@ -87,4 +87,4 @@ const Main = styled.main`
 
   /* 부드러운 전환 힌트 */
   will-change: margin-left;
-`
+`;

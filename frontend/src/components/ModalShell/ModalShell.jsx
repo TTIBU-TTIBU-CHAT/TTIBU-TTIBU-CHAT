@@ -1,3 +1,4 @@
+// ModalShell.jsx
 import { useRouterState } from "@tanstack/react-router";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
@@ -6,7 +7,6 @@ import { ChatContent } from "./contents/ChatContent";
 import { SearchContent } from "./contents/SearchContent";
 import { GroupContent } from "./contents/GroupContent";
 
-/** 타입 순서에 따라 전환 방향 계산 (작을수록 왼쪽, 클수록 오른쪽) */
 const TYPE_ORDER = { layers: 0, search: 1, chat: 2 };
 const ANIM_MS = 280;
 
@@ -14,7 +14,7 @@ export default function ModalShell({
   open,
   onOpen,
   onClose,
-  type = "chat", // 'chat' | 'search' | 'layers'
+  type = "chat",
   setType,
   title = "브랜치-2",
   messages = [],
@@ -22,17 +22,19 @@ export default function ModalShell({
   onInputChange,
   onSend,
   peek = false,
+  setPeek,
   showDock = true,
-  onPick, // ✅ 클릭 선택 시 부모로 payload 전달 (임시 노드 채우기 등에 사용)
-
+  onPick,
 }) {
   const panelRef = useRef(null);
-  // ✅ 현재 경로 읽기
+
+  const [peekState, setPeekState] = useState(!!peek);
+  useEffect(() => setPeekState(!!peek), [peek]);
+
   const routerState = useRouterState();
   const pathname = routerState.location.pathname;
   const hideChatDock = pathname.startsWith("/groups");
 
-  // 채팅 헤더 드롭다운
   const [branchOpen, setBranchOpen] = useState(false);
   const [modelOpen, setModelOpen] = useState(false);
   const [selectedBranch, setSelectedBranch] = useState(title);
@@ -45,7 +47,6 @@ export default function ModalShell({
     if (open) panelRef.current?.focus();
   }, [open]);
 
-  // 포털 루트
   const portalRoot = useMemo(() => {
     if (typeof window === "undefined") return null;
     let el = document.getElementById("portal-root");
@@ -60,11 +61,13 @@ export default function ModalShell({
 
   const stop = (e) => e.stopPropagation();
 
-  /* ===== 전환 방향 + leaving 레이어 유지 ===== */
   const prevTypeRef = useRef(type);
   const [dir, setDir] = useState("forward");
   const [leavingType, setLeavingType] = useState(null);
   const [leavingHeader, setLeavingHeader] = useState(null);
+
+  // ✅ 전체 화면 상태
+  const [fullscreen, setFullscreen] = useState(false);
 
   useEffect(() => {
     const prev = prevTypeRef.current;
@@ -86,10 +89,22 @@ export default function ModalShell({
   /* ===== Dock 공통 토글 ===== */
   const handleDockToggle = (nextType) => {
     if (open && type === nextType) {
+      // 같은 탭 다시 누르면: peek 해제 → 이미 풀오픈이면 닫기
+      if (peekState) {
+        setPeek?.(false);
+        setPeekState(false);
+        setFullscreen(false); // ✅ dock으로 건드릴 땐 전체화면 해제
+        onOpen?.();
+        return;
+      }
       onClose?.();
       return;
     }
     setType?.(nextType);
+    // 토글 시에는 펼친 상태로
+    setPeek?.(false);
+    setPeekState(false);
+    setFullscreen(false); // ✅ 탭 전환하면 기본 폭으로
     if (!open) onOpen?.();
   };
 
@@ -99,8 +114,23 @@ export default function ModalShell({
       return (
         <>
           <S.HeaderLeft>
-            <S.IconButton onClick={onClose} title="닫기" aria-label="닫기">
-              <i className="fa-solid fa-angles-left" />
+            {/* ✅ '닫기'가 아니라 '전체 화면 토글' */}
+            <S.IconButton
+              onClick={(e) => {
+                e.stopPropagation();
+                if (!open) onOpen?.();
+                setPeek?.(false);
+                setPeekState(false);
+                setFullscreen((v) => !v); // ✅ 토글
+              }}
+              title={fullscreen ? "기본 너비로" : "전체 화면으로"}
+              aria-label={fullscreen ? "기본 너비로" : "전체 화면으로"}
+            >
+              <i
+                className={
+                  fullscreen ? "fa-solid fa-compress" : "fa-solid fa-expand"
+                }
+              />
             </S.IconButton>
           </S.HeaderLeft>
 
@@ -191,7 +221,6 @@ export default function ModalShell({
     );
   };
 
-  /* ===== Content 렌더 ===== */
   const renderContentByType = (renderType) => {
     if (renderType === "chat") {
       return (
@@ -203,13 +232,12 @@ export default function ModalShell({
         />
       );
     }
-    if (renderType === "search") return <SearchContent onPick={onPick} />; // ✅ 전달
-    return <GroupContent onPick={onPick} />; // ✅ 전달
-
+    if (renderType === "search") return <SearchContent onPick={onPick} />;
+    return <GroupContent onPick={onPick} />;
   };
 
   return createPortal(
-    <S.Overlay>
+    <S.Overlay $dim={fullscreen}>
       <S.Panel
         ref={panelRef}
         role="dialog"
@@ -217,11 +245,13 @@ export default function ModalShell({
         aria-expanded={open}
         tabIndex={-1}
         $open={open}
-        $peek={peek}
+        $peek={peekState}
+        $fullscreen={fullscreen} // ✅ 전달
         onClick={stop}
       >
+        {/* Dock */}
         {showDock && (
-          <S.Dock>
+          <S.Dock $fullscreen={fullscreen}>
             {!hideChatDock && (
               <S.DockButton
                 title="그룹"
@@ -230,16 +260,12 @@ export default function ModalShell({
                 <i className="fa-solid fa-layer-group" />
               </S.DockButton>
             )}
-
-
             <S.DockButton
               title="검색"
               onClick={() => handleDockToggle("search")}
             >
               <i className="fa-solid fa-diagram-project" />
             </S.DockButton>
-            {/* ✅ /groups에서는 채팅 Dock 버튼 숨김 */}
-
             {!hideChatDock && (
               <S.DockButton
                 title="채팅"
@@ -251,6 +277,7 @@ export default function ModalShell({
           </S.Dock>
         )}
 
+        {/* Header */}
         <S.Header>
           {leavingHeader && (
             <S.HeaderLayer
@@ -266,6 +293,7 @@ export default function ModalShell({
           </S.HeaderLayer>
         </S.Header>
 
+        {/* Body */}
         <S.Body>
           {leavingType && (
             <S.ContentLayer

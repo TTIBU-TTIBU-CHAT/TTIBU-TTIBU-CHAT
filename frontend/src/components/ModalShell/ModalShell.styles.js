@@ -25,7 +25,7 @@ export const Overlay = styled.div`
   z-index: 10;
   display: flex;
   justify-content: end;
-  background: transparent;
+  /* ✅ 전체화면일 때만 배경을 살짝 어둡게 */
   pointer-events: none;
 `;
 
@@ -35,14 +35,29 @@ export const Panel = styled.section`
 
   position: relative;
   height: 100dvh;
-  width: min(100%, var(--panel-w));
+
+  /* ✅ 전체 화면 모드일 땐 폭을 100vw로 */
+  width: ${({ $fullscreen }) =>
+    $fullscreen ? "calc(100vw - 70px)" : "min(100%, var(--panel-w))"};
+
   background: #fff;
-  border-left: 1px solid rgba(0, 0, 0, 0.05);
-  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.15);
+
+  /* ✅ 전체 화면에선 좌측 테두리/그림자 제거 */
+  border-left: ${({ $fullscreen }) =>
+    $fullscreen ? "none" : "1px solid rgba(0,0,0,0.05)"};
+  box-shadow: ${({ $fullscreen }) =>
+    $fullscreen ? "none" : "0 20px 40px rgba(0,0,0,0.15)"};
+
   display: flex;
   flex-direction: column;
-  transition: transform 0.3s ease-out;
   pointer-events: auto;
+
+  /* 폭 전환도 부드럽게 */
+  transition:
+    transform 0.3s ease-out,
+    width 0.35s ease-in-out,
+    box-shadow 0.35s ease-in-out,
+    border-left 0.35s ease-in-out;
 
   ${({ $open, $peek }) =>
     $open
@@ -57,13 +72,14 @@ export const Panel = styled.section`
             transform: translateX(100%);
           `}
 `;
-
 /* ===== Dock ===== */
 export const Dock = styled.div`
   position: absolute;
   top: 5rem;
   left: -56px;
-  display: flex;
+  
+  display: ${({ $fullscreen }) =>
+    $fullscreen ? "none" : "flex"};
   flex-direction: column;
   align-items: center;
   gap: 12px;
@@ -100,13 +116,11 @@ export const DockButton = styled.button`
   }
 `;
 
-/* ===== Header (오버플로우 제거 + z-index ↑) ===== */
+/* ===== Header ===== */
 export const Header = styled.header`
   position: relative;
   height: 56px;
-
-  z-index: 2; /* 본문보다 위 */
-  /* overflow: hidden;  제거: 드롭다운이 헤더 밖으로 나올 수 있게 */
+  z-index: 2;
 `;
 
 export const HeaderLayer = styled.div`
@@ -126,7 +140,6 @@ export const HeaderLayer = styled.div`
     240ms ease both;
 `;
 
-/* 슬롯 */
 export const HeaderLeft = styled.div`
   display: flex;
   align-items: center;
@@ -153,14 +166,9 @@ export const IconButton = styled.button`
   align-items: center;
   justify-content: center;
 
-  &:hover {
-    background: rgba(0, 0, 0, 0.05);
-  }
+  &:hover { background: rgba(0, 0, 0, 0.05); }
   &:focus,
-  &:focus-visible {
-    outline: none;
-    box-shadow: none;
-  }
+  &:focus-visible { outline: none; box-shadow: none; }
 `;
 
 /* ===== Dropdowns ===== */
@@ -178,14 +186,9 @@ export const DropdownToggler = styled.button`
   padding: 4px 6px;
   border-radius: 8px;
 
-  &:hover {
-    background: rgba(0, 0, 0, 0.04);
-  }
+  &:hover { background: rgba(0, 0, 0, 0.04); }
   &:focus,
-  &:focus-visible {
-    outline: none;
-    box-shadow: none;
-  }
+  &:focus-visible { outline: none; box-shadow: none; }
 `;
 
 export const TogglerText = styled.span`
@@ -202,43 +205,33 @@ export const TogglerTextMuted = styled.span`
 export const DropdownList = styled.ul`
   position: absolute;
   top: calc(100% + 8px);
-  ${({ $right }) =>
-    $right
-      ? css`
-          right: 0;
-        `
-      : css`
-          left: 0;
-        `}
+  ${({ $right }) => ($right ? css`right: 0;` : css`left: 0;`)}
   width: 160px;
   background: #fff;
   border-radius: 12px;
   box-shadow: 0 18px 36px rgba(0, 0, 0, 0.12);
   overflow: hidden;
-  z-index: 2000; /* 본문 위 */
+  z-index: 2000;
 `;
 
 export const DropdownItem = styled.li`
   padding: 8px 12px;
   font-size: 14px;
   color: ${({ $active }) => ($active ? "#111827" : "#374151")};
-  background: ${({ $active }) =>
-    $active ? "rgba(0,0,0,0.04)" : "transparent"};
+  background: ${({ $active }) => ($active ? "rgba(0,0,0,0.04)" : "transparent")};
   cursor: pointer;
   display: flex;
   justify-content: space-between;
   font-weight: 600;
-  &:hover {
-    background: rgba(0, 0, 0, 0.06);
-  }
+  &:hover { background: rgba(0, 0, 0, 0.06); }
 `;
 
 /* ===== Body & Content 전환 컨테이너 ===== */
 export const Body = styled.div`
   flex: 1;
   position: relative;
-  overflow: hidden; /* 콘텐츠 전환 레이어 클리핑 */
-  z-index: 1; /* 헤더보다 낮게 */
+  overflow: hidden;
+  z-index: 1;
 `;
 
 export const ContentLayer = styled.div`
@@ -255,17 +248,16 @@ export const ContentLayer = styled.div`
     260ms ease both;
 `;
 
-/* ===== Chat 전용 스크롤 ===== */
+/* ===== Chat 전용 ===== */
 export const ChatScroll = styled.div`
   flex: 1;
   overflow-y: auto;
-  padding: 20px 16px 16px; /* 헤더와 여백 + 버블 간격 */
+  padding: 20px 16px 16px;
   display: flex;
   flex-direction: column;
   gap: 12px;
 `;
 
-/* ===== 채팅 말풍선 ===== */
 export const Bubble = styled.div`
   max-width: 85%;
   padding: 12px 14px;
@@ -276,15 +268,16 @@ export const Bubble = styled.div`
   box-shadow: ${({ $me }) => ($me ? "0 4px 8px rgba(0,0,0,0.06)" : "none")};
   margin-left: ${({ $me }) => ($me ? "auto" : "0")};
 `;
+
+/* 말풍선 하단 모델 태그 */
 export const ModelTag = styled.div`
-  margin-top: 4px;
-  margin-left: ${({ $me }) => ($me ? "auto" : "8px")};
-  max-width: 85%;
+  margin: 6px 0 2px;
   font-size: 12px;
-  color: #9ca3af;
-  text-align: ${({ $me }) => ($me ? "left" : "right")};
-  padding-right:10px;
+  color: #9aa4b2;
+  text-align: right;
+  padding-right: 6px;
 `;
+
 /* ===== Footer & Input ===== */
 export const Footer = styled.footer`
   padding: 12px;
@@ -307,10 +300,7 @@ export const Input = styled.input`
   font-size: 14px;
   min-width: 0;
   &:focus,
-  &:focus-visible {
-    outline: none;
-    box-shadow: none;
-  }
+  &:focus-visible { outline: none; box-shadow: none; }
 `;
 export const SendButton = styled.button`
   position: absolute;
@@ -329,28 +319,20 @@ export const SendButton = styled.button`
   font-size: 14px;
   cursor: pointer;
   box-shadow: 0 2px 6px rgba(0, 0, 0, 0.12);
-  &:hover {
-    filter: brightness(1.05);
-  }
-  &:active {
-    transform: translateY(calc(-50% + 1px));
-  }
+  &:hover { filter: brightness(1.05); }
+  &:active { transform: translateY(calc(-50% + 1px)); }
   ${({ $disabled }) =>
     $disabled &&
     css`
       opacity: 0.45;
       cursor: not-allowed;
       box-shadow: none;
-      &:hover {
-        filter: none;
-      }
-      &:active {
-        transform: translateY(-50%);
-      }
+      &:hover { filter: none; }
+      &:active { transform: translateY(-50%); }
     `}
 `;
 
-/* ===== 단순 타이틀 ===== */
+/* 단순 타이틀 */
 export const SearchTitle = styled.span`
   font-size: 18px;
   font-weight: 700;
@@ -358,12 +340,10 @@ export const SearchTitle = styled.span`
 `;
 
 /* ==================== 검색 전용 스타일 ==================== */
-
-/* 상단 검색바 래퍼 */
 export const SearchBarWrap = styled.div`
   position: sticky;
   top: 0;
-  z-index: 3; /* 드롭다운/본문 위 */
+  z-index: 3;
   background: #fff;
   padding: 10px 12px 6px;
   display: flex;
@@ -372,7 +352,6 @@ export const SearchBarWrap = styled.div`
   border-bottom: 1px solid rgba(0, 0, 0, 0.06);
 `;
 
-/* 검색 입력 */
 export const SearchField = styled.input`
   flex: 1;
   height: 40px;
@@ -383,9 +362,7 @@ export const SearchField = styled.input`
   font-size: 14px;
   outline: none;
 
-  &::placeholder {
-    color: #9ca3af;
-  }
+  &::placeholder { color: #9ca3af; }
   &:focus,
   &:focus-visible {
     outline: none;
@@ -394,7 +371,6 @@ export const SearchField = styled.input`
   }
 `;
 
-/* 검색 아이콘 버튼 */
 export const SearchIconBtn = styled.button`
   width: 40px;
   height: 40px;
@@ -407,23 +383,13 @@ export const SearchIconBtn = styled.button`
   justify-content: center;
   cursor: pointer;
 
-  i {
-    font-size: 16px;
-  }
-  &:hover {
-    filter: brightness(1.05);
-  }
-  &:active {
-    transform: translateY(1px);
-  }
+  i { font-size: 16px; }
+  &:hover { filter: brightness(1.05); }
+  &:active { transform: translateY(1px); }
   &:focus,
-  &:focus-visible {
-    outline: none;
-    box-shadow: none;
-  }
+  &:focus-visible { outline: none; box-shadow: none; }
 `;
 
-/* 선택 칩 영역 */
 export const ChipRow = styled.div`
   padding: 8px 12px;
   display: flex;
@@ -450,13 +416,10 @@ export const Chip = styled.span`
     line-height: 1;
     color: #6b7280;
     padding: 0;
-    &:hover {
-      color: #111827;
-    }
+    &:hover { color: #111827; }
   }
 `;
 
-/* 검색 스크롤(카드 리스트) */
 export const SearchScroll = styled.div`
   flex: 1;
   overflow-y: auto;
@@ -465,31 +428,15 @@ export const SearchScroll = styled.div`
   flex-direction: column;
   gap: 12px;
 
-  /* ✅ 스크롤바 전체 스타일 (웹킷 계열 브라우저) */
-  &::-webkit-scrollbar {
-    width: 8px; /* 얇게 */
-  }
-
-  /* 스크롤바 트랙 */
-  &::-webkit-scrollbar-track {
-    background: transparent; /* 트랙 배경 투명 */
-  }
-
-  /* 스크롤바 손잡이 */
+  &::-webkit-scrollbar { width: 8px; }
+  &::-webkit-scrollbar-track { background: transparent; }
   &::-webkit-scrollbar-thumb {
     background-color: rgba(0, 0, 0, 0.15);
     border-radius: 9999px;
   }
-
-  /* ✅ 스크롤 상/하 버튼 제거 */
-  &::-webkit-scrollbar-button {
-    display: none;
-    height: 0;
-    width: 0;
-  }
+  &::-webkit-scrollbar-button { display: none; height: 0; width: 0; }
 `;
 
-/* 결과 카드 */
 export const ResultCard = styled.article`
   background: #fff;
   border: 1px solid rgba(0, 0, 0, 0.08);
@@ -497,31 +444,22 @@ export const ResultCard = styled.article`
   box-shadow: 0 10px 24px rgba(0, 0, 0, 0.06);
   padding: 14px 14px 12px;
   cursor: pointer;
-  &:hover {
-    transform: translateY(-5px);
-    border: 3px solid #406992;
-    box-shadow: 0 12px 28px rgba(64, 105, 146, 0.25);
-  }
-
-  /* 💫 천천히 뜨는 애니메이션 (easing 감속曲선) */
   transition:
     transform 0.45s cubic-bezier(0.22, 1, 0.36, 1),
     border 0.3s ease,
     box-shadow 0.45s ease;
 
   &:hover {
-    transform: translateY(-6px); /* 좀 더 크게 떠오름 */
+    transform: translateY(-6px);
     border: 3px solid #406992;
     box-shadow: 0 14px 32px rgba(64, 105, 146, 0.25);
   }
-
   &:active {
     transform: translateY(-2px);
-    transition-duration: 0.15s; /* 클릭 시는 빠르게 복귀 */
+    transition-duration: 0.15s;
   }
 `;
 
-/* 카드 상단 라인 (배지 + 날짜) */
 export const CardHeader = styled.div`
   display: flex;
   align-items: center;
@@ -564,7 +502,6 @@ export const CardExcerpt = styled.p`
   color: #374151;
 `;
 
-/* 태그 라인 */
 export const TagRow = styled.div`
   display: flex;
   flex-wrap: wrap;
