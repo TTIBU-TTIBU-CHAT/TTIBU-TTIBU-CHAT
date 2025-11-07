@@ -16,7 +16,9 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.context.HttpSessionSecurityContextRepository;
 import org.springframework.security.web.context.SecurityContextRepository;
-import org.springframework.security.web.csrf.CookieCsrfTokenRepository;
+import org.springframework.security.web.csrf.HttpSessionCsrfTokenRepository;
+import org.springframework.session.web.http.CookieSerializer;
+import org.springframework.session.web.http.DefaultCookieSerializer;
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
@@ -62,15 +64,7 @@ public class SecurityConfig {
                 .headers(h -> h.frameOptions(f -> f.sameOrigin()))
                 // CORS
                 .cors(Customizer.withDefaults())
-                .securityContext(sc->sc.securityContextRepository(securityContextRepository()));
-
-        CookieCsrfTokenRepository repo = CookieCsrfTokenRepository.withHttpOnlyFalse();
-        repo.setCookieCustomizer(c -> {
-            boolean isProd = !"ignore".equalsIgnoreCase(csrfMode);
-            c.sameSite(isProd ? "None" : "Lax");
-            c.secure(isProd);
-            c.path("/");
-        });
+                .securityContext(sc -> sc.securityContextRepository(securityContextRepository()));
 
         // CSRF
         if ("ignore".equalsIgnoreCase(csrfMode)) {
@@ -78,12 +72,12 @@ public class SecurityConfig {
             http.csrf(csrf -> csrf
                     .ignoringRequestMatchers("/v3/api-docs/**", "/swagger-ui.html", "/swagger-ui/**")
                     .ignoringRequestMatchers("/api/v1/members", "/api/v1/members/login", "/api/v1/members/logout")
-                    .csrfTokenRepository(repo)
+                    .csrfTokenRepository(new HttpSessionCsrfTokenRepository())
             );
         } else {
             // 운영 모드
             http.csrf(csrf -> csrf
-                    .csrfTokenRepository(repo)
+                    .csrfTokenRepository(new HttpSessionCsrfTokenRepository())
             );
         }
 
@@ -119,5 +113,17 @@ public class SecurityConfig {
         UrlBasedCorsConfigurationSource s = new UrlBasedCorsConfigurationSource();
         s.registerCorsConfiguration("/**", c);
         return s;
+    }
+
+    @Bean
+    public CookieSerializer sessionCookieSerializer() {
+        DefaultCookieSerializer serializer = new DefaultCookieSerializer();
+        boolean isProd = !"ignore".equalsIgnoreCase(csrfMode);
+
+        serializer.setSameSite("None"); // "None"으로 설정
+        serializer.setUseSecureCookie(isProd);
+        serializer.setCookiePath("/");
+
+        return serializer;
     }
 }
