@@ -18,6 +18,8 @@ import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
+import java.io.IOException;
+
 @Tag(name = "Chat SSE API", description = "채팅방별 실시간 이벤트 스트림 연결 API")
 @Slf4j
 @RestController
@@ -61,7 +63,15 @@ public class ChatSseController {
             @Parameter(hidden = true) @AuthenticationPrincipal CustomMemberDetails member) {
         if (member == null) {
             log.warn("[SSE] Unauthorized connection attempt to room {}", roomId);
-            throw new ApiException(ErrorCode.SSE_UNAUTHORIZED);
+            SseEmitter dummy = new SseEmitter(1000L);
+            try {
+                dummy.send(SseEmitter.event()
+                        .name("ERROR")
+                        .data("Unauthorized connection"));
+            } catch (IOException ignored) {}
+
+            dummy.complete();
+            return dummy;
         }
 
         // 해당 채팅방의 소유자인지 검증
@@ -113,7 +123,7 @@ public class ChatSseController {
         // 해당 채팅방의 소유자인지 검증
         roomService.isOwner(member.getMemberUid(), roomId);
 
-        sseEmitterManager.removeEmitter(roomId);
+        sseEmitterManager.removeEmitter(roomId, "completed");
         log.info("[SSE] Member {} disconnected from room {}", member.getUsername(), roomId);
     }
 }
