@@ -37,6 +37,8 @@ export const Section = styled.div`
   border-radius: 8px;
   transition: background-color 0.2s ease;
 
+  width: 100%;
+  justify-content: space-between;
   .icon {
     width: 24px;
     min-width: 24px;
@@ -58,5 +60,19 @@ export const Section = styled.div`
     transition:
       width 0.35s cubic-bezier(0.4, 0, 0.2, 1),
       opacity 0.25s ease 0.05s;
+  }
+`
+
+export const Text = styled.a`
+  color: #374151;
+  margin-right: 10px;
+  font-size: 12px;
+  opacity: 0;
+  animation: fadeIn 1.0s ease forwards;
+
+  @keyframes fadeIn {
+    to {
+      opacity: 1;
+    }
   }
 `
