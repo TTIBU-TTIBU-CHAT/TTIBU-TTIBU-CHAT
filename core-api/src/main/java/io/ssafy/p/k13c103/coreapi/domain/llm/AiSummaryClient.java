@@ -1,4 +1,4 @@
-package io.ssafy.p.k13c103.coreapi.infrastructure.ai;
+package io.ssafy.p.k13c103.coreapi.domain.llm;
 
 import io.ssafy.p.k13c103.coreapi.common.error.ApiException;
 import io.ssafy.p.k13c103.coreapi.common.error.ErrorCode;
@@ -15,9 +15,7 @@ import java.util.Map;
 @RequiredArgsConstructor
 public class AiSummaryClient {
 
-    private final RestClient restClient = RestClient.builder()
-            .baseUrl("http://localhost:8001")   // TODO: 환경 변수로 분리
-            .build();
+    private final RestClient restClient;
 
     public AiSummaryKeywordsResponseDto summarizeGroupText(String text) {
         try {
