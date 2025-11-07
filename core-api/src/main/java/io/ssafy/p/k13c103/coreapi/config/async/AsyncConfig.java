@@ -11,6 +11,11 @@ import java.util.concurrent.Executor;
 @EnableAsync
 public class AsyncConfig {
 
+    /**
+     * AI 비동기 작업용 스레드풀
+     * - ChatServiceImpl 등에서 @Async("aiTaskExecutor")로 사용
+     * - 예: FastAPI 요청, 요약/키워드 분석 등
+     */
     @Bean(name = "aiTaskExecutor")
     public Executor aiTaskExecutor() {
         ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
