@@ -11,7 +11,7 @@ import java.util.List;
 @Getter
 @Setter
 @NoArgsConstructor
-public class AiSummaryKeywordResponseDto {
+public class AiSummaryKeywordsResponseDto {
 
     @Schema(description = "생성된 요약 문장", example = "AI 서비스 아키텍처 설계 핵심 요약")
     private String summary;
