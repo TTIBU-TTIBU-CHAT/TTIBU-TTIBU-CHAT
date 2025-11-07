@@ -33,30 +33,14 @@ public class SseEmitterManager {
     /* 새로운 SSE 연결 생성 및 저장 */
     public SseEmitter createEmitter(Long roomId) {
         SseEmitter emitter = new SseEmitter(DEFAULT_TIMEOUT);
-
         emitters.put(roomId, emitter);
         log.info("[SSE] Room {} connected", roomId);
 
-        // 클라이언트에서 연결 종료 시 emitter 제거
-        emitter.onCompletion(() -> {
-            emitters.remove(roomId);
-            log.info("[SSE] Room {} connection completed", roomId);
-        });
-
-        // 타임아웃 시 emitter 제거
-        emitter.onTimeout(() -> {
-            emitters.remove(roomId);
-            log.info("[SSE] Room {} connection timed out", roomId);
-        });
-
-        // 에러 발생 시 emitter 제거
-        emitter.onError((e) -> {
-            log.error("[SSE] Error on emitter for roomId={} - {}", roomId, e.getMessage());
-            removeEmitter(roomId);
-        });
+        emitter.onCompletion(() -> removeEmitter(roomId, "completed"));
+        emitter.onTimeout(() -> removeEmitter(roomId, "timed out"));
+        emitter.onError(e -> removeEmitter(roomId, "error: " + e.getMessage()));
 
         startHeartbeat(roomId, emitter);
-
         return emitter;
     }
 
@@ -76,33 +60,21 @@ public class SseEmitterManager {
             );
             log.info("[SSE] Event sent to room {} => {}", roomId, event.getType());
         } catch (IOException e) {
-            emitters.remove(roomId);
             log.error("[SSE] Failed to send event to room {}: {}", roomId, e.getMessage());
+            removeEmitter(roomId, "send failed");
         }
     }
 
-    /* 연결 강제 종료 (수동) */
-    public void removeEmitter(Long roomId) {
+    /* 연결 강제 종료 */
+    public void removeEmitter(Long roomId, String reason) {
         SseEmitter emitter = emitters.remove(roomId);
         if (emitter != null) {
             try {
                 emitter.complete();
             } catch (Exception ignored) {
-
             }
-
-            log.info("[SSE] Room {} emitter removed manually", roomId);
+            log.info("[SSE] Room {} emitter removed ({})", roomId, reason);
         }
-    }
-
-    /* emitter 존재 여부 확인 (모니터링용) */
-    public boolean hasEmitter(Long roomId) {
-        return emitters.containsKey(roomId);
-    }
-
-    /* 현재 연결된 emitter 개수 확인 (모니터링용) */
-    public int getActiveEmitterCount() {
-        return emitters.size();
     }
 
     /**
@@ -124,7 +96,7 @@ public class SseEmitterManager {
             } catch (Exception e) {
                 // 전송 실패 시 emitter 제거 (끊긴 연결로 간주)
                 log.warn("[SSE] Heartbeat failed for room {}, removing emitter", roomId);
-                removeEmitter(roomId);
+                removeEmitter(roomId, "completed");
             }
         }, TimeUnit.SECONDS.toMillis(HEARTBEAT_INTERVAL));
     }
