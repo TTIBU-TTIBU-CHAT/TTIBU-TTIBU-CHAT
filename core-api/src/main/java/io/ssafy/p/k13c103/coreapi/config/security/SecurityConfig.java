@@ -14,8 +14,12 @@ import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.web.authentication.session.ChangeSessionIdAuthenticationStrategy;
+import org.springframework.security.web.authentication.session.CompositeSessionAuthenticationStrategy;
+import org.springframework.security.web.authentication.session.SessionAuthenticationStrategy;
 import org.springframework.security.web.context.HttpSessionSecurityContextRepository;
 import org.springframework.security.web.context.SecurityContextRepository;
+import org.springframework.security.web.csrf.CsrfAuthenticationStrategy;
 import org.springframework.security.web.csrf.HttpSessionCsrfTokenRepository;
 import org.springframework.session.web.http.CookieSerializer;
 import org.springframework.session.web.http.DefaultCookieSerializer;
@@ -125,5 +129,15 @@ public class SecurityConfig {
         serializer.setCookiePath("/");
 
         return serializer;
+    }
+
+    @Bean
+    public SessionAuthenticationStrategy sessionAuthenticationStrategy() {
+        return new CompositeSessionAuthenticationStrategy(
+                List.of(
+                        new ChangeSessionIdAuthenticationStrategy(),
+                        new CsrfAuthenticationStrategy(new HttpSessionCsrfTokenRepository())
+                )
+        );
     }
 }
