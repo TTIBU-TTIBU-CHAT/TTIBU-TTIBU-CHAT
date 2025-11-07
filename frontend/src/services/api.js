@@ -18,7 +18,7 @@ api.interceptors.request.use((config) => {
 
   const { token } = useAuthStore.getState()
   console.log(token)
-  if (token) config.headers['X-XSRF-TOKEN'] = token
+  if (token) config.headers['X-CSRF-TOKEN'] = token
   return config
 })
 
