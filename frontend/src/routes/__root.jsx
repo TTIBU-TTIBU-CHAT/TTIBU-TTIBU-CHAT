@@ -5,13 +5,15 @@ import Sidebar from "@/components/layout/Sidebar";
 import { useSidebarStore } from "@/store/useSidebarStore";
 import { useEffect, useMemo, useRef } from "react";
 
-const TRANS_MS = 280; // 사이드바/메인 전환 시간(ms)
+
+const TRANS_MS = 280
 
 export const Route = createRootRoute({
   component: RootLayout,
 });
 
 function RootLayout() {
+
   const { isCollapsed } = useSidebarStore();
   const sidebarW = useMemo(() => (isCollapsed ? 72 : 240), [isCollapsed]);
 
@@ -35,6 +37,18 @@ function RootLayout() {
     return () => el.removeEventListener("transitionend", onEnd);
   }, []);
 
+
+  if (!initialized) return <div>로딩 중...</div>
+
+  if (initialized) {
+    if (!isAuthed && !isAuthPage) {
+      return <Navigate to="/login" replace />
+    }
+    if (isAuthed && isAuthPage) {
+      return <Navigate to="/" replace />
+    }
+  }
+
   return (
     <Shell>
       {/* 고정 사이드바(너비에 트랜지션) */}
@@ -47,6 +61,7 @@ function RootLayout() {
         ref={mainRef}
         $left={sidebarW}
         style={{ "--left": `${sidebarW}px` }}
+
       >
         <Outlet />
       </Main>
@@ -54,7 +69,6 @@ function RootLayout() {
   );
 }
 
-/* ===== styled ===== */
 const Shell = styled.div`
   position: relative;
   min-height: 100dvh;
@@ -62,29 +76,23 @@ const Shell = styled.div`
   font-family: "Pretendard", "Noto Sans KR", sans-serif;
 `;
 
+
 const AsideWrap = styled.aside`
   position: fixed;
   top: 0;
   left: 0;
   bottom: 0;
-
-  /* width 전환을 부드럽게 */
   width: var(--sbw, 260px);
   transition: width ${TRANS_MS}ms ease;
-
-  z-index: 5; /* 메인(1)보다 위, 모달보다 아래여도 OK */
-  background: transparent; /* 실제 배경은 Sidebar 내부에서 처리 */
+  z-index: 5;
+  background: transparent;
   will-change: width;
 `;
 
 const Main = styled.main`
   position: relative;
   min-height: 100dvh;
-
-  /* margin-left 전환을 부드럽게 */
   margin-left: var(--left, 260px);
   transition: margin-left ${TRANS_MS}ms ease;
-
-  /* 부드러운 전환 힌트 */
   will-change: margin-left;
 `;
