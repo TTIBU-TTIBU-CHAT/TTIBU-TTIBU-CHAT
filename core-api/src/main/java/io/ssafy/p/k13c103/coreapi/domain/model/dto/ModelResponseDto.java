@@ -30,6 +30,18 @@ public class ModelResponseDto {
     }
 
     /**
+     * 채팅 내 사용 모델 옵션 조회 응답 DTO
+     */
+    @Builder
+    public record ModelOptionList(
+            Long modelUid,
+            String modelName,
+            String modelCode,
+            boolean isDefault
+    ) {
+    }
+
+    /**
      * 제공사 리스트 조회 응답 DTO
      */
     @Builder
