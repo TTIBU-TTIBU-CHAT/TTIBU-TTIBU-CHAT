@@ -103,6 +103,15 @@ public class ModelServiceImpl implements ModelService {
         if (!memberRepository.existsById(memberUid))
             throw new ApiException(ErrorCode.MEMBER_NOT_FOUND);
 
+        // 제공사 + 모델 카탈로그 활성 여부 확인
+        ModelCatalog catalog = modelCatalogRepository.findModelCatalogByModelUidAndIsActiveTrue(modelUid)
+                .orElseThrow(() -> new ApiException(ErrorCode.INVALID_MODEL_PROVIDER));
+
+        boolean isValid = keyRepository.existsByMember_MemberUidAndProvider_ProviderUidAndIsActiveTrue(memberUid, catalog.getProvider().getProviderUid());
+        if (!isValid)
+            throw new ApiException(ErrorCode.INVALID_MODEL_PROVIDER);
+
+        // 기존 모델
         Model originDefault = modelRepository.findModelByMember_MemberUidAndIsDefaultTrue(memberUid);
 
         if (originDefault != null && originDefault.getModelCatalog().getModelUid().equals(modelUid))
@@ -110,6 +119,7 @@ public class ModelServiceImpl implements ModelService {
         else if (originDefault != null)
             originDefault.toggleIsDefault();
 
+        // 새 모델
         Model newDefault = modelRepository.findModelByMember_MemberUidAndModelCatalog_ModelUid(memberUid, modelUid);
 
         if (newDefault != null)
@@ -117,7 +127,7 @@ public class ModelServiceImpl implements ModelService {
         else {
             Model model = Model.builder()
                     .member(memberRepository.getReferenceById(memberUid))
-                    .modelCatalog(modelCatalogRepository.getReferenceById(modelUid))
+                    .modelCatalog(catalog)
                     .isDefault(true)
                     .build();
             modelRepository.save(model);

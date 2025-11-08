@@ -8,6 +8,7 @@ import org.springframework.data.jpa.repository.Query;
 
 import java.util.Collection;
 import java.util.List;
+import java.util.Optional;
 
 public interface ModelCatalogRepository extends JpaRepository<ModelCatalog, Long>, ModelCatalogRepositoryCustom {
 
@@ -50,4 +51,6 @@ public interface ModelCatalogRepository extends JpaRepository<ModelCatalog, Long
                     )
             """)
     List<ModelCatalog> findAllowedActiveCatalogsForMember(Long memberUid, Collection<Long> catalogIds);
+
+    Optional<ModelCatalog> findModelCatalogByModelUidAndIsActiveTrue(Long modelUid);
 }
