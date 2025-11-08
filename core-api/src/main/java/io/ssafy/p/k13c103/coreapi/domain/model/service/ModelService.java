@@ -9,6 +9,8 @@ public interface ModelService {
 
     void select(List<ModelRequestDto.SelectModel> request, Long memberUid);
 
+    void setDefault(Long memberUid, Long modelUid);
+
     List<ModelResponseDto.ModelListInfo> getModels(Long memberUid);
 
     List<ModelResponseDto.ProviderListInfo> getProviders();

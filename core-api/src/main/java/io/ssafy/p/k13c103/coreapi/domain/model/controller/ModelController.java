@@ -34,6 +34,15 @@ public class ModelController {
         return ResponseEntity.status(HttpStatus.CREATED).body(JSend.success("사용 모델 갱신 완료"));
     }
 
+    @Operation(summary = "디폴트 모델 선택", description = "")
+    @PatchMapping("/{modelId}")
+    public ResponseEntity<JSend> setDefault(@PathVariable Long modelId, @AuthenticationPrincipal CustomMemberDetails member) {
+
+        modelService.setDefault(member.getMemberUid(), modelId);
+
+        return ResponseEntity.status(HttpStatus.CREATED).body(JSend.success("디폴트 모델 갱신 완료"));
+    }
+
     @Operation(summary = "제공사 리스트 조회", description = "")
     @GetMapping("/providers")
     public ResponseEntity<JSend> getProviders() {

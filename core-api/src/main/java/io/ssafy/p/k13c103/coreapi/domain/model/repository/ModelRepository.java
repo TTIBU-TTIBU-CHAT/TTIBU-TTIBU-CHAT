@@ -13,6 +13,8 @@ public interface ModelRepository extends JpaRepository<Model, Long> {
 
     Model findModelByMember_MemberUidAndIsDefaultTrue(Long memberUid);
 
+    Model findModelByMember_MemberUidAndModelCatalog_ModelUid(Long memberUid, Long modelCatalogUid);
+
     @Query("""
               select m from Model m
               join fetch m.modelCatalog mc

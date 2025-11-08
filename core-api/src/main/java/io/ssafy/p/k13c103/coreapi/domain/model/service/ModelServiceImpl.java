@@ -44,7 +44,7 @@ public class ModelServiceImpl implements ModelService {
         // 1. 선택한 모델 카탈로그 로드
         Set<Long> targetSelectedIds = new HashSet<>();
         for (ModelRequestDto.SelectModel model : request)
-                targetSelectedIds.add(model.modelCatalogUid());
+            targetSelectedIds.add(model.modelCatalogUid());
 
         // 2. 선택한 모델이 실제로 존재하는지 (사용 가능한지)
         List<ModelCatalog> catalogs;
@@ -95,6 +95,33 @@ public class ModelServiceImpl implements ModelService {
         }
 
         // 8. 변경하지 않는 행은 그대로 유지
+    }
+
+    @Override
+    @Transactional
+    public void setDefault(Long memberUid, Long modelUid) {
+        if (!memberRepository.existsById(memberUid))
+            throw new ApiException(ErrorCode.MEMBER_NOT_FOUND);
+
+        Model originDefault = modelRepository.findModelByMember_MemberUidAndIsDefaultTrue(memberUid);
+
+        if (originDefault != null && originDefault.getModelCatalog().getModelUid().equals(modelUid))
+            return; // 똑같은 모델을 지정한 경우 -> 추가 X
+        else if (originDefault != null)
+            originDefault.toggleIsDefault();
+
+        Model newDefault = modelRepository.findModelByMember_MemberUidAndModelCatalog_ModelUid(memberUid, modelUid);
+
+        if (newDefault != null)
+            newDefault.toggleIsDefault();
+        else {
+            Model model = Model.builder()
+                    .member(memberRepository.getReferenceById(memberUid))
+                    .modelCatalog(modelCatalogRepository.getReferenceById(modelUid))
+                    .isDefault(true)
+                    .build();
+            modelRepository.save(model);
+        }
     }
 
     @Override
