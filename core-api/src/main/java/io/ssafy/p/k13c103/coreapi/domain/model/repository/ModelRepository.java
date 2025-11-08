@@ -29,4 +29,14 @@ public interface ModelRepository extends JpaRepository<Model, Long> {
                   and m.modelCatalog.modelUid in :catalogIds
             """)
     void deleteByMemberUidAndCatalogIds(Long memberUid, Collection<Long> catalogIds);
+
+    /**
+     * 비활성화 된 모델 정리
+     */
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
+    @Query("""
+        delete from Model m
+         where m.modelCatalog.modelUid in :catalogUids
+    """)
+    int deleteAllByModelCatalogUids(Collection<Long> catalogUids);
 }
