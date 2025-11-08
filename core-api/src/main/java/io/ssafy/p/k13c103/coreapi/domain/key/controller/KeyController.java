@@ -36,7 +36,7 @@ public class KeyController {
     @PutMapping
     public ResponseEntity<JSend> edit(@RequestBody KeyRequestDto.EditKey request, @AuthenticationPrincipal CustomMemberDetails member) {
 
-        KeyResponseDto.EditKeyInfo info = keyService.edit(member.getMemberUid(), request);
+        KeyResponseDto.EditedKeyInfo info = keyService.edit(member.getMemberUid(), request);
 
         return ResponseEntity.status(HttpStatus.OK).body(JSend.success(info));
     }
@@ -54,7 +54,7 @@ public class KeyController {
     @GetMapping("/{keyUid}")
     public ResponseEntity<JSend> getOne(@PathVariable Long keyUid, @AuthenticationPrincipal CustomMemberDetails member) {
 
-        KeyResponseDto.GetKeyInfo info = keyService.getOne(member.getMemberUid(), keyUid);
+        KeyResponseDto.KeyInfo info = keyService.getOne(member.getMemberUid(), keyUid);
 
         return ResponseEntity.status(HttpStatus.OK).body(JSend.success(info));
     }

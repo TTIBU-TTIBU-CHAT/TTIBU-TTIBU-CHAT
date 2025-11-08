@@ -33,7 +33,7 @@ public class MemberResponseDto {
     @Builder
     public record MemberDetailInfo(
             KeyResponseDto.TokenInfo tokens,
-            List<KeyResponseDto.GetKeyShortInfo> keys,
+            List<KeyResponseDto.KeyListInfo> keys,
             List<ModelResponseDto.ModelListInfo> models
     ) {
     }

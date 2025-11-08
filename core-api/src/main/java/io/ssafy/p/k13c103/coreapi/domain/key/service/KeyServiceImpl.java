@@ -88,7 +88,7 @@ public class KeyServiceImpl implements KeyService {
 
     @Override
     @Transactional
-    public KeyResponseDto.EditKeyInfo edit(Long memberUid, KeyRequestDto.EditKey request) {
+    public KeyResponseDto.EditedKeyInfo edit(Long memberUid, KeyRequestDto.EditKey request) {
 
         if (!memberRepository.existsById(memberUid))
             throw new ApiException(ErrorCode.MEMBER_NOT_FOUND);
@@ -119,21 +119,21 @@ public class KeyServiceImpl implements KeyService {
 
         key.update(provider, encryptKey(request.key()), request.isActive(), request.expirationAt());
 
-        return KeyResponseDto.EditKeyInfo.builder()
+        return KeyResponseDto.EditedKeyInfo.builder()
                 .keyUid(key.getKeyUid())
                 .build();
     }
 
     @Override
     @Transactional(readOnly = true)
-    public KeyResponseDto.GetKeyInfo getOne(Long memberUid, Long keyUid) {
+    public KeyResponseDto.KeyInfo getOne(Long memberUid, Long keyUid) {
         if (!memberRepository.existsById(memberUid))
             throw new ApiException(ErrorCode.MEMBER_NOT_FOUND);
 
         Key key = keyRepository.findByKeyUidAndMember_MemberUid(keyUid, memberUid)
                 .orElseThrow(() -> new ApiException(ErrorCode.KEY_NOT_FOUND));
 
-        return KeyResponseDto.GetKeyInfo.builder()
+        return KeyResponseDto.KeyInfo.builder()
                 .keyUid(key.getKeyUid())
                 .providerCode(key.getProvider().getCode())
                 .key(decryptKey(key.getEncryptedKey()))
@@ -144,7 +144,7 @@ public class KeyServiceImpl implements KeyService {
 
     @Override
     @Transactional(readOnly = true)
-    public List<KeyResponseDto.GetKeyShortInfo> getKeys(Long memberUid) {
+    public List<KeyResponseDto.KeyListInfo> getKeys(Long memberUid) {
         if (!memberRepository.existsById(memberUid))
             throw new ApiException(ErrorCode.MEMBER_NOT_FOUND);
 
@@ -152,10 +152,10 @@ public class KeyServiceImpl implements KeyService {
         if (keys.isEmpty())
             return List.of();
 
-        List<KeyResponseDto.GetKeyShortInfo> response = new ArrayList<>();
+        List<KeyResponseDto.KeyListInfo> response = new ArrayList<>();
 
         for (Key key : keys) {
-            response.add(KeyResponseDto.GetKeyShortInfo.builder()
+            response.add(KeyResponseDto.KeyListInfo.builder()
                     .keyUid(key.getKeyUid())
                     .providerCode(key.getProvider().getCode())
                     .isActive(key.getIsActive())

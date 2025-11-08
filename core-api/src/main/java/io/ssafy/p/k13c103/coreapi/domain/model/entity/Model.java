@@ -32,4 +32,8 @@ public class Model extends BaseTimeEntity {
     @Builder.Default
     @Column(name = "is_default", nullable = false)
     private Boolean isDefault = false;
+
+    public void toggleIsDefault() {
+        this.isDefault = !this.isDefault;
+    }
 }

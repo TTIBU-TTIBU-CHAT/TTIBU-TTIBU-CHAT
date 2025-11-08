@@ -11,16 +11,16 @@ import java.util.List;
 public interface ProviderCatalogRepository extends JpaRepository<ProviderCatalog, Long>, ProviderCatalogRepositoryCustom  {
     List<ProviderCatalog> findByIsActiveTrueOrderByCodeAsc();
 
-    boolean existsByCodeAndIsActiveTrue(String code);
-
     /**
-     * 현재 전달된 code 목록에 포함되지 않는 모든 제공사를 soft delete 처리
+     * 비활성화 될 대상 제공사들에 대해 soft delete 후 대상 모델 id 리스트 반환
      */
     @Modifying(clearAutomatically = true, flushAutomatically = true)
     @Query(value = """
-        UPDATE provider_catalog
-           SET is_active = false, updated_at = now()
-         WHERE code NOT IN (:codes)
-        """, nativeQuery = true)
-    int softDeleteNotIn(Collection<String> codes);
+        update provider_catalog p
+           set is_active = false
+         where is_active = true
+           and code not in (:providerCodes)
+        returning provider_catalog_uid
+    """, nativeQuery = true)
+    List<Long> softDeleteNotInReturningIds(Collection<String> providerCodes);
 }

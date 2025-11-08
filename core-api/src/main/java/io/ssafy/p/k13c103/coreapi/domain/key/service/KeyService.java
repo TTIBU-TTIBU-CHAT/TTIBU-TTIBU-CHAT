@@ -7,9 +7,9 @@ import java.util.List;
 
 public interface KeyService {
     KeyResponseDto.RegisteredKeyInfo register(Long memberUid, KeyRequestDto.RegisterKey request);
-    KeyResponseDto.EditKeyInfo edit(Long memberUid, KeyRequestDto.EditKey request);
+    KeyResponseDto.EditedKeyInfo edit(Long memberUid, KeyRequestDto.EditKey request);
     void delete(Long memberUid, Long keyUid);
-    KeyResponseDto.GetKeyInfo getOne(Long memberUid, Long keyUid);
-    List<KeyResponseDto.GetKeyShortInfo> getKeys(Long memberUid);
+    KeyResponseDto.KeyInfo getOne(Long memberUid, Long keyUid);
+    List<KeyResponseDto.KeyListInfo> getKeys(Long memberUid);
     KeyResponseDto.TokenInfo getTokens(Long memberUid);
 }

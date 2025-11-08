@@ -6,15 +6,21 @@ import java.util.List;
 
 public class ModelResponseDto {
 
+    /**
+     * 모델 리스트 조회 응답 DTO
+     */
     @Builder
     public record ModelListInfo(
             String providerCode,
-            List<ModelInfoDetail> modelList
+            List<ModelDetailInfo> modelList
     ) {
     }
 
+    /**
+     * 모델 상세 조회 응답 DTO
+     */
     @Builder
-    public record ModelInfoDetail(
+    public record ModelDetailInfo(
             Long modelCatalogUid,
             String modelName, // 표시용 이름
             String modelCode, // 식별용 이름
@@ -23,6 +29,21 @@ public class ModelResponseDto {
     ) {
     }
 
+    /**
+     * 채팅 내 사용 모델 옵션 조회 응답 DTO
+     */
+    @Builder
+    public record ModelOptionList(
+            Long modelUid,
+            String modelName,
+            String modelCode,
+            boolean isDefault
+    ) {
+    }
+
+    /**
+     * 제공사 리스트 조회 응답 DTO
+     */
     @Builder
     public record ProviderListInfo(
             Long providerUid,

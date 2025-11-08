@@ -2,12 +2,15 @@ package io.ssafy.p.k13c103.coreapi.domain.catalog.service;
 
 import io.ssafy.p.k13c103.coreapi.domain.catalog.repository.ModelCatalogRepository;
 import io.ssafy.p.k13c103.coreapi.domain.catalog.repository.ProviderCatalogRepository;
+import io.ssafy.p.k13c103.coreapi.domain.key.repository.KeyRepository;
 import io.ssafy.p.k13c103.coreapi.domain.llm.YamlConfig;
+import io.ssafy.p.k13c103.coreapi.domain.model.repository.ModelRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.HashSet;
+import java.util.List;
 import java.util.Set;
 
 @Service
@@ -16,6 +19,8 @@ public class CatalogService {
 
     private final ProviderCatalogRepository providerCatalogRepository;
     private final ModelCatalogRepository modelCatalogRepository;
+    private final KeyRepository keyRepository;
+    private final ModelRepository modelRepository;
 
     @Transactional
     public void apply(YamlConfig yamlConfig) {
@@ -39,9 +44,24 @@ public class CatalogService {
             models.add(providerCode + "|" + modelCode);
         }
 
-        if (!providers.isEmpty())
-            providerCatalogRepository.softDeleteNotIn(providers);
-        if (!models.isEmpty())
-            modelCatalogRepository.softDeleteNotInKeys(models);
+        // 제공사
+        List<Long> deactivatedProviderIds;
+        if (providers.isEmpty())
+            deactivatedProviderIds = List.of();
+        else
+            deactivatedProviderIds = providerCatalogRepository.softDeleteNotInReturningIds(providers);
+
+        // 모델
+        List<Long> deactivatedModelIds;
+        if (models.isEmpty())
+            deactivatedModelIds = List.of();
+        else
+            deactivatedModelIds = modelCatalogRepository.softDeleteNotInKeysReturningIds(models);
+
+        // 참조 정리
+        if (!deactivatedProviderIds.isEmpty())
+            keyRepository.deleteAllByProviderUids(deactivatedProviderIds);
+        if (!deactivatedModelIds.isEmpty())
+            modelRepository.deleteAllByModelCatalogUids(deactivatedModelIds);
     }
 }
