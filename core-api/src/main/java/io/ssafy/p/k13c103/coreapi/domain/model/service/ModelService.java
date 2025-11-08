@@ -11,6 +11,8 @@ public interface ModelService {
 
     void setDefault(Long memberUid, Long modelUid);
 
+    List<ModelResponseDto.ModelOptionList> getOptions(Long memberUid);
+
     List<ModelResponseDto.ModelListInfo> getModels(Long memberUid);
 
     List<ModelResponseDto.ProviderListInfo> getProviders();

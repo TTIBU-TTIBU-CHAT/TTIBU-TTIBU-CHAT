@@ -126,6 +126,30 @@ public class ModelServiceImpl implements ModelService {
 
     @Override
     @Transactional(readOnly = true)
+    public List<ModelResponseDto.ModelOptionList> getOptions(Long memberUid) {
+        if (!memberRepository.existsById(memberUid))
+            throw new ApiException(ErrorCode.MEMBER_NOT_FOUND);
+
+        List<Model> models = modelRepository.findAllByMember_MemberUid(memberUid);
+        if (models.isEmpty())
+            return List.of();
+
+        List<ModelResponseDto.ModelOptionList> result = new ArrayList<>();
+
+        for (Model model : models) {
+            result.add(ModelResponseDto.ModelOptionList.builder()
+                    .modelUid(model.getModelCatalog().getModelUid())
+                    .modelName(model.getModelCatalog().getName())
+                    .modelCode(model.getModelCatalog().getCode())
+                    .isDefault(model.getIsDefault())
+                    .build());
+        }
+
+        return result;
+    }
+
+    @Override
+    @Transactional(readOnly = true)
     public List<ModelResponseDto.ModelListInfo> getModels(Long memberUid) {
         if (!memberRepository.existsById(memberUid))
             throw new ApiException(ErrorCode.MEMBER_NOT_FOUND);

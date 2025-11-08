@@ -43,6 +43,15 @@ public class ModelController {
         return ResponseEntity.status(HttpStatus.CREATED).body(JSend.success("디폴트 모델 갱신 완료"));
     }
 
+    @Operation(summary = "채팅 내 사용 모델 옵션 조회", description = "")
+    @GetMapping
+    public ResponseEntity<JSend> getOptions(@AuthenticationPrincipal CustomMemberDetails member) {
+
+        List<ModelResponseDto.ModelOptionList> options = modelService.getOptions(member.getMemberUid());
+
+        return ResponseEntity.status(HttpStatus.OK).body(JSend.success(options));
+    }
+
     @Operation(summary = "제공사 리스트 조회", description = "")
     @GetMapping("/providers")
     public ResponseEntity<JSend> getProviders() {
