@@ -1,5 +1,10 @@
 package io.ssafy.p.k13c103.coreapi.domain.llm;
 
+import reactor.core.publisher.Flux;
+
+import java.util.List;
+import java.util.Map;
+
 public interface LiteLlmClient {
 
     /**
@@ -9,5 +14,5 @@ public interface LiteLlmClient {
 
     void gmsTest(String apiKey, String model, String provider);
 
-    // TODO: 채팅 생성
+    Flux<String> createChatStream(String apiKey, String model, String provider, List<Map<String, String>> messages, boolean useLlm);
 }

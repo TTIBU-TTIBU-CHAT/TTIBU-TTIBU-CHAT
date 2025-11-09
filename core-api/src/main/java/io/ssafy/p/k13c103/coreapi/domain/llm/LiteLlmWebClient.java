@@ -9,6 +9,7 @@ import org.springframework.http.HttpStatusCode;
 import org.springframework.stereotype.Service;
 import org.springframework.web.reactive.function.client.ClientResponse;
 import org.springframework.web.reactive.function.client.WebClient;
+import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
 import java.util.List;
@@ -18,8 +19,10 @@ import java.util.Map;
 public class LiteLlmWebClient implements LiteLlmClient {
 
     private final WebClient liteLlmWebClient;
+
     @Value("${litellm.master.key}")
     private String masterKey;
+
     @Value("${gms.base.url}")
     private String gmsBaseUrl;
 
@@ -131,7 +134,123 @@ public class LiteLlmWebClient implements LiteLlmClient {
         }
     }
 
-    // TODO: 채팅 생성 -> GMS 버전 (우리 개발 테스트용) / LiteLLM 버전 (배포용)
+    /**
+     * 스트리밍 기반 채팅 생성
+     * - useLlm = true -> LiteLLM
+     * - useLlm = false -> GMS
+     */
+    @Override
+    public Flux<String> createChatStream(String apiKey, String model, String provider, List<Map<String, String>> messages, boolean useLlm) {
+        Map<String, Object> body = Map.of(
+                "model", model,
+                "messages", messages,
+                "stream", true,
+                "temperature", 0.7
+        );
+
+        if (useLlm) {
+            Map<String, Object> llmBody = Map.of(
+                    "model", model,
+                    "api_key", apiKey,
+                    "messages", messages,
+                    "stream", true,
+                    "temperature", 0.7
+            );
+
+            return liteLlmWebClient.post()
+                    .uri("/v1/chat/completions")
+                    .header(HttpHeaders.AUTHORIZATION, "Bearer " + masterKey)
+                    .bodyValue(llmBody)
+                    .retrieve()
+                    .onStatus(HttpStatusCode::is4xxClientError, this::map4xxToApiEx)
+                    .onStatus(HttpStatusCode::is5xxServerError,
+                            r -> Mono.error(new ApiException(ErrorCode.UPSTREAM_ERROR)))
+                    .bodyToFlux(String.class);
+        } else {
+            switch (provider.toLowerCase()) {
+                case "openai": {
+                    WebClient client = liteLlmWebClient.mutate()
+                            .baseUrl(gmsBaseUrl + "/api.openai.com")
+                            .build();
+
+                    return client.post()
+                            .uri("/v1/chat/completions")
+                            .header(HttpHeaders.AUTHORIZATION, "Bearer " + apiKey)
+                            .bodyValue(body)
+                            .retrieve()
+                            .onStatus(HttpStatusCode::is4xxClientError, this::map4xxToApiEx)
+                            .onStatus(HttpStatusCode::is5xxServerError,
+                                    r -> Mono.error(new ApiException(ErrorCode.UPSTREAM_ERROR)))
+                            .bodyToFlux(String.class);
+                }
+
+                case "gemini":
+                case "google": {
+                    WebClient client = liteLlmWebClient.mutate()
+                            .baseUrl(gmsBaseUrl + "/generativelanguage.googleapis.com")
+                            .build();
+
+                    Map<String, Object> geminiBody = Map.of(
+                            "contents", List.of(Map.of(
+                                    "role", "user",
+                                    "parts", List.of(Map.of("text", mergeMessages(messages)))
+                            )),
+                            "generationConfig", Map.of(
+                                    "temperature", 0.7
+                            ),
+                            "stream", true
+                    );
+
+                    return client.post()
+                            .uri(uriBuilder -> uriBuilder
+                                    .path("/v1beta/models/{model}:streamGenerateContent")
+                                    .queryParam("key", apiKey)
+                                    .build(model))
+                            .bodyValue(geminiBody)
+                            .retrieve()
+                            .onStatus(HttpStatusCode::is4xxClientError, this::map4xxToApiEx)
+                            .onStatus(HttpStatusCode::is5xxServerError,
+                                    r -> Mono.error(new ApiException(ErrorCode.UPSTREAM_ERROR)))
+                            .bodyToFlux(String.class);
+                }
+                case "anthropic":
+                case "claude": {
+                    WebClient client = liteLlmWebClient.mutate()
+                            .baseUrl(gmsBaseUrl + "/api.anthropic.com")
+                            .build();
+
+                    Map<String, Object> claudeBody = Map.of(
+                            "model", model,
+                            "temperature", 0.7,
+                            "stream", true,
+                            "messages", messages
+                    );
+
+                    return client.post()
+                            .uri("/v1/messages")
+                            .header("x-api-key", apiKey)
+                            .header("anthropic-version", "2023-06-01")
+                            .bodyValue(claudeBody)
+                            .retrieve()
+                            .onStatus(HttpStatusCode::is4xxClientError, this::map4xxToApiEx)
+                            .onStatus(HttpStatusCode::is5xxServerError,
+                                    r -> Mono.error(new ApiException(ErrorCode.UPSTREAM_ERROR)))
+                            .bodyToFlux(String.class);
+                }
+
+                default:
+                    return Flux.error(new ApiException(ErrorCode.PROVIDER_NOT_FOUND));
+            }
+        }
+    }
+
+    private String mergeMessages(List<Map<String, String>> messages) {
+        StringBuilder sb = new StringBuilder();
+        for (Map<String, String> msg : messages) {
+            sb.append(msg.getOrDefault("content", "")).append("\n");
+        }
+        return sb.toString().trim();
+    }
 
     private Mono<? extends Throwable> map4xxToApiEx(ClientResponse response) {
         return response.bodyToMono(String.class).defaultIfEmpty("")
