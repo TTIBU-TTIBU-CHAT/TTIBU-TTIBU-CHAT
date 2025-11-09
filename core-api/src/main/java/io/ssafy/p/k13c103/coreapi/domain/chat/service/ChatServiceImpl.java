@@ -10,12 +10,17 @@ import io.ssafy.p.k13c103.coreapi.domain.chat.entity.Chat;
 import io.ssafy.p.k13c103.coreapi.domain.chat.enums.ChatSseEventType;
 import io.ssafy.p.k13c103.coreapi.domain.chat.repository.ChatRepository;
 import io.ssafy.p.k13c103.coreapi.domain.llm.AiAsyncClient;
+import io.ssafy.p.k13c103.coreapi.domain.llm.LiteLlmWebClient;
+import io.ssafy.p.k13c103.coreapi.domain.llm.LlmStreamParser;
 import io.ssafy.p.k13c103.coreapi.domain.room.entity.Room;
 import io.ssafy.p.k13c103.coreapi.domain.room.repository.RoomRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
+import org.springframework.transaction.annotation.Transactional;
+import reactor.core.publisher.Flux;
 
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -31,6 +36,8 @@ public class ChatServiceImpl implements ChatService {
     private final ChatRepository chatRepository;
     private final RoomRepository roomRepository;
     private final SseEmitterManager sseEmitterManager;
+    private final LiteLlmWebClient liteLlmWebClient;
+    private final LlmStreamParser llmStreamParser;
     private final AiAsyncClient aiAsyncClient;
     private final ObjectMapper objectMapper;
     private final Executor aiTaskExecutor;  // 동일 스레드풀 명시적으로 주입
@@ -42,8 +49,9 @@ public class ChatServiceImpl implements ChatService {
      * 3. 긴 요약 + 키워드 생성
      */
     @Async("aiTaskExecutor")
+    @Transactional(propagation = Propagation.REQUIRES_NEW, rollbackFor = Exception.class)
     @Override
-    public void processChatAsync(Long chatId, Long branchId) {
+    public void processChatAsync(Long chatId, Long branchId, String apiKey, String model, String provider, boolean useLlm) {
         Chat chat = chatRepository.findById(chatId)
                 .orElseThrow(() -> new ApiException(ErrorCode.CHAT_NOT_FOUND));
         Room room = chat.getRoom();
@@ -51,36 +59,110 @@ public class ChatServiceImpl implements ChatService {
         log.info("[ASYNC] Chat {} -> 비동기 AI 처리 시작", chatId);
 
         // 1. 답변 생성
+        // message 구성: LLM API 규격에 맞춰 user 질문으로 변환
+        List<Map<String, String>> messages = List.of(
+                Map.of("role", "user", "content", chat.getQuestion())
+        );
+        StringBuilder accumulatedAnswer = new StringBuilder();
+
         CompletableFuture<String> answerFuture = CompletableFuture.supplyAsync(() -> {
             log.info("[STEP 1] Chat {} → 답변 생성 시작", chat.getChatUid());
+
             try {
-                // TODO: LiteLLM API 호출
-                String aiAnswer = "AI 호출 결과 (LiteLLM 응답)";
+                // Flux<String> 스트림 수신
+                Flux<String> stream = liteLlmWebClient.createChatStream(apiKey, model, provider, messages, useLlm);
 
-                chat.updateAnswer(aiAnswer);
-                chatRepository.save(chat);
+                // 스트림 구독: 청크 단위로 처리
+                stream
+                        .doOnNext(chunk -> {
+                            String delta = llmStreamParser.extractDeltaContent(chunk);
+                            if (delta != null && !delta.isBlank()) {
+                                accumulatedAnswer.append(delta);
 
-                sendChatAnsweredEvent(room, chat, branchId, aiAnswer);
-                log.info("[STEP 1] Chat {} → 답변 생성 완료", chat.getChatUid());
-                return aiAnswer;
+                                Map<String, Object> payload = new LinkedHashMap<>();
+                                payload.put("chat_id", chat.getChatUid());
+                                payload.put("delta", delta);
+
+                                sseEmitterManager.sendEvent(
+                                        room.getRoomUid(),
+                                        new ChatSseEvent<>(ChatSseEventType.CHAT_STREAM, payload)
+                                );
+                            }
+
+                            // [DONE] 감지 시 DB 업데이트 + SSE 완료 이벤트 전송
+                            if (llmStreamParser.isDoneChunk(chunk)) {
+                                chat.updateAnswer(accumulatedAnswer.toString());
+                                chatRepository.save(chat);
+
+                                Map<String, Object> payload = new LinkedHashMap<>();
+                                payload.put("chat_id", chat.getChatUid());
+                                payload.put("answer", accumulatedAnswer.toString());
+                                payload.put("answered_at", chat.getAnsweredAt());
+
+                                sseEmitterManager.sendEvent(
+                                        room.getRoomUid(),
+                                        new ChatSseEvent<>(ChatSseEventType.CHAT_DONE, payload)
+                                );
+
+                                log.info("[STREAM] Chat {} 스트리밍 종료", chat.getChatUid());
+                            }
+                        })
+                        .doOnError(error -> {
+                            log.error("[STREAM] Chat {} 오류 발생: {}", chat.getChatUid(), error.getMessage());
+
+                            Map<String, Object> payload = new LinkedHashMap<>();
+                            payload.put("chat_id", chat.getChatUid());
+                            payload.put("error", error.getMessage());
+
+                            sseEmitterManager.sendEvent(
+                                    room.getRoomUid(),
+                                    new ChatSseEvent<>(ChatSseEventType.CHAT_ERROR, payload)
+                            );
+                        })
+                        .doOnComplete(() ->
+                                log.info("[STREAM] Chat {} 모든 청크 처리 완료", chat.getChatUid())
+                        )
+                        .blockLast();
+
+                // 최종 답변 반환
+                return accumulatedAnswer.toString();
             } catch (Exception e) {
-                log.error("[STEP 1] 답변 생성 실패: {}", e.getMessage());
-                return "AI 응답 생성 실패";
+                log.error("[STEP 1] LLM 스트리밍 실패: {}", e.getMessage());
+
+                Map<String, Object> payload = new LinkedHashMap<>();
+                payload.put("chat_id", chat.getChatUid());
+                payload.put("error", e.getMessage());
+
+                sseEmitterManager.sendEvent(
+                        room.getRoomUid(),
+                        new ChatSseEvent<>(ChatSseEventType.CHAT_ERROR, payload)
+                );
+
+                throw new ApiException(ErrorCode.LLM_PROCESS_ERROR, e.getMessage());
             }
         }, aiTaskExecutor);
 
         // 2. 짧은 요약
         CompletableFuture<Void> shortSummaryFuture = answerFuture.thenComposeAsync(aiAnswer ->
                         aiAsyncClient.shortSummaryAsync(aiAnswer)
-                                .thenAccept(res -> {
+                                .thenAccept(result -> {
                                     try {
-                                        log.info("[STEP 2] 짧은 요약 생성 완료: {}", res.getTitle());
+                                        log.info("[STEP 2] 짧은 요약 생성 완료: {}", result.getTitle());
 
                                         // 방 이름 업데이트
-                                        room.updateName(res.getTitle());
+                                        room.updateName(result.getTitle());
                                         roomRepository.save(room);
 
-                                        sendRoomShortSummaryEvent(room, branchId, res.getTitle());
+                                        Map<String, Object> payload = new LinkedHashMap<>();
+                                        payload.put("room_id", room.getRoomUid());
+                                        payload.put("branch_id", branchId);
+                                        payload.put("updated_at", room.getUpdatedAt());
+                                        payload.put("short_summary", result.getTitle());
+
+                                        sseEmitterManager.sendEvent(
+                                                room.getRoomUid(),
+                                                new ChatSseEvent<>(ChatSseEventType.ROOM_SHORT_SUMMARY, payload)
+                                        );
                                     } catch (Exception e) {
                                         log.error("[STEP 2] 짧은 요약 처리 실패: {}", e.getMessage());
                                     }
@@ -100,7 +182,19 @@ public class ChatServiceImpl implements ChatService {
                                         chat.updateSummaryAndKeywords(aiResult.getSummary(), convertToJson(aiResult.getKeywords()));
                                         chatRepository.save(chat);
 
-                                        sendChatSummaryKeywordsEvent(room, chat, branchId, aiResult.getSummary(), aiResult.getKeywords());
+                                        Map<String, Object> payload = new LinkedHashMap<>();
+                                        payload.put("room_id", room.getRoomUid());
+                                        payload.put("branch_id", branchId);
+                                        payload.put("updated_at", chat.getUpdatedAt());
+                                        payload.put("chat_id", chat.getChatUid());
+                                        payload.put("summary", aiResult.getSummary());
+                                        payload.put("keywords", aiResult.getKeywords());
+
+                                        sseEmitterManager.sendEvent(
+                                                room.getRoomUid(),
+                                                new ChatSseEvent<>(ChatSseEventType.CHAT_SUMMARY_KEYWORDS, payload)
+                                        );
+
                                         log.info("[STEP 3] 긴 요약 + 키워드 처리 완료");
                                     } catch (Exception e) {
                                         log.error("[STEP 3] 긴 요약 처리 실패: {}", e.getMessage());
@@ -119,26 +213,6 @@ public class ChatServiceImpl implements ChatService {
                     log.error("[ASYNC] Chat {} 처리 중 오류: {}", chatId, e.getMessage());
                     return null;
                 });
-    }
-
-    /**
-     * SSE: 답변
-     */
-    private void sendChatAnsweredEvent(Room room, Chat chat, Long branchId, String answer) {
-        Map<String, Object> payload = new LinkedHashMap<>();
-        payload.put("room_id", room.getRoomUid());
-        payload.put("branch_id", branchId);
-        payload.put("updated_at", room.getUpdatedAt());
-        payload.put("chat_id", chat.getChatUid());
-        payload.put("answer", answer);
-        payload.put("answered_at", chat.getAnsweredAt());
-
-        sseEmitterManager.sendEvent(
-                room.getRoomUid(),
-                new ChatSseEvent<>(ChatSseEventType.CHAT_ANSWERED, payload)
-        );
-
-        log.info("[SSE] CHAT_ANSWERED 전송 완료 → roomId={}, chatId={}", room.getRoomUid(), chat.getChatUid());
     }
 
     /**

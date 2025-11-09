@@ -14,4 +14,12 @@ public class RoomCreateRequestDto {
     private String question;
 
     private Long branchId;
+
+    private String apiKey;
+
+    private String model;
+
+    private String provider;
+
+    private boolean useLlm;
 }

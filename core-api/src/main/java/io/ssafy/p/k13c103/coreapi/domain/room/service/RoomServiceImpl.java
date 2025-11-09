@@ -25,7 +25,9 @@ import io.ssafy.p.k13c103.coreapi.domain.room.entity.Room;
 import io.ssafy.p.k13c103.coreapi.domain.room.repository.RoomRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.*;
@@ -52,6 +54,7 @@ public class RoomServiceImpl implements RoomService {
      * - nodes 없을 시: 완전 새 대화 시작
      */
     @Override
+    @Transactional(propagation = Propagation.REQUIRED)
     public Long createRoom(Long memberId, RoomCreateRequestDto request) {
         Member member = memberRepository.findById(memberId)
                 .orElseThrow(() -> new ApiException(ErrorCode.MEMBER_NOT_FOUND));
@@ -137,54 +140,10 @@ public class RoomServiceImpl implements RoomService {
         createdChats.add(newChat);
 
         // SSE: ROOM_CREATED
-        try {
-            Map<String, Object> payload = new LinkedHashMap<>();
-            payload.put("room_id", room.getRoomUid());
-            payload.put("branch_id", request.getBranchId());
-            payload.put("created_at", room.getCreatedAt());
+        sendRoomCreatedEvent(room, createdChats, request.getBranchId());
 
-            // nodes 데이터 직렬화
-            payload.put("nodes", createdChats.stream()
-                    .map(chat -> {
-                        Map<String, Object> node = new LinkedHashMap<>();
-                        node.put("chat_id", chat.getChatUid());
-                        node.put("type", chat.getChatType().name());
-                        node.put("group_id", chat.getGroup() != null ? chat.getGroup().getGroupUid() : null);
-                        node.put("branch_id", request.getBranchId());
-                        node.put("position", null);
-                        node.put("summary", chat.getSummary());
-                        node.put("keywords", parseKeywords(chat));
-                        node.put("question", chat.getQuestion());
-                        node.put("answer", chat.getAnswer());
-                        node.put("parents", Collections.emptyList());
-                        node.put("children", Collections.emptyList());
-                        node.put("created_at", chat.getCreatedAt());
-                        node.put("answered_at", chat.getAnsweredAt());
-                        node.put("updated_at", chat.getUpdatedAt());
-
-                        return node;
-                    })
-                    .collect(Collectors.toList())
-            );
-
-            payload.put("orders", createdChats.stream()
-                    .map(Chat::getChatUid)
-                    .collect(Collectors.toList())
-            );
-
-            sseEmitterManager.sendEvent(
-                    room.getRoomUid(),
-                    new ChatSseEvent<>(ChatSseEventType.ROOM_CREATED, payload)
-            );
-
-            log.info("[SSE] ROOM_CREATED 이벤트 전송 완료 → roomId={}, nodes={}", room.getRoomUid(), createdChats.size());
-        } catch (Exception e) {
-            log.warn("[SSE] ROOM_CREATED 이벤트 전송 실패 → roomId={}, error={}", room.getRoomUid(), e.getMessage());
-        }
-
-        log.info("[ROOM] Room {} 생성 완료 (총 {}개 노드)", room.getRoomUid(), createdChats.size());
-
-        chatService.processChatAsync(newChat.getChatUid(), request.getBranchId());
+        // 🔹 트랜잭션 커밋 이후 비동기 실행하도록 분리
+        triggerAsyncChatProcessing(newChat, request);
 
         return room.getRoomUid();
     }
@@ -203,6 +162,53 @@ public class RoomServiceImpl implements RoomService {
             log.warn("[RoomService] Member {} attempted to access room {} without ownership",
                     memberId, roomId);
             throw new ApiException(ErrorCode.ROOM_FORBIDDEN);
+        }
+    }
+
+    private void sendRoomCreatedEvent(Room room, List<Chat> createdChats, Long branchId) {
+        try {
+            Map<String, Object> payload = new LinkedHashMap<>();
+            payload.put("room_id", room.getRoomUid());
+            payload.put("branch_id", branchId);
+            payload.put("created_at", room.getCreatedAt());
+
+            payload.put("nodes", createdChats.stream()
+                    .map(chat -> Map.of(
+                            "chat_id", chat.getChatUid(),
+                            "type", chat.getChatType().name(),
+                            "summary", chat.getSummary(),
+                            "keywords", parseKeywords(chat),
+                            "question", chat.getQuestion(),
+                            "answer", chat.getAnswer(),
+                            "created_at", chat.getCreatedAt()
+                    ))
+                    .collect(Collectors.toList()));
+
+            sseEmitterManager.sendEvent(
+                    room.getRoomUid(),
+                    new ChatSseEvent<>(ChatSseEventType.ROOM_CREATED, payload)
+            );
+
+            log.info("[SSE] ROOM_CREATED 이벤트 전송 완료 → roomId={}, nodes={}", room.getRoomUid(), createdChats.size());
+        } catch (Exception e) {
+            log.warn("[SSE] ROOM_CREATED 이벤트 전송 실패 → roomId={}, error={}", room.getRoomUid(), e.getMessage());
+        }
+    }
+
+    /** 비동기 AI 처리 (트랜잭션 이후 실행) */
+    @Async
+    protected void triggerAsyncChatProcessing(Chat newChat, RoomCreateRequestDto request) {
+        try {
+            chatService.processChatAsync(
+                    newChat.getChatUid(),
+                    request.getBranchId(),
+                    request.getApiKey(),
+                    request.getModel(),
+                    request.getProvider(),
+                    request.isUseLlm()
+            );
+        } catch (Exception e) {
+            log.error("[ASYNC] processChatAsync 실행 실패: {}", e.getMessage());
         }
     }
 

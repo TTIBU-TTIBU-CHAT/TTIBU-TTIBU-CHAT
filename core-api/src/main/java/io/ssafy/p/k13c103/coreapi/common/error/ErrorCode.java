@@ -50,6 +50,8 @@ public enum ErrorCode {
     MODEL_CATALOG_EMPTY(HttpStatus.BAD_REQUEST, "해당 제공사의 유효한 모델이 존재하지 않습니다."),
     CATALOG_LOAD_FAILED(HttpStatus.INTERNAL_SERVER_ERROR, "카탈로그 로드에 실패했습니다."),
 
+    LLM_PROCESS_ERROR(HttpStatus.BAD_GATEWAY, "LLM 응답 처리 중 오류가 발생했습니다."),
+
     /* === 키/모델 ===*/
     KEY_NOT_FOUND(HttpStatus.NOT_FOUND, "존재하지 않는 키입니다."),
     KEY_CRYPTO_ERROR(HttpStatus.INTERNAL_SERVER_ERROR, "키 암·복호화 처리에 실패했습니다."),
