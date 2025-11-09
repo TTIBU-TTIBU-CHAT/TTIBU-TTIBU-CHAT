@@ -2,5 +2,5 @@ package io.ssafy.p.k13c103.coreapi.domain.chat.service;
 
 public interface ChatService {
 
-    void processChatAsync(Long chatId, Long branchId);
+    void processChatAsync(Long chatId, Long branchId, String apiKey, String model, String provider, boolean useLlm);
 }
