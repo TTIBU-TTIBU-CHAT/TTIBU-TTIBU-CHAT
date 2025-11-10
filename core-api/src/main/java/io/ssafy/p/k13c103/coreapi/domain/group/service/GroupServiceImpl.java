@@ -5,9 +5,7 @@ import io.ssafy.p.k13c103.coreapi.common.error.ErrorCode;
 import io.ssafy.p.k13c103.coreapi.domain.chat.entity.Chat;
 import io.ssafy.p.k13c103.coreapi.domain.chat.enums.ChatType;
 import io.ssafy.p.k13c103.coreapi.domain.chat.repository.ChatRepository;
-import io.ssafy.p.k13c103.coreapi.domain.group.dto.GroupCreateRequestDto;
-import io.ssafy.p.k13c103.coreapi.domain.group.dto.GroupResponseDto;
-import io.ssafy.p.k13c103.coreapi.domain.group.dto.GroupUpdateRequestDto;
+import io.ssafy.p.k13c103.coreapi.domain.group.dto.*;
 import io.ssafy.p.k13c103.coreapi.domain.group.entity.Group;
 import io.ssafy.p.k13c103.coreapi.domain.group.repository.GroupRepository;
 import io.ssafy.p.k13c103.coreapi.domain.member.entity.Member;
@@ -124,6 +122,24 @@ public class GroupServiceImpl implements GroupService {
                 .originNodes(originIds)
                 .copiedNodes(copiedIds)
                 .createdAt(group.getUpdatedAt())
+                .build();
+    }
+
+    @Override
+    @Transactional
+    public GroupRenameResponseDto updateGroupName(Long groupId, GroupRenameRequestDto request) {
+        Group group = groupRepository.findById(groupId)
+                .orElseThrow(() -> new ApiException(ErrorCode.GROUP_NOT_FOUND));
+
+        group.updateName(request.getName());
+        groupRepository.save(group);
+
+        log.info("[GROUP_NAME_UPDATE] 그룹 이름 변경 완료 → groupId={}, newName={}", groupId, request.getName());
+
+        return GroupRenameResponseDto.builder()
+                .groupId(group.getGroupUid())
+                .name(group.getName())
+                .updatedAt(group.getUpdatedAt())
                 .build();
     }
 }
