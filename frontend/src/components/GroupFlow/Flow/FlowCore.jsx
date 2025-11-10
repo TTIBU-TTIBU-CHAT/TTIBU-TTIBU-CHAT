@@ -118,7 +118,7 @@ const FlowCore = forwardRef(function FlowCore(
   /* 빈 노드(내용 없음/임시) 판별 */
   const isEmptyNode = (n) =>
     !!n?.data?.__temp ||
-    (!n?.data?.kind && !n?.data?.question && !n?.data?.answer);
+    (!n?.data?.type && !n?.data?.question && !n?.data?.answer);
   const initialSnapshotRef = useRef({
     nodes: serializeNodes(
       initialNodes.map((n) => ({ ...n, type: "qa", style: nodeStyle }))
@@ -437,7 +437,7 @@ const FlowCore = forwardRef(function FlowCore(
         nds.map((n) => {
           if (n.id !== nodeId) return n;
 
-          if (payload.kind === "group") {
+          if (payload.type === "group") {
             const g = payload.graph ?? { nodes: [], edges: [] };
             return {
               ...n,
@@ -445,7 +445,7 @@ const FlowCore = forwardRef(function FlowCore(
               data: {
                 ...n.data,
                 __temp: false,
-                kind: "group",
+                type: "group",
                 label: payload.title || n.data?.label || "Group",
                 summary: payload.summary || "",
                 group: g,
@@ -572,7 +572,7 @@ const FlowCore = forwardRef(function FlowCore(
       const draftY = baseY;
       const { x, y } = findFreeSpot(nodes, draftX, draftY);
 
-      if (payload.kind === "group") {
+      if (payload.type === "group") {
         const id = `grp_${payload.id}_${Date.now()}`;
         const g = payload.graph ?? { nodes: [], edges: [] };
         const label = payload.title || "Group";
@@ -582,7 +582,7 @@ const FlowCore = forwardRef(function FlowCore(
           id,
           type: "qa",
           position: { x, y },
-          data: { kind: "group", label, summary, group: g },
+          data: { type: "group", label, summary, group: g },
           style: nodeStyle,
           sourcePosition: Position.Right,
           targetPosition: Position.Left,
