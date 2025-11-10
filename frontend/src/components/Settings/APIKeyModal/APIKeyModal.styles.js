@@ -122,3 +122,13 @@ export const DeleteButton = styled(ApplyButton)`
     background: #b91c1c;
   }
 `
+
+export const DisabledBox = styled.div`
+  width: 100%;
+  padding: 10px 12px;
+  border-radius: 6px;
+  background-color: #f3f4f6;
+  color: #374151;
+  font-size: 14px;
+  border: 1px solid #d1d5db;
+`
