@@ -1,5 +1,6 @@
 package io.ssafy.p.k13c103.coreapi.domain.llm;
 
+import io.ssafy.p.k13c103.coreapi.config.properties.SummaryApiProperties;
 import io.ssafy.p.k13c103.coreapi.domain.chat.dto.AiShortSummaryResponseDto;
 import io.ssafy.p.k13c103.coreapi.domain.chat.dto.AiSummaryKeywordsResponseDto;
 import lombok.extern.slf4j.Slf4j;
@@ -17,10 +18,17 @@ import java.util.concurrent.CompletableFuture;
 @Service
 public class AiAsyncClient {
 
+    private static final int LONG_SUMMARY_MAX_LENGTH = 150;
+    private static final int LONG_SUMMARY_MIN_LENGTH = 30;
+    private static final int SHORT_SUMMARY_MAX_LENGTH = 30;
+    private static final int SHORT_SUMMARY_MIN_LENGTH = 5;
     private final WebClient webClient;
+    private final SummaryApiProperties summaryApiProperties;
 
-    public AiAsyncClient(@Qualifier("aiWebClient") WebClient webClient) {
+
+    public AiAsyncClient(@Qualifier("aiWebClient") WebClient webClient, SummaryApiProperties summaryApiProperties) {
         this.webClient = webClient;
+        this.summaryApiProperties = summaryApiProperties;
     }
 
     /**
@@ -30,12 +38,14 @@ public class AiAsyncClient {
      */
     @Async("aiTaskExecutor")
     public CompletableFuture<AiSummaryKeywordsResponseDto> summarizeAsync(String text) {
+        String url = summaryApiProperties.getBaseUrl() + "/summarize";
+
         return webClient.post()
-                .uri("/summarize")
+                .uri(url)
                 .bodyValue(Map.of(
                         "text", text,
-                        "maxLength", 150,
-                        "minLength", 30
+                        "maxLength", LONG_SUMMARY_MAX_LENGTH,
+                        "minLength", LONG_SUMMARY_MIN_LENGTH
                 ))
                 .retrieve()
                 .bodyToMono(AiSummaryKeywordsResponseDto.class)
@@ -51,12 +61,14 @@ public class AiAsyncClient {
      */
     @Async("aiTaskExecutor")
     public CompletableFuture<AiShortSummaryResponseDto> shortSummaryAsync(String text) {
+        String url = summaryApiProperties.getBaseUrl() + "/title-summarize";
+
         return webClient.post()
-                .uri("/title-summarize")
+                .uri(url)
                 .bodyValue(Map.of(
                         "text", text,
-                        "maxLength", 30,
-                        "minLength", 5
+                        "maxLength", SHORT_SUMMARY_MAX_LENGTH,
+                        "minLength", SHORT_SUMMARY_MIN_LENGTH
                 ))
                 .retrieve()
                 .bodyToMono(AiShortSummaryResponseDto.class)
