@@ -38,7 +38,11 @@ services:
       SPRING_PROFILES_ACTIVE: docker
       GMS_BASE_URL: ${GMS_BASE_URL}
       LITELLM_MASTER_KEY: ${LITELLM_MASTER_KEY}
+      LITELLM_BASE_URL: ${LITELLM_BASE_URL}
+      LITELLM_MODEL: ${LITELLM_MODEL}
       TTIBU_CRYPTO_SECRET: ${TTIBU_CRYPTO_SECRET}
+      SUMMARY_API_BASE_URL: ${SUMMARY_API_BASE_URL}
+      SUMMARY_API_TIMEOUT_MS: ${SUMMARY_API_TIMEOUT_MS}
     ports:
       - "8080:8080"
     volumes:
@@ -47,8 +51,11 @@ services:
       - postgres
       - redis
       - litellm
+      - summary-api
     networks:
       - ttibu-network
+    env_file:
+      - .env
 
   # LiteLLM Proxy
   litellm:
