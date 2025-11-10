@@ -36,4 +36,15 @@ public class GroupViewServiceImpl implements GroupViewService {
 
         log.info("[GROUP_VIEW] 그룹 뷰 JSON 저장 완료 → memberId={}, length={}", memberId, contentJson.length());
     }
+
+    @Override
+    @Transactional(readOnly = true)
+    public String getGroupView(Long memberId) {
+        Member member = memberRepository.findById(memberId)
+                .orElseThrow(() -> new ApiException(ErrorCode.MEMBER_NOT_FOUND));
+
+        return groupViewRepository.findByMember(member)
+                .map(GroupView::getContent)
+                .orElse("{}");
+    }
 }

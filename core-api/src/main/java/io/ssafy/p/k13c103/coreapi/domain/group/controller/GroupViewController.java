@@ -8,10 +8,7 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
-import org.springframework.web.bind.annotation.PatchMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDateTime;
 import java.util.Map;
@@ -38,5 +35,14 @@ public class GroupViewController {
 
         Map<String, Object> response = Map.of("updated_at", LocalDateTime.now());
         return ResponseEntity.ok(JSend.success(response));
+    }
+
+    @Operation(summary = "그룹 뷰 조회", description = "로그인한 사용자의 그룹 뷰 JSON을 그대로 반환합니다.")
+    @GetMapping
+    public ResponseEntity<JSend> getGroupView(
+            @AuthenticationPrincipal CustomMemberDetails member) {
+
+        String json = groupViewService.getGroupView(member.getMemberUid());
+        return ResponseEntity.ok(JSend.success(json));
     }
 }
