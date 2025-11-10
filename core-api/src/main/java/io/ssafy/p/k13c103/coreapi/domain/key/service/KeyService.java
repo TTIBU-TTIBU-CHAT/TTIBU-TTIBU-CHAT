@@ -12,4 +12,5 @@ public interface KeyService {
     KeyResponseDto.KeyInfo getOne(Long memberUid, Long keyUid);
     List<KeyResponseDto.KeyListInfo> getKeys(Long memberUid);
     KeyResponseDto.TokenInfo getTokens(Long memberUid);
+    String decrypt(String encryptedKey);
 }

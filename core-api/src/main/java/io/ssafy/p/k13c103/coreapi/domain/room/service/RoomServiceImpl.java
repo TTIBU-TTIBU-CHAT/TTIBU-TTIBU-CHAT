@@ -7,6 +7,7 @@ import io.ssafy.p.k13c103.coreapi.common.error.ApiException;
 import io.ssafy.p.k13c103.coreapi.common.error.ErrorCode;
 import io.ssafy.p.k13c103.coreapi.common.sse.SseEmitterManager;
 import io.ssafy.p.k13c103.coreapi.domain.catalog.entity.ModelCatalog;
+import io.ssafy.p.k13c103.coreapi.domain.catalog.entity.ProviderCatalog;
 import io.ssafy.p.k13c103.coreapi.domain.catalog.repository.ModelCatalogRepository;
 import io.ssafy.p.k13c103.coreapi.domain.chat.dto.AiSummaryKeywordsResponseDto;
 import io.ssafy.p.k13c103.coreapi.domain.chat.dto.ChatSseEvent;
@@ -15,9 +16,11 @@ import io.ssafy.p.k13c103.coreapi.domain.chat.enums.ChatSseEventType;
 import io.ssafy.p.k13c103.coreapi.domain.chat.enums.ChatStatus;
 import io.ssafy.p.k13c103.coreapi.domain.chat.enums.ChatType;
 import io.ssafy.p.k13c103.coreapi.domain.chat.repository.ChatRepository;
-import io.ssafy.p.k13c103.coreapi.domain.chat.service.ChatService;
 import io.ssafy.p.k13c103.coreapi.domain.group.entity.Group;
 import io.ssafy.p.k13c103.coreapi.domain.group.repository.GroupRepository;
+import io.ssafy.p.k13c103.coreapi.domain.key.entity.Key;
+import io.ssafy.p.k13c103.coreapi.domain.key.repository.KeyRepository;
+import io.ssafy.p.k13c103.coreapi.domain.key.service.KeyService;
 import io.ssafy.p.k13c103.coreapi.domain.llm.AiSummaryClient;
 import io.ssafy.p.k13c103.coreapi.domain.member.entity.Member;
 import io.ssafy.p.k13c103.coreapi.domain.member.repository.MemberRepository;
@@ -27,7 +30,6 @@ import io.ssafy.p.k13c103.coreapi.domain.room.entity.Room;
 import io.ssafy.p.k13c103.coreapi.domain.room.repository.RoomRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
@@ -41,12 +43,14 @@ import java.util.stream.Collectors;
 @Transactional
 public class RoomServiceImpl implements RoomService {
 
-    private final ChatService chatService;
+    private final AsyncChatProcessor asyncChatProcessor;
+    private final KeyService keyService;
     private final RoomRepository roomRepository;
     private final ChatRepository chatRepository;
     private final GroupRepository groupRepository;
     private final MemberRepository memberRepository;
     private final ModelCatalogRepository modelCatalogRepository;
+    private final KeyRepository keyRepository;
     private final SseEmitterManager sseEmitterManager;
     private final AiSummaryClient aiSummaryClient;
     private final ObjectMapper objectMapper;
@@ -68,12 +72,18 @@ public class RoomServiceImpl implements RoomService {
 
         List<Chat> createdChats = new ArrayList<>();
 
-        ModelCatalog modelCatalog = null;
-        if (request.getModel() != null) {
-            modelCatalog = modelCatalogRepository
-                    .findByCode(request.getModel())
-                    .orElse(null);
-        }
+        ModelCatalog modelCatalog = modelCatalogRepository.findByCode(request.getModel())
+                .orElseThrow(() -> new ApiException(ErrorCode.MODEL_NOT_FOUND));
+
+        ProviderCatalog provider = modelCatalog.getProvider();
+
+        Key key = keyRepository.findByMemberAndProvider(member, provider)
+                .orElseThrow(() -> new ApiException(ErrorCode.KEY_NOT_FOUND));
+
+        String decryptedKey = keyService.decrypt(key.getEncryptedKey());
+
+        log.info("[ROOM_CREATE] memberId={}, model={}, provider={}, decryptedKey={}",
+                memberId, request.getModel(), provider.getCode(), decryptedKey.substring(0, 6) + "****");
 
         // 기존 노드 복제 (nodes 존재 시)
         if (request.getNodes() != null && !request.getNodes().isEmpty()) {
@@ -153,7 +163,7 @@ public class RoomServiceImpl implements RoomService {
         sendRoomCreatedEvent(room, createdChats, request.getBranchId());
 
         // 트랜잭션 커밋 이후 비동기 실행하도록 분리
-        triggerAsyncChatProcessing(newChat, request);
+        asyncChatProcessor.processAsync(newChat, request, decryptedKey);
 
         return room.getRoomUid();
     }
@@ -202,28 +212,6 @@ public class RoomServiceImpl implements RoomService {
             log.info("[SSE] ROOM_CREATED 이벤트 전송 완료 → roomId={}, nodes={}", room.getRoomUid(), createdChats.size());
         } catch (Exception e) {
             log.warn("[SSE] ROOM_CREATED 이벤트 전송 실패 → roomId={}, error={}", room.getRoomUid(), e.getMessage());
-        }
-    }
-
-    /**
-     * 비동기 AI 처리 (트랜잭션 이후 실행)
-     */
-    @Async
-    protected void triggerAsyncChatProcessing(Chat newChat, RoomCreateRequestDto request) {
-        try {
-            ModelCatalog catalog = modelCatalogRepository.findByCode(request.getModel())
-                    .orElseThrow(() -> new ApiException(ErrorCode.MODEL_NOT_FOUND));
-
-            chatService.processChatAsync(
-                    newChat.getChatUid(),
-                    request.getBranchId(),
-                    request.getApiKey(),
-                    request.getModel(),
-                    catalog.getProvider().getCode(),
-                    request.isUseLlm()
-            );
-        } catch (Exception e) {
-            log.error("[ASYNC] processChatAsync 실행 실패: {}", e.getMessage());
         }
     }
 
