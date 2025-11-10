@@ -1,6 +1,7 @@
 package io.ssafy.p.k13c103.coreapi.common.sse;
 
 import io.ssafy.p.k13c103.coreapi.domain.chat.dto.ChatSseEvent;
+import jakarta.annotation.PreDestroy;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskScheduler;
 import org.springframework.stereotype.Component;
@@ -28,6 +29,12 @@ public class SseEmitterManager {
         scheduler.setPoolSize(5);                       // 동시에 여러 emitter의 heartbeat 관리
         scheduler.setThreadNamePrefix("SSE-Heartbeat-");
         scheduler.initialize();
+    }
+
+    @PreDestroy
+    public void shutdownScheduler() {
+        scheduler.shutdown();
+        log.info("[SSE] Heartbeat scheduler shut down");
     }
 
     /* 새로운 SSE 연결 생성 및 저장 */

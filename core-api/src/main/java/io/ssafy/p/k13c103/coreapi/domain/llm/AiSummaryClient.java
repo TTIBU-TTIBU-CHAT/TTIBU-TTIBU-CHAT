@@ -2,6 +2,7 @@ package io.ssafy.p.k13c103.coreapi.domain.llm;
 
 import io.ssafy.p.k13c103.coreapi.common.error.ApiException;
 import io.ssafy.p.k13c103.coreapi.common.error.ErrorCode;
+import io.ssafy.p.k13c103.coreapi.config.properties.SummaryApiProperties;
 import io.ssafy.p.k13c103.coreapi.domain.chat.dto.AiSummaryKeywordsResponseDto;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.MediaType;
@@ -16,11 +17,14 @@ import java.util.Map;
 public class AiSummaryClient {
 
     private final RestClient restClient;
+    private final SummaryApiProperties summaryApiProperties;
 
     public AiSummaryKeywordsResponseDto summarizeGroupText(String text) {
         try {
+            String url = summaryApiProperties.getBaseUrl() + "/summarize";
+
             return restClient.post()
-                    .uri("/summarize")
+                    .uri(url)
                     .contentType(MediaType.APPLICATION_JSON)
                     .body(Map.of(
                             "text", text,
