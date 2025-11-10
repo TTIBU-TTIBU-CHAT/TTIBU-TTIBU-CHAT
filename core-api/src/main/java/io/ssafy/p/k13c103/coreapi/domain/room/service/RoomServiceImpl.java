@@ -6,6 +6,8 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import io.ssafy.p.k13c103.coreapi.common.error.ApiException;
 import io.ssafy.p.k13c103.coreapi.common.error.ErrorCode;
 import io.ssafy.p.k13c103.coreapi.common.sse.SseEmitterManager;
+import io.ssafy.p.k13c103.coreapi.domain.catalog.entity.ModelCatalog;
+import io.ssafy.p.k13c103.coreapi.domain.catalog.repository.ModelCatalogRepository;
 import io.ssafy.p.k13c103.coreapi.domain.chat.dto.AiSummaryKeywordsResponseDto;
 import io.ssafy.p.k13c103.coreapi.domain.chat.dto.ChatSseEvent;
 import io.ssafy.p.k13c103.coreapi.domain.chat.entity.Chat;
@@ -44,6 +46,7 @@ public class RoomServiceImpl implements RoomService {
     private final ChatRepository chatRepository;
     private final GroupRepository groupRepository;
     private final MemberRepository memberRepository;
+    private final ModelCatalogRepository modelCatalogRepository;
     private final SseEmitterManager sseEmitterManager;
     private final AiSummaryClient aiSummaryClient;
     private final ObjectMapper objectMapper;
@@ -64,6 +67,13 @@ public class RoomServiceImpl implements RoomService {
         roomRepository.save(room);
 
         List<Chat> createdChats = new ArrayList<>();
+
+        ModelCatalog modelCatalog = null;
+        if (request.getModel() != null && request.getProvider() != null) {
+            modelCatalog = modelCatalogRepository
+                    .findByProvider_NameAndCode(request.getProvider(), request.getModel())
+                    .orElse(null);
+        }
 
         // 기존 노드 복제 (nodes 존재 시)
         if (request.getNodes() != null && !request.getNodes().isEmpty()) {
@@ -135,14 +145,14 @@ public class RoomServiceImpl implements RoomService {
         }
 
         // 마지막 노드로 새 질문 Chat 추가
-        Chat newChat = Chat.create(room, request.getQuestion());
+        Chat newChat = Chat.create(room, request.getQuestion(), modelCatalog);
         chatRepository.save(newChat);
         createdChats.add(newChat);
 
         // SSE: ROOM_CREATED
         sendRoomCreatedEvent(room, createdChats, request.getBranchId());
 
-        // 🔹 트랜잭션 커밋 이후 비동기 실행하도록 분리
+        // 트랜잭션 커밋 이후 비동기 실행하도록 분리
         triggerAsyncChatProcessing(newChat, request);
 
         return room.getRoomUid();
