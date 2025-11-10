@@ -3,22 +3,43 @@ import * as S from './APIKeyModal.styles'
 import { useAiKey } from '@/hooks/useAiKey'
 
 export default function APIKeyModal({ initialData, onClose, onSubmit, onDelete }) {
-  const isEditMode = !!initialData?.id
-
-  const [form, setForm] = useState(
-    initialData || { key: '', expirationAt: '', isActive: false, providerUid: 0 }
-  )
-
   const { providers, fetchProviders } = useAiKey()
 
-  useEffect(() => {
-    fetchProviders()
-  }, [])
+  const [form, setForm] = useState({
+    keyUid: 0,
+    key: '',
+    expirationAt: '',
+    isActive: false,
+    providerUid: '',
+  })
 
-  const handleChange = (field, value) => setForm({ ...form, [field]: value })
+  useEffect(() => {
+    const load = async () => {
+      await fetchProviders()
+
+      if (initialData && Object.keys(initialData).length > 0) {
+        setForm({
+          keyUid: initialData.keyUid ?? 0,
+          key: initialData.key ?? '',
+          expirationAt: initialData.expirationAt ?? '',
+          isActive: initialData.isActive ?? false,
+          providerUid: String(initialData.providerUid ?? ''), // select 표시 위해 문자열 변환
+        })
+      }
+    }
+
+    load()
+  }, [initialData])
+
+  const isEditMode = !!form.keyUid
+
+  const handleChange = (field, value) => {
+    setForm((prev) => ({ ...prev, [field]: value }))
+  }
 
   const handleSubmit = () => {
-    if (!form.providerUid) return alert('제공사를 선택해주세요.')
+    if (!isEditMode && !form.providerUid)
+      return alert('제공사를 선택해주세요.')
     if (!form.key) return alert('API Key를 입력해주세요.')
     if (!form.expirationAt) return alert('만료일을 입력해주세요.')
     if (form.isActive !== true && form.isActive !== false)
@@ -26,12 +47,12 @@ export default function APIKeyModal({ initialData, onClose, onSubmit, onDelete }
 
     const payload = {
       ...form,
-      providerUid: Number(form.providerUid),
+      providerUid: Number(form.providerUid || initialData?.providerUid || 0),
       isActive: form.isActive,
-    };
+    }
 
-    console.log('[SUBMIT PAYLOAD]', payload);
-    onSubmit(payload);
+    console.log('[SUBMIT PAYLOAD]', payload)
+    onSubmit(payload)
   }
 
   const handleDelete = async () => {
@@ -50,8 +71,11 @@ export default function APIKeyModal({ initialData, onClose, onSubmit, onDelete }
         </S.Header>
 
         <S.Body>
+          {/* 제공사 선택 */}
           <S.Field>
-            <label>제공사 <span style={{ color: '#dc2626' }}>*</span></label>
+            <label>
+              제공사 <span style={{ color: '#dc2626' }}>*</span>
+            </label>
             <select
               value={form.providerUid}
               onChange={(e) => handleChange('providerUid', e.target.value)}
@@ -65,8 +89,11 @@ export default function APIKeyModal({ initialData, onClose, onSubmit, onDelete }
             </select>
           </S.Field>
 
+          {/* API Key 입력 */}
           <S.Field>
-            <label>API Key <span style={{ color: '#dc2626' }}>*</span></label>
+            <label>
+              API Key <span style={{ color: '#dc2626' }}>*</span>
+            </label>
             <input
               type="password"
               placeholder="API Key를 입력하세요"
@@ -75,26 +102,31 @@ export default function APIKeyModal({ initialData, onClose, onSubmit, onDelete }
             />
           </S.Field>
 
+          {/* 상태 선택 */}
           <S.Field>
-            <label>상태 <span style={{ color: '#dc2626' }}>*</span></label>
+            <label>
+              상태 <span style={{ color: '#dc2626' }}>*</span>
+            </label>
             <S.StatusGroup>
-              {[
-                { label: '활성', value: true },
-                { label: '비활성', value: false },
-              ].map(({ label, value }) => (
-                <S.StatusButton
-                  key={label}
-                  $active={form.isActive === value}
-                  onClick={() => handleChange('isActive', value)}
-                >
-                  {label}
-                </S.StatusButton>
-              ))}
+              {[{ label: '활성', value: true }, { label: '비활성', value: false }].map(
+                ({ label, value }) => (
+                  <S.StatusButton
+                    key={label}
+                    $active={form.isActive === value}
+                    onClick={() => handleChange('isActive', value)}
+                  >
+                    {label}
+                  </S.StatusButton>
+                )
+              )}
             </S.StatusGroup>
           </S.Field>
 
+          {/* 만료일 */}
           <S.Field>
-            <label>만료일 <span style={{ color: '#dc2626' }}>*</span></label>
+            <label>
+              만료일 <span style={{ color: '#dc2626' }}>*</span>
+            </label>
             <S.Input
               type="date"
               value={form.expirationAt}
