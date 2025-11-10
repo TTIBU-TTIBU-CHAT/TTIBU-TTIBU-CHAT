@@ -6,10 +6,10 @@ import io.ssafy.p.k13c103.coreapi.domain.catalog.dto.CatalogModelEntry;
 import io.ssafy.p.k13c103.coreapi.domain.catalog.entity.ProviderCatalog;
 import io.ssafy.p.k13c103.coreapi.domain.catalog.repository.ModelCatalogRepository;
 import io.ssafy.p.k13c103.coreapi.domain.catalog.repository.ProviderCatalogRepository;
-import io.ssafy.p.k13c103.coreapi.domain.key.entity.Key;
-import io.ssafy.p.k13c103.coreapi.domain.key.repository.KeyRepository;
 import io.ssafy.p.k13c103.coreapi.domain.key.dto.KeyRequestDto;
 import io.ssafy.p.k13c103.coreapi.domain.key.dto.KeyResponseDto;
+import io.ssafy.p.k13c103.coreapi.domain.key.entity.Key;
+import io.ssafy.p.k13c103.coreapi.domain.key.repository.KeyRepository;
 import io.ssafy.p.k13c103.coreapi.domain.llm.LiteLlmClient;
 import io.ssafy.p.k13c103.coreapi.domain.member.repository.MemberRepository;
 import lombok.RequiredArgsConstructor;
@@ -25,23 +25,23 @@ import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.SecureRandom;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Base64;
+import java.util.List;
 
 @Slf4j
 @Service
 @RequiredArgsConstructor
 public class KeyServiceImpl implements KeyService {
 
-    @Value("${ttibu.crypto.secret}")
-    private String secret;
     private final SecureRandom secureRandom = new SecureRandom();
-
     private final LiteLlmClient liteLlmClient;
-
     private final ProviderCatalogRepository providerCatalogRepository;
     private final ModelCatalogRepository modelCatalogRepository;
     private final MemberRepository memberRepository;
     private final KeyRepository keyRepository;
+    @Value("${ttibu.crypto.secret}")
+    private String secret;
 
     @Override
     @Transactional
@@ -207,6 +207,12 @@ public class KeyServiceImpl implements KeyService {
         keyRepository.delete(key);
     }
 
+    @Override
+    @Transactional(readOnly = true)
+    public String decrypt(String encryptedKey) {
+        return decryptKey(encryptedKey);
+    }
+
     private String encryptKey(String plainKey) {
         try {
             byte[] iv = new byte[12];
@@ -224,7 +230,7 @@ public class KeyServiceImpl implements KeyService {
         }
     }
 
-    private String decryptKey(String encodedKey) {
+    public String decryptKey(String encodedKey) {
         try {
             byte[] all = Base64.getDecoder().decode(encodedKey);
             ByteBuffer bb = ByteBuffer.wrap(all);
