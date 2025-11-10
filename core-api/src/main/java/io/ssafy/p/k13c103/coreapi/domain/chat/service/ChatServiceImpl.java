@@ -5,6 +5,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import io.ssafy.p.k13c103.coreapi.common.error.ApiException;
 import io.ssafy.p.k13c103.coreapi.common.error.ErrorCode;
 import io.ssafy.p.k13c103.coreapi.common.sse.SseEmitterManager;
+import io.ssafy.p.k13c103.coreapi.config.properties.AiProcessingProperties;
 import io.ssafy.p.k13c103.coreapi.domain.chat.dto.ChatSseEvent;
 import io.ssafy.p.k13c103.coreapi.domain.chat.entity.Chat;
 import io.ssafy.p.k13c103.coreapi.domain.chat.enums.ChatSseEventType;
@@ -41,6 +42,7 @@ public class ChatServiceImpl implements ChatService {
     private final AiAsyncClient aiAsyncClient;
     private final ObjectMapper objectMapper;
     private final Executor aiTaskExecutor;  // 동일 스레드풀 명시적으로 주입
+    private final AiProcessingProperties aiProcessingProperties;
 
     /**
      * 채팅 처리 비동기 실행
@@ -69,6 +71,11 @@ public class ChatServiceImpl implements ChatService {
             log.info("[STEP 1] Chat {} → 답변 생성 시작", chat.getChatUid());
 
             try {
+                // 스트림 활성화 여부 설정값 반영
+                if (!aiProcessingProperties.isStreamEnabled()) {
+                    log.warn("[STEP 1] Stream 비활성화됨 → 동기 모드로 처리 예정");
+                }
+
                 // Flux<String> 스트림 수신
                 Flux<String> stream = liteLlmWebClient.createChatStream(apiKey, model, provider, messages, useLlm);
 
