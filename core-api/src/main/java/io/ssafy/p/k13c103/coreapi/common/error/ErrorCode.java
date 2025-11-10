@@ -30,6 +30,7 @@ public enum ErrorCode {
 
     /* === 그룹 === */
     GROUP_NOT_FOUND(HttpStatus.NOT_FOUND, "존재하지 않는 그룹입니다."),
+    GROUP_FORBIDDEN(HttpStatus.FORBIDDEN, "해당 그룹에 대한 접근 권한이 없습니다."),
 
     /* === FastAPI === */
     EXTERNAL_API_ERROR(HttpStatus.BAD_GATEWAY, "외부 API 호출 중 알 수 없는 오류가 발생했습니다."),

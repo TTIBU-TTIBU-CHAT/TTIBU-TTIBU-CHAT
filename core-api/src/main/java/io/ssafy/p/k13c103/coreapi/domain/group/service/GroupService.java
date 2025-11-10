@@ -10,4 +10,5 @@ public interface GroupService {
 
     GroupRenameResponseDto updateGroupName(Long groupId, GroupRenameRequestDto request);
 
+    void deleteGroup(Long memberId, Long groupId);
 }

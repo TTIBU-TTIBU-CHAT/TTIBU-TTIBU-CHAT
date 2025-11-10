@@ -142,4 +142,22 @@ public class GroupServiceImpl implements GroupService {
                 .updatedAt(group.getUpdatedAt())
                 .build();
     }
+
+    @Override
+    @Transactional
+    public void deleteGroup(Long memberId, Long groupId) {
+        Group group = groupRepository.findById(groupId)
+                .orElseThrow(() -> new ApiException(ErrorCode.GROUP_NOT_FOUND));
+
+        if (!group.getOwner().getMemberUid().equals(memberId)) {
+            log.warn("[GROUP_DELETE] 권한 없는 사용자 요청 → memberId={}, groupId={}", memberId, groupId);
+            throw new ApiException(ErrorCode.GROUP_FORBIDDEN);
+        }
+
+        int deletedCount = chatRepository.deleteAllGroupCopies(groupId);
+        log.info("[GROUP_DELETE] 복제 채팅 {}개 삭제 완료 → groupId={}", deletedCount, groupId);
+
+        groupRepository.delete(group);
+        log.info("[GROUP_DELETE] 그룹 삭제 완료 → groupId={}", groupId);
+    }
 }

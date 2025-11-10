@@ -12,6 +12,8 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.Map;
+
 @Tag(name = "Group", description = "그룹 관련 API")
 @RestController
 @RequiredArgsConstructor
@@ -50,4 +52,13 @@ public class GroupController {
         return ResponseEntity.ok(JSend.success(response));
     }
 
+    @Operation(summary = "그룹 삭제", description = "특정 그룹을 삭제하고 복제된 채팅 노드도 함께 제거합니다.")
+    @DeleteMapping("/{groupId}")
+    public ResponseEntity<JSend> deleteGroup(
+            @PathVariable Long groupId,
+            @AuthenticationPrincipal CustomMemberDetails member
+    ) {
+        groupService.deleteGroup(member.getMemberUid(), groupId);
+        return ResponseEntity.ok(JSend.success(Map.of("group_id", groupId)));
+    }
 }
