@@ -2,8 +2,10 @@ package io.ssafy.p.k13c103.coreapi.domain.llm;
 
 import io.ssafy.p.k13c103.coreapi.common.error.ApiException;
 import io.ssafy.p.k13c103.coreapi.common.error.ErrorCode;
+import io.ssafy.p.k13c103.coreapi.config.properties.AiProcessingProperties;
+import io.ssafy.p.k13c103.coreapi.config.properties.GmsProperties;
+import io.ssafy.p.k13c103.coreapi.config.properties.LiteLlmProperties;
 import org.springframework.beans.factory.annotation.Qualifier;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatusCode;
 import org.springframework.stereotype.Service;
@@ -20,14 +22,17 @@ public class LiteLlmWebClient implements LiteLlmClient {
 
     private final WebClient liteLlmWebClient;
 
-    @Value("${litellm.master.key}")
-    private String masterKey;
+    private final LiteLlmProperties liteLlmProperties;
 
-    @Value("${gms.base.url}")
-    private String gmsBaseUrl;
+    private final GmsProperties gmsProperties;
 
-    public LiteLlmWebClient(@Qualifier("liteLlmClient") WebClient liteLlmWebClient) {
+    private final AiProcessingProperties aiProcessingProperties;
+
+    public LiteLlmWebClient(@Qualifier("liteLlmClient") WebClient liteLlmWebClient, LiteLlmProperties liteLlmProperties, GmsProperties gmsProperties, AiProcessingProperties aiProcessingProperties) {
         this.liteLlmWebClient = liteLlmWebClient;
+        this.liteLlmProperties = liteLlmProperties;
+        this.gmsProperties = gmsProperties;
+        this.aiProcessingProperties = aiProcessingProperties;
     }
 
     /**
@@ -45,7 +50,7 @@ public class LiteLlmWebClient implements LiteLlmClient {
         try {
             liteLlmWebClient.post()
                     .uri("/v1/chat/completions")
-                    .header(HttpHeaders.AUTHORIZATION, "Bearer " + masterKey)
+                    .header(HttpHeaders.AUTHORIZATION, "Bearer " + liteLlmProperties.getApiKey())
                     .bodyValue(body)
                     .retrieve()
                     .onStatus(HttpStatusCode::is4xxClientError, this::map4xxToApiEx)
@@ -64,6 +69,8 @@ public class LiteLlmWebClient implements LiteLlmClient {
      */
     @Override
     public void gmsTest(String apiKey, String model, String provider) {
+        String gmsBaseUrl = gmsProperties.getBaseUrl();
+
         Map<String, Object> body = Map.of(
                 "model", model,
                 "messages", List.of(Map.of("role", "user", "content", "ping")),
@@ -141,11 +148,17 @@ public class LiteLlmWebClient implements LiteLlmClient {
      */
     @Override
     public Flux<String> createChatStream(String apiKey, String model, String provider, List<Map<String, String>> messages, boolean useLlm) {
+        String gmsBaseUrl = gmsProperties.getBaseUrl();
+        String masterKey = liteLlmProperties.getApiKey();
+
+        boolean streamEnabled = aiProcessingProperties.isStreamEnabled();
+        double temperature = aiProcessingProperties.getTemperature();
+
         Map<String, Object> body = Map.of(
                 "model", model,
                 "messages", messages,
-                "stream", true,
-                "temperature", 0.7
+                "stream", streamEnabled ,
+                "temperature", temperature
         );
 
         if (useLlm) {
@@ -153,8 +166,8 @@ public class LiteLlmWebClient implements LiteLlmClient {
                     "model", model,
                     "api_key", apiKey,
                     "messages", messages,
-                    "stream", true,
-                    "temperature", 0.7
+                    "stream", streamEnabled,
+                    "temperature", temperature
             );
 
             return liteLlmWebClient.post()
@@ -196,9 +209,9 @@ public class LiteLlmWebClient implements LiteLlmClient {
                                     "parts", List.of(Map.of("text", mergeMessages(messages)))
                             )),
                             "generationConfig", Map.of(
-                                    "temperature", 0.7
+                                    "temperature", temperature
                             ),
-                            "stream", true
+                            "stream", streamEnabled
                     );
 
                     return client.post()
@@ -221,8 +234,8 @@ public class LiteLlmWebClient implements LiteLlmClient {
 
                     Map<String, Object> claudeBody = Map.of(
                             "model", model,
-                            "temperature", 0.7,
-                            "stream", true,
+                            "temperature", temperature,
+                            "stream", streamEnabled,
                             "messages", messages
                     );
 
