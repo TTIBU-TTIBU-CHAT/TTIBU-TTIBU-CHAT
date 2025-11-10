@@ -7,6 +7,7 @@ import io.ssafy.p.k13c103.coreapi.domain.chat.enums.ChatType;
 import io.ssafy.p.k13c103.coreapi.domain.chat.repository.ChatRepository;
 import io.ssafy.p.k13c103.coreapi.domain.group.dto.GroupCreateRequestDto;
 import io.ssafy.p.k13c103.coreapi.domain.group.dto.GroupResponseDto;
+import io.ssafy.p.k13c103.coreapi.domain.group.dto.GroupUpdateRequestDto;
 import io.ssafy.p.k13c103.coreapi.domain.group.entity.Group;
 import io.ssafy.p.k13c103.coreapi.domain.group.repository.GroupRepository;
 import io.ssafy.p.k13c103.coreapi.domain.member.entity.Member;
@@ -71,5 +72,58 @@ public class GroupServiceImpl implements GroupService {
         groupSummaryService.generateSummaryAsync(group.getGroupUid());
 
         return response;
+    }
+
+    @Override
+    @Transactional
+    public GroupResponseDto updateGroup(Long groupId, GroupUpdateRequestDto request) {
+        Group group = groupRepository.findById(groupId)
+                .orElseThrow(() -> new ApiException(ErrorCode.GROUP_NOT_FOUND));
+
+        if (request.getName() != null && !request.getName().isBlank()) {
+            group.updateName(request.getName());
+        }
+
+        if (request.getNodes() != null && !request.getNodes().isEmpty()) {
+            chatRepository.deleteAllByGroup_GroupUid(groupId);
+
+            List<Chat> originChats = chatRepository.findAllById(request.getNodes());
+            List<Chat> copiedChats = originChats.stream()
+                    .map(origin -> Chat.builder()
+                            .modelCatalog(origin.getModelCatalog())
+                            .question(origin.getQuestion())
+                            .answer(origin.getAnswer())
+                            .summary(origin.getSummary())
+                            .keywords(origin.getKeywords())
+                            .originId(origin.getChatUid())
+                            .status(origin.getStatus())
+                            .chatType(ChatType.GROUP)
+                            .group(group)
+                            .answeredAt(origin.getAnsweredAt())
+                            .build())
+                    .map(chatRepository::save)
+                    .toList();
+
+            log.info("[GROUP_UPDATE] 그룹 채팅 복제 완료 → {}개", copiedChats.size());
+        }
+
+        if (Boolean.TRUE.equals(request.getSummaryRegen())) {
+            log.info("[GROUP_UPDATE] 그룹 요약 재생성 요청 → groupId={}", groupId);
+            groupSummaryService.generateSummaryAsync(groupId);
+        }
+
+        groupRepository.save(group);
+
+        List<Long> originIds = request.getNodes() != null ? request.getNodes() : List.of();
+        List<Long> copiedIds = chatRepository.findAllByGroup_GroupUid(groupId)
+                .stream().map(Chat::getChatUid).toList();
+
+        return GroupResponseDto.builder()
+                .groupId(group.getGroupUid())
+                .name(group.getName())
+                .originNodes(originIds)
+                .copiedNodes(copiedIds)
+                .createdAt(group.getUpdatedAt())
+                .build();
     }
 }

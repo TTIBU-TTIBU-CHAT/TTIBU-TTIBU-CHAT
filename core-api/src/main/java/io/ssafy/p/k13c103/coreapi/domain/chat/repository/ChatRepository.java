@@ -9,4 +9,5 @@ public interface ChatRepository extends JpaRepository<Chat, Long> {
 
     List<Chat> findAllByGroup_GroupUid(Long groupUid);
 
+    void deleteAllByGroup_GroupUid(Long groupUid);
 }
