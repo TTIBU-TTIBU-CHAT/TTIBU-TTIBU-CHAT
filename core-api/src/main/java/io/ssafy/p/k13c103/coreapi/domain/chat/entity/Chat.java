@@ -1,6 +1,7 @@
 package io.ssafy.p.k13c103.coreapi.domain.chat.entity;
 
 import io.ssafy.p.k13c103.coreapi.common.entity.BaseTimeEntity;
+import io.ssafy.p.k13c103.coreapi.domain.catalog.entity.ModelCatalog;
 import io.ssafy.p.k13c103.coreapi.domain.chat.enums.ChatStatus;
 import io.ssafy.p.k13c103.coreapi.domain.chat.enums.ChatType;
 import io.ssafy.p.k13c103.coreapi.domain.group.entity.Group;
@@ -32,10 +33,9 @@ public class Chat extends BaseTimeEntity {
     @JoinColumn(name = "group_id")
     private Group group;
 
-    // TODO: 모델 카탈로그 추가
-//     @ManyToOne(fetch = FetchType.LAZY)
-//     @JoinColumn(name = "model_catalog_uid")
-//     private ModelCatalog modelCatalog;
+     @ManyToOne(fetch = FetchType.LAZY)
+     @JoinColumn(name = "model_catalog_uid")
+     private ModelCatalog modelCatalog;
 
     @Column
     private String question;
@@ -68,10 +68,11 @@ public class Chat extends BaseTimeEntity {
      * - Room에 소속된 Chat을 생성
      * - 상태: Question
      */
-    public static Chat create(Room room, String question) {
+    public static Chat create(Room room, String question, ModelCatalog modelCatalog) {
         return Chat.builder()
                 .room(room)
                 .question(question)
+                .modelCatalog(modelCatalog)
                 .status(ChatStatus.QUESTION)
                 .chatType(ChatType.CHAT)
                 .build();
@@ -85,6 +86,7 @@ public class Chat extends BaseTimeEntity {
         return Chat.builder()
                 .room(newRoom)
                 .group(origin.getGroup())
+                .modelCatalog(origin.getModelCatalog())
                 .question(origin.getQuestion())
                 .answer(origin.getAnswer())
                 .summary(origin.getSummary())
