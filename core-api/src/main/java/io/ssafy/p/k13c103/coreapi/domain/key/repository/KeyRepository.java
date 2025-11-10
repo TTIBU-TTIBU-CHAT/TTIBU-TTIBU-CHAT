@@ -24,6 +24,7 @@ public interface KeyRepository extends JpaRepository<Key, Long> {
 
     List<Key> findKeysByMember_MemberUid(Long memberUid);
 
+
     /**
      * 비활성화 된 키 정리
      */

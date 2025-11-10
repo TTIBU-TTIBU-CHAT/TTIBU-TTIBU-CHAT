@@ -56,7 +56,8 @@ public enum ErrorCode {
     KEY_NOT_FOUND(HttpStatus.NOT_FOUND, "존재하지 않는 키입니다."),
     KEY_CRYPTO_ERROR(HttpStatus.INTERNAL_SERVER_ERROR, "키 암·복호화 처리에 실패했습니다."),
     MODEL_NOT_FOUND(HttpStatus.NOT_FOUND, "존재하지 않는 모델입니다."),
-    INVALID_MODEL_PROVIDER(HttpStatus.FORBIDDEN, "허용되지 않는 제공사 또는 모델입니다.");
+    INVALID_MODEL_PROVIDER(HttpStatus.FORBIDDEN, "허용되지 않는 제공사 또는 모델입니다."),
+    INVALID_EXPIRATION_DATE(HttpStatus.BAD_REQUEST, "잘못된 만료일입니다.");
 
     private final HttpStatus status;
     private final String message;
