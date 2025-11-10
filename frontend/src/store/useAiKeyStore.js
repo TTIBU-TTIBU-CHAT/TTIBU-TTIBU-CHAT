@@ -42,6 +42,7 @@ export const useAiKeyStore = create((set) => ({
           loading: false,
         })
       }
+      return res
     } catch (err) {
       set({ error: err.message, loading: false })
     }
@@ -57,6 +58,7 @@ export const useAiKeyStore = create((set) => ({
       } else {
         set({ error: res.data.message || '조회 실패', loading: false })
       }
+      return res
     } catch (err) {
       set({ error: err.message, loading: false })
     }
