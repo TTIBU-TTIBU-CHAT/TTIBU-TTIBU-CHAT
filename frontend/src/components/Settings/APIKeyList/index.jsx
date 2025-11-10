@@ -9,6 +9,7 @@ export default function APIKeyList() {
   const [apis, setApis] = useState([])
   const [modalData, setModalData] = useState(null)
   const [toast, setToast] = useState(null)
+  const [loading, setLoading] = useState(false)
 
   useEffect(() => {
     loadKeys()
@@ -26,6 +27,7 @@ export default function APIKeyList() {
             isActive: k.isActive,
           }))
         )
+        console.log(apis)
       }
     } catch (err) {
       setToast({ type: 'error', message: '키 목록 조회 실패' })
@@ -38,12 +40,12 @@ export default function APIKeyList() {
     try {
       setLoading(true)
       const res = await fetchKey(api.keyUid)
+      console.log(res)
       if (res?.data?.status === 'success') {
         const keyDetail = res.data.data
         setModalData({
           keyUid: keyDetail.keyUid,
           providerUid: keyDetail.providerUid,
-          providerCode: keyDetail.providerCode,
           key: keyDetail.key,
           isActive: keyDetail.isActive,
           expirationAt: keyDetail.expirationAt,
@@ -63,7 +65,7 @@ export default function APIKeyList() {
 
   const handleSubmit = async (form) => {
     try {
-      if (form.id) {
+      if (form.keyUid) {
         await updateKey({
           keyUid: form.keyUid,
           providerUid: form.providerUid,
