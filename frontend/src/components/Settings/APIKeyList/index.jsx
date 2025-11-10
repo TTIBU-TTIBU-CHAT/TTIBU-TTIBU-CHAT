@@ -45,7 +45,7 @@ export default function APIKeyList() {
         const keyDetail = res.data.data
         setModalData({
           keyUid: keyDetail.keyUid,
-          providerUid: keyDetail.providerUid,
+          providerCode: keyDetail.providerCode,
           key: keyDetail.key,
           isActive: keyDetail.isActive,
           expirationAt: keyDetail.expirationAt,
@@ -68,7 +68,6 @@ export default function APIKeyList() {
       if (form.keyUid) {
         await updateKey({
           keyUid: form.keyUid,
-          providerUid: form.providerUid,
           key: form.key,
           isActive: form.isActive,
           expirationAt: form.expirationAt,

@@ -1,9 +1,11 @@
 import { useState, useEffect } from 'react'
 import * as S from './APIKeyModal.styles'
 import { useAiKey } from '@/hooks/useAiKey'
+import { useModelStore } from '@/store/useModelStore'
 
 export default function APIKeyModal({ initialData, onClose, onSubmit, onDelete }) {
   const { providers, fetchProviders } = useAiKey()
+  const { fetchModelsFromMe } = useModelStore()
 
   const [form, setForm] = useState({
     keyUid: 0,
@@ -11,6 +13,7 @@ export default function APIKeyModal({ initialData, onClose, onSubmit, onDelete }
     expirationAt: '',
     isActive: false,
     providerUid: '',
+    providerCode: '',
   })
 
   useEffect(() => {
@@ -23,7 +26,7 @@ export default function APIKeyModal({ initialData, onClose, onSubmit, onDelete }
           key: initialData.key ?? '',
           expirationAt: initialData.expirationAt ?? '',
           isActive: initialData.isActive ?? false,
-          providerUid: String(initialData.providerUid ?? ''), // select 표시 위해 문자열 변환
+          providerCode: initialData.providerCode ?? '',
         })
       }
     }
@@ -37,27 +40,32 @@ export default function APIKeyModal({ initialData, onClose, onSubmit, onDelete }
     setForm((prev) => ({ ...prev, [field]: value }))
   }
 
-  const handleSubmit = () => {
-    if (!isEditMode && !form.providerUid)
-      return alert('제공사를 선택해주세요.')
+  const handleSubmit = async () => {
     if (!form.key) return alert('API Key를 입력해주세요.')
     if (!form.expirationAt) return alert('만료일을 입력해주세요.')
     if (form.isActive !== true && form.isActive !== false)
       return alert('상태를 지정해주세요.')
 
     const payload = {
-      ...form,
-      providerUid: Number(form.providerUid || initialData?.providerUid || 0),
+      keyUid: form.keyUid,
+      key: form.key,
+      expirationAt: form.expirationAt,
       isActive: form.isActive,
+      ...(isEditMode
+        ? {} 
+        : { providerUid: Number(form.providerUid) || 0 })
     }
 
     console.log('[SUBMIT PAYLOAD]', payload)
-    onSubmit(payload)
+    await onSubmit(payload)
+
+    await fetchModelsFromMe()
   }
 
   const handleDelete = async () => {
     if (window.confirm('정말 삭제하시겠습니까?')) {
       await onDelete(form.keyUid)
+      await fetchModelsFromMe()
       onClose()
     }
   }
@@ -76,17 +84,21 @@ export default function APIKeyModal({ initialData, onClose, onSubmit, onDelete }
             <label>
               제공사 <span style={{ color: '#dc2626' }}>*</span>
             </label>
-            <select
-              value={form.providerUid}
-              onChange={(e) => handleChange('providerUid', e.target.value)}
-            >
-              <option value="">선택하세요</option>
-              {providers.map((p) => (
-                <option key={p.providerUid} value={p.providerUid}>
-                  {p.providerCode}
-                </option>
-              ))}
-            </select>
+            {isEditMode ? (
+              <S.DisabledBox>{form.providerCode || '제공사 정보 없음'}</S.DisabledBox>
+            ) : (
+              <select
+                value={form.providerUid}
+                onChange={(e) => handleChange('providerUid', e.target.value)}
+              >
+                <option value="">선택하세요</option>
+                {providers.map((p) => (
+                  <option key={p.providerUid} value={p.providerUid}>
+                    {p.providerCode}
+                  </option>
+                ))}
+              </select>
+            )}
           </S.Field>
 
           {/* API Key 입력 */}
