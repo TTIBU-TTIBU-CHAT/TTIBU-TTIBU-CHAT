@@ -1,6 +1,9 @@
 package io.ssafy.p.k13c103.coreapi.config.client;
 
 import io.netty.channel.ChannelOption;
+import io.ssafy.p.k13c103.coreapi.config.properties.LiteLlmProperties;
+import io.ssafy.p.k13c103.coreapi.config.properties.SummaryApiProperties;
+import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpHeaders;
@@ -12,7 +15,12 @@ import reactor.netty.http.client.HttpClient;
 import java.time.Duration;
 
 @Configuration
+@RequiredArgsConstructor
 public class WebClientConfig {
+
+    private final LiteLlmProperties liteLlmProperties;
+
+    private final SummaryApiProperties summaryApiProperties;
 
     @Bean(name = "liteLlmClient")
     public WebClient liteLlmWebClient(WebClient.Builder builder) {
@@ -21,7 +29,7 @@ public class WebClientConfig {
                 .responseTimeout(Duration.ofSeconds(5));
 
         return builder
-                .baseUrl("http://localhost:4000")
+                .baseUrl(liteLlmProperties.getBaseUrl())
                 .clientConnector(new ReactorClientHttpConnector(httpClient))
                 .defaultHeader(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON_VALUE)
                 .codecs(c -> c.defaultCodecs().maxInMemorySize(2 * 1024 * 1024))
@@ -36,7 +44,7 @@ public class WebClientConfig {
     @Bean(name = "aiWebClient")
     public WebClient aiWebClient(WebClient.Builder builder) {
         return builder
-                .baseUrl("http://localhost:8001")   // TODO: 환경 변수로 분리
+                .baseUrl(summaryApiProperties.getBaseUrl())
                 .defaultHeader(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON_VALUE)
                 .build();
     }
