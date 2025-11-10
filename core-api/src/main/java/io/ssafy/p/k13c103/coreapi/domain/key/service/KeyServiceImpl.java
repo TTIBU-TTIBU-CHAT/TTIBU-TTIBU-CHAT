@@ -25,6 +25,7 @@ import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.SecureRandom;
+import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.Base64;
 import java.util.List;
@@ -65,7 +66,7 @@ public class KeyServiceImpl implements KeyService {
         // 3. 1토큰 테스트
         // FIXME: 운영 환경에서 주석 해제
 //        String testModel = provider.getCode() + "/" + models.get(0).code();
-//        liteLlmClient.test(reques t.key(), testModel); // 문제 있다면 에러 발생
+//        liteLlmClient.test(request.key(), testModel); // 문제 있다면 에러 발생
 
         // FIXME: 운영 환경에서 주석 처리
         String testModel = models.get(0).code();
@@ -93,24 +94,23 @@ public class KeyServiceImpl implements KeyService {
         if (!memberRepository.existsById(memberUid))
             throw new ApiException(ErrorCode.MEMBER_NOT_FOUND);
 
-        ProviderCatalog provider = providerCatalogRepository.findById(request.providerUid())
-                .orElseThrow(() -> new ApiException(ErrorCode.PROVIDER_NOT_FOUND));
+        if (request.expirationAt().equals(LocalDate.now()) || request.expirationAt().isBefore(LocalDate.now()))
+            throw new ApiException(ErrorCode.INVALID_EXPIRATION_DATE);
 
         Key key = keyRepository.findByKeyUidAndMember_MemberUid(request.keyUid(), memberUid)
                 .orElseThrow(() -> new ApiException(ErrorCode.KEY_NOT_FOUND));
 
-        if (keyRepository.existsByMember_MemberUidAndProvider_ProviderUid(memberUid, provider.getProviderUid()))
-            throw new ApiException(ErrorCode.DUPLICATED_KEY);
+        ProviderCatalog provider = providerCatalogRepository.findById(key.getProvider().getProviderUid())
+                .orElseThrow(() -> new ApiException(ErrorCode.PROVIDER_NOT_FOUND));
 
-        if (!decryptKey(key.getEncryptedKey()).equals(request.key())) { // 키가 변경된 경우
+        List<CatalogModelEntry> models = modelCatalogRepository.findEntriesByProviderCode(provider.getCode());
+        if (models.isEmpty())
+            throw new ApiException(ErrorCode.MODEL_CATALOG_EMPTY);
 
-            List<CatalogModelEntry> models = modelCatalogRepository.findEntriesByProviderCode(provider.getCode());
-            if (models.isEmpty())
-                throw new ApiException(ErrorCode.MODEL_CATALOG_EMPTY);
-
+        if (!request.key().equals(decryptKey(key.getEncryptedKey())) || (!key.getIsActive().equals(request.isActive()) && request.isActive())) { // 키가 바뀌거나, 활성화 되는 경우
             // FIXME: 운영 환경에서 주석 해제
 //        String testModel = provider.getCode() + "/" + models.get(0).code();
-//        liteLlmClient.test(reques t.key(), testModel); // 문제 있다면 에러 발생
+//        liteLlmClient.test(request.key(), testModel); // 문제 있다면 에러 발생
 
             // FIXME: 운영 환경에서 주석 처리
             String testModel = models.get(0).code();
@@ -135,7 +135,7 @@ public class KeyServiceImpl implements KeyService {
 
         return KeyResponseDto.KeyInfo.builder()
                 .keyUid(key.getKeyUid())
-                .providerUid(key.getProvider().getProviderUid())
+                .providerCode(key.getProvider().getCode())
                 .key(decryptKey(key.getEncryptedKey()))
                 .isActive(key.getIsActive())
                 .expirationAt(key.getExpirationAt())

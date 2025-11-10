@@ -31,7 +31,7 @@ public class KeyResponseDto {
     @Builder
     public record KeyInfo(
             Long keyUid,
-            Long providerUid,
+            String providerCode,
             String key, // 복호화한 키
             Boolean isActive,
             LocalDate expirationAt

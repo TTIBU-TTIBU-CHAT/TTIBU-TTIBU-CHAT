@@ -20,7 +20,6 @@ public class KeyRequestDto {
      */
     public record EditKey(
             Long keyUid,
-            Long providerUid,
             String key,
             Boolean isActive,
             LocalDate expirationAt
