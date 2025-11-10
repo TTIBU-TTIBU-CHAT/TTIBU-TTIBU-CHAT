@@ -9,3 +9,29 @@ server:
     session:
       cookie:
         http-only: true
+
+summary-api:
+  base-url: ${SUMMARY_API_BASE_URL}
+  timeout-ms: ${SUMMARY_API_TIMEOUT_MS:10000}
+
+litellm:
+  base-url: ${LITELLM_BASE_URL}
+  api-key: ${LITELLM_MASTER_KEY}
+  model: ${LITELLM_MODEL:gpt-3.5-turbo}
+
+gms:
+  base-url: ${GMS_BASE_URL}
+
+ttibu:
+  crypto:
+    secret: ${TTIBU_CRYPTO_SECRET}
+
+ai:
+  processing:
+    temperature: 0.7
+    stream-enabled: true
+    max-tokens: 1024
+    short-summary-max-length: 30
+    short-summary-min-length: 5
+    long-summary-max-length: 150
+    long-summary-min-length: 30
