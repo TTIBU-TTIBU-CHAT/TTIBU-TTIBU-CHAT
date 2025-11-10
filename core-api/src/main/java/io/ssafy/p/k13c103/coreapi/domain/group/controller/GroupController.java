@@ -2,9 +2,7 @@ package io.ssafy.p.k13c103.coreapi.domain.group.controller;
 
 import io.ssafy.p.k13c103.coreapi.common.jsend.JSend;
 import io.ssafy.p.k13c103.coreapi.config.security.CustomMemberDetails;
-import io.ssafy.p.k13c103.coreapi.domain.group.dto.GroupCreateRequestDto;
-import io.ssafy.p.k13c103.coreapi.domain.group.dto.GroupResponseDto;
-import io.ssafy.p.k13c103.coreapi.domain.group.dto.GroupUpdateRequestDto;
+import io.ssafy.p.k13c103.coreapi.domain.group.dto.*;
 import io.ssafy.p.k13c103.coreapi.domain.group.service.GroupService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -40,4 +38,16 @@ public class GroupController {
         GroupResponseDto response = groupService.updateGroup(groupId, request);
         return ResponseEntity.ok(JSend.success(response));
     }
+
+    @Operation(summary = "그룹 이름 수정", description = "특정 그룹의 이름만 수정합니다.")
+    @PatchMapping("/{groupId}/name")
+    public ResponseEntity<JSend> updateGroupName(
+            @PathVariable Long groupId,
+            @Valid @RequestBody GroupRenameRequestDto request,
+            @AuthenticationPrincipal CustomMemberDetails member
+    ) {
+        GroupRenameResponseDto response = groupService.updateGroupName(groupId, request);
+        return ResponseEntity.ok(JSend.success(response));
+    }
+
 }
