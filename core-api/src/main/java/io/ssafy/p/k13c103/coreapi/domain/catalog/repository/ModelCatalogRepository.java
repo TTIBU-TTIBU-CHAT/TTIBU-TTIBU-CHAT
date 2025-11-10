@@ -54,5 +54,5 @@ public interface ModelCatalogRepository extends JpaRepository<ModelCatalog, Long
 
     Optional<ModelCatalog> findModelCatalogByModelUidAndIsActiveTrue(Long modelUid);
 
-    Optional<ModelCatalog> findByProvider_NameAndCode(String providerName, String code);
+    Optional<ModelCatalog> findByCode(String modelCode);
 }

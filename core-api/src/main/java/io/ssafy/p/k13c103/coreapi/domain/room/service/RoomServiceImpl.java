@@ -69,9 +69,9 @@ public class RoomServiceImpl implements RoomService {
         List<Chat> createdChats = new ArrayList<>();
 
         ModelCatalog modelCatalog = null;
-        if (request.getModel() != null && request.getProvider() != null) {
+        if (request.getModel() != null) {
             modelCatalog = modelCatalogRepository
-                    .findByProvider_NameAndCode(request.getProvider(), request.getModel())
+                    .findByCode(request.getModel())
                     .orElse(null);
         }
 
@@ -88,7 +88,7 @@ public class RoomServiceImpl implements RoomService {
                             Chat cloned = Chat.cloneFrom(origin, room);
                             chatRepository.save(cloned);
                             createdChats.add(cloned);
-                        } else if (node.getType() == ChatType.GROUP){
+                        } else if (node.getType() == ChatType.GROUP) {
                             log.info("[ROOM] 그룹 요약 노드 생성 요청 - groupId={}", node.getId());
 
                             // 기존 그룹 조회
@@ -118,8 +118,8 @@ public class RoomServiceImpl implements RoomService {
                                 aiResult.setProcessingTimeMs(0);
                             } else {
                                 String combinedText = summaries.stream()
-                                                .map(String::trim)
-                                                        .collect(Collectors.joining("\n\n"));
+                                        .map(String::trim)
+                                        .collect(Collectors.joining("\n\n"));
 
                                 aiResult = aiSummaryClient.summarizeGroupText(combinedText);
                             }
@@ -205,16 +205,21 @@ public class RoomServiceImpl implements RoomService {
         }
     }
 
-    /** 비동기 AI 처리 (트랜잭션 이후 실행) */
+    /**
+     * 비동기 AI 처리 (트랜잭션 이후 실행)
+     */
     @Async
     protected void triggerAsyncChatProcessing(Chat newChat, RoomCreateRequestDto request) {
         try {
+            ModelCatalog catalog = modelCatalogRepository.findByCode(request.getModel())
+                    .orElseThrow(() -> new ApiException(ErrorCode.MODEL_NOT_FOUND));
+
             chatService.processChatAsync(
                     newChat.getChatUid(),
                     request.getBranchId(),
                     request.getApiKey(),
                     request.getModel(),
-                    request.getProvider(),
+                    catalog.getProvider().getCode(),
                     request.isUseLlm()
             );
         } catch (Exception e) {
@@ -225,7 +230,8 @@ public class RoomServiceImpl implements RoomService {
     private List<String> parseKeywords(Chat chat) {
         if (chat.getKeywords() == null || chat.getKeywords().isBlank()) return Collections.emptyList();
         try {
-            return objectMapper.readValue(chat.getKeywords(), new TypeReference<>() {});
+            return objectMapper.readValue(chat.getKeywords(), new TypeReference<>() {
+            });
         } catch (Exception e) {
             log.warn("[ROOM] 키워드 JSON 파싱 실패: chatId={}, value={}", chat.getChatUid(), chat.getKeywords());
             return Collections.emptyList();

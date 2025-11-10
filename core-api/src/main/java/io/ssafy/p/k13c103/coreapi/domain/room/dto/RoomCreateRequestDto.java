@@ -17,9 +17,7 @@ public class RoomCreateRequestDto {
 
     private String apiKey;
 
-    private String model;
-
-    private String provider;
+    private String model; // modelCode
 
     private boolean useLlm;
 }
