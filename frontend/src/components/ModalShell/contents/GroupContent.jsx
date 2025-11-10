@@ -96,7 +96,7 @@ export function GroupContent({ onPick }) {
 
   const makeDragPayload = (g) =>
     JSON.stringify({
-      kind: "group",
+      type: "group",
       id: g.id,
       title: g.title,
       summary: g.summary,
@@ -125,7 +125,7 @@ export function GroupContent({ onPick }) {
   /* ✅ 클릭(선택) 시: 임시 노드에 꽂을 ‘group 페이로드’를 onPick으로 전달 */
   const handlePick = (g) => {
     onPick?.({
-      kind: "group",
+      type: "group",
       id: g.id,
       title: g.title,
       summary: g.summary,

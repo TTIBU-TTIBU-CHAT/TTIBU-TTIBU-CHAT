@@ -25,6 +25,7 @@ export default function ModalShell({
   setPeek,
   showDock = true,
   onPick,
+  onSelect
 }) {
   const panelRef = useRef(null);
 

@@ -156,7 +156,7 @@ const FlowCore = forwardRef(function FlowCore(
       const list = selNodes || [];
       setSelectedNodes(list);
       const containsGroup = list.some(
-        (n) => n?.data?.kind === "group" || !!n?.data?.group
+        (n) => n?.data?.type === "group" || !!n?.data?.group
       );
       onSelectionCountChange?.(list.length, containsGroup);
       if (list.length === 0) setLastSelectedId(null);
@@ -167,7 +167,7 @@ const FlowCore = forwardRef(function FlowCore(
   // 빈 노드 판별: 임시 노드거나(kind/QA 없음)
   const isEmptyNode = (n) =>
     !!n?.data?.__temp ||
-    (!n?.data?.kind && !n?.data?.question && !n?.data?.answer);
+    (!n?.data?.type && !n?.data?.question && !n?.data?.answer);
 
   const onNodeClick = useCallback(
     (e, node) => {
@@ -400,7 +400,7 @@ const FlowCore = forwardRef(function FlowCore(
         nds.map((n) => {
           if (n.id !== nodeId) return n;
 
-          if (payload.kind === "group") {
+          if (payload.type === "group") {
             const g = payload.graph ?? { nodes: [], edges: [] };
             return {
               ...n,
@@ -408,7 +408,7 @@ const FlowCore = forwardRef(function FlowCore(
               data: {
                 ...n.data,
                 __temp: false,
-                kind: "group",
+                type: "group",
                 label: payload.title || n.data?.label || "Group",
                 summary: payload.summary || "",
                 group: g,
@@ -422,7 +422,7 @@ const FlowCore = forwardRef(function FlowCore(
             data: {
               ...n.data,
               __temp: false,
-              kind: "result",
+              type: "result",
               label: payload.label || payload.question || "질문",
               summary: (payload.answer || "").slice(0, 140),
               question: payload.question || payload.label || "",
@@ -527,7 +527,7 @@ const FlowCore = forwardRef(function FlowCore(
       const pos = rf.screenToFlowPosition({ x: e.clientX, y: e.clientY });
       const { x, y } = findFreeSpot(nodes, pos.x, pos.y);
 
-      if (payload.kind === "group" && payload.title) {
+      if (payload.type === "group" && payload.title) {
         const id = `g-${payload.id}-${Date.now()}`;
         const graph = payload.graph ?? { nodes: [], edges: [] };
         const summary = payload.summary || "";
@@ -536,7 +536,7 @@ const FlowCore = forwardRef(function FlowCore(
           type: "qa",
           position: { x, y },
           data: {
-            kind: "group",
+            type: "group",
             label: payload.title,
             summary,
             group: graph,
@@ -558,7 +558,7 @@ const FlowCore = forwardRef(function FlowCore(
         position: { x, y },
         data: {
           branch: activeBranch !== "전체" ? activeBranch : undefined,
-          kind: "result",
+          type: "result",
           label: payload.label || payload.question || "질문",
           summary: (payload.answer || "").slice(0, 140),
           question: payload.question || "",
