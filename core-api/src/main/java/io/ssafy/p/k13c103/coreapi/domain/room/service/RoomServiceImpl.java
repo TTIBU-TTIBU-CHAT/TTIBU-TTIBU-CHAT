@@ -26,6 +26,8 @@ import io.ssafy.p.k13c103.coreapi.domain.member.entity.Member;
 import io.ssafy.p.k13c103.coreapi.domain.member.repository.MemberRepository;
 import io.ssafy.p.k13c103.coreapi.domain.room.dto.NodeInfo;
 import io.ssafy.p.k13c103.coreapi.domain.room.dto.RoomCreateRequestDto;
+import io.ssafy.p.k13c103.coreapi.domain.room.dto.RoomRenameRequestDto;
+import io.ssafy.p.k13c103.coreapi.domain.room.dto.RoomRenameResponseDto;
 import io.ssafy.p.k13c103.coreapi.domain.room.entity.Room;
 import io.ssafy.p.k13c103.coreapi.domain.room.repository.RoomRepository;
 import lombok.RequiredArgsConstructor;
@@ -183,6 +185,27 @@ public class RoomServiceImpl implements RoomService {
                     memberId, roomId);
             throw new ApiException(ErrorCode.ROOM_FORBIDDEN);
         }
+    }
+
+    @Override
+    @Transactional
+    public RoomRenameResponseDto updateRoomName(Long memberId, Long roomId, RoomRenameRequestDto request) {
+        Room room = roomRepository.findById(roomId)
+                .orElseThrow(() -> new ApiException(ErrorCode.ROOM_NOT_FOUND));
+
+        if (!room.getOwner().getMemberUid().equals(memberId)) {
+            throw new ApiException(ErrorCode.ROOM_FORBIDDEN);
+        }
+
+        room.updateName(request.getName());
+        roomRepository.save(room);
+
+        log.info("[ROOM_NAME_UPDATE] 채팅방 이름 변경 완료 → roomId={}, newName={}", roomId, request.getName());
+
+        return RoomRenameResponseDto.builder()
+                .roomId(room.getRoomUid())
+                .updatedAt(room.getUpdatedAt())
+                .build();
     }
 
     private void sendRoomCreatedEvent(Room room, List<Chat> createdChats, Long branchId) {
