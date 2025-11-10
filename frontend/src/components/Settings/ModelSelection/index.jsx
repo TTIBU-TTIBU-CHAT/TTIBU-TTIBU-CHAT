@@ -82,7 +82,7 @@ export default function ModelSelection() {
   }
 
   if (!providers || providers.length === 0)
-    return <S.Card>모델 정보를 불러오는 중...</S.Card>
+    return <S.Card>사용 가능한 모델이 없습니다.</S.Card>
 
   const activeProvider = providers.find((p) => p.providerCode === activeTab)
 
