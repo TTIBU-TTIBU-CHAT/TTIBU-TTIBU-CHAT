@@ -15,8 +15,6 @@ public class RoomCreateRequestDto {
 
     private Long branchId;
 
-    private String apiKey;
-
     private String model; // modelCode
 
     private boolean useLlm;
