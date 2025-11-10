@@ -1,42 +1,104 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import * as S from './APIKeyList.styles'
-import { mockApiKeys } from '@/data/mockSettingsData'
 import APIKeyModal from '@/components/Settings/APIKeyModal'
 import Toast from '@/components/Settings/Toast'
+import { useAiKey } from '@/hooks/useAiKey'
 
 export default function APIKeyList() {
-  const [apis, setApis] = useState(mockApiKeys)
+  const { createKey, updateKey, deleteKey, fetchAllKeys, fetchKey } = useAiKey()
+  const [apis, setApis] = useState([])
   const [modalData, setModalData] = useState(null)
   const [toast, setToast] = useState(null)
 
+  useEffect(() => {
+    loadKeys()
+  }, [])
+
+  const loadKeys = async () => {
+    try {
+      const res = await fetchAllKeys()
+      if (res?.data?.status === 'success') {
+        const keys = res.data.data?.keys ?? []
+        setApis(
+          keys.map((k) => ({
+            keyUid: k.keyUid,
+            providerCode: k.providerCode,
+            isActive: k.isActive,
+          }))
+        )
+      }
+    } catch (err) {
+      setToast({ type: 'error', message: '키 목록 조회 실패' })
+    }
+  }
+
   const handleAdd = () => setModalData({}) 
-  const handleEdit = (api) => setModalData(api)
+
+  const handleEdit = async (api) => {
+    try {
+      setLoading(true)
+      const res = await fetchKey(api.keyUid)
+      if (res?.data?.status === 'success') {
+        const keyDetail = res.data.data
+        setModalData({
+          keyUid: keyDetail.keyUid,
+          providerUid: keyDetail.providerUid,
+          providerCode: keyDetail.providerCode,
+          key: keyDetail.key,
+          isActive: keyDetail.isActive,
+          expirationAt: keyDetail.expirationAt,
+        })
+      } else {
+        setToast({ type: 'error', message: '키 상세 조회 실패' })
+      }
+    } catch (err) {
+      console.error(err)
+      setToast({ type: 'error', message: err.response.data.data.reason })
+    } finally {
+      setLoading(false)
+    }
+  }
+
   const handleClose = () => setModalData(null)
 
-  const handleSubmit = (form) => {
-    if (form.id) {
-      setApis((prev) =>
-        prev.map((a) => (a.id === form.id ? { ...a, ...form } : a))
-      )
-      setToast({ type: 'success', message: 'API 키가 수정되었습니다.' })
-    } else {
-      const newItem = {
-        id: Date.now(),
-        name: '신규 키',
-        ...form,
+  const handleSubmit = async (form) => {
+    try {
+      if (form.id) {
+        await updateKey({
+          keyUid: form.keyUid,
+          providerUid: form.providerUid,
+          key: form.key,
+          isActive: form.isActive,
+          expirationAt: form.expirationAt,
+        })
+        setToast({ type: 'success', message: '키가 수정되었습니다.' })
+      } else {
+        await createKey({
+          providerUid: form.providerUid,
+          key: form.key,
+          isActive: form.isActive,
+          expirationAt: form.expirationAt,
+        })
+        setToast({ type: 'success', message: '키가 등록되었습니다.' })
       }
-      setApis((prev) => [...prev, newItem])
-      setToast({ type: 'success', message: 'API 키가 추가되었습니다.' })
-    }
 
-    handleClose()
+      handleClose()
+      await loadKeys()
+    } catch (err) {
+      console.log(err.response.data.data.reason)
+      setToast({ type: 'error', message: err.response.data.data.reason })
+    }
   }
 
   const handleDelete = async (id) => {
-    setToast({ type: 'loading', message: '삭제 중...' })
-    await new Promise((r) => setTimeout(r, 800)) // TODO: api 연동 후 삭제
-    setApis((prev) => prev.filter((a) => a.id !== id))
-    setToast({ type: 'success', message: 'API 키가 삭제되었습니다.' })
+    try {
+      setToast({ type: 'loading', message: '삭제 중...' })
+      await deleteKey(id)
+      setToast({ type: 'success', message: '키가 삭제되었습니다.' })
+      await loadKeys()
+    } catch (err) {
+      setToast({ type: 'error', message: err.response.data.data.reason })
+    }
   }
 
   return (
@@ -49,12 +111,14 @@ export default function APIKeyList() {
       <S.KeyList>
         {apis.map((api) => (
           <S.KeyItem
-            key={api.id}
-            $status={api.status}
+            key={api.keyUid}
+            $status={api.isActive}
             onClick={() => handleEdit(api)}
           >
-            <span>{api.name}</span>
-            <S.StatusLabel $status={api.status}>{api.status}</S.StatusLabel>
+            <span>{api.providerCode}</span>
+            <S.StatusLabel $status={api.isActive}>
+              {api.isActive ? '활성' : '비활성'}
+            </S.StatusLabel>
           </S.KeyItem>
         ))}
       </S.KeyList>
