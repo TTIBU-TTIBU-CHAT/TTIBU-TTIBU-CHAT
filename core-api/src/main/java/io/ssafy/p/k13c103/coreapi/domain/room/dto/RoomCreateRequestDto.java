@@ -2,10 +2,12 @@ package io.ssafy.p.k13c103.coreapi.domain.room.dto;
 
 import lombok.Getter;
 import lombok.NoArgsConstructor;
+import lombok.Setter;
 
 import java.util.List;
 
 @Getter
+@Setter
 @NoArgsConstructor
 public class RoomCreateRequestDto {
 

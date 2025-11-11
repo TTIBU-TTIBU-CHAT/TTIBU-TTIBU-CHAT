@@ -10,6 +10,8 @@ import io.ssafy.p.k13c103.coreapi.domain.catalog.entity.ModelCatalog;
 import io.ssafy.p.k13c103.coreapi.domain.catalog.entity.ProviderCatalog;
 import io.ssafy.p.k13c103.coreapi.domain.catalog.repository.ModelCatalogRepository;
 import io.ssafy.p.k13c103.coreapi.domain.chat.dto.AiSummaryKeywordsResponseDto;
+import io.ssafy.p.k13c103.coreapi.domain.chat.dto.ChatCreateRequestDto;
+import io.ssafy.p.k13c103.coreapi.domain.chat.dto.ChatCreateResponseDto;
 import io.ssafy.p.k13c103.coreapi.domain.chat.dto.ChatSseEvent;
 import io.ssafy.p.k13c103.coreapi.domain.chat.entity.Chat;
 import io.ssafy.p.k13c103.coreapi.domain.chat.enums.ChatSseEventType;
@@ -220,6 +222,75 @@ public class RoomServiceImpl implements RoomService {
                 .roomId(room.getRoomUid())
                 .updatedAt(room.getUpdatedAt())
                 .build();
+    }
+
+    @Override
+    public ChatCreateResponseDto createChatInRoom(Long memberId, Long roomId, ChatCreateRequestDto request) {
+        // Room & 권한 검증
+        Room room = roomRepository.findById(roomId)
+                .orElseThrow(() -> new ApiException(ErrorCode.ROOM_NOT_FOUND));
+        isOwner(memberId, roomId);
+
+        // Model 정보 조회
+        ModelCatalog modelCatalog = modelCatalogRepository.findByCode(request.getModel())
+                .orElseThrow(() -> new ApiException(ErrorCode.MODEL_NOT_FOUND));
+        ProviderCatalog provider = modelCatalog.getProvider();
+
+        Key key = keyRepository.findByMemberAndProvider(room.getOwner(), provider)
+                .orElseThrow(() -> new ApiException(ErrorCode.KEY_NOT_FOUND));
+        String decryptedKey = keyService.decrypt(key.getEncryptedKey());
+
+        // 새 Chat 엔티티 생성
+        Chat newChat = Chat.create(room, request.getQuestion(), modelCatalog);
+        chatRepository.save(newChat);
+
+        Map<String, Object> payload = new LinkedHashMap<>();
+        payload.put("room_id", room.getRoomUid());
+        payload.put("branch_id", request.getBranchId());
+        if (request.getBranchName() != null && !request.getBranchName().isBlank()) {
+            payload.put("branch_name", request.getBranchName());
+        }
+        payload.put("node_id", newChat.getChatUid());
+        payload.put("type", newChat.getChatType().name());
+        payload.put("question", newChat.getQuestion());
+        payload.put("parents", request.getParentId());
+        payload.put("children", List.of());
+        payload.put("created_at", newChat.getCreatedAt());
+
+        sseEmitterManager.sendEvent(
+                room.getRoomUid(),
+                new ChatSseEvent<>(ChatSseEventType.QUESTION_CREATED, payload)
+        );
+
+        // 트랜잭션 종료 후 비동기 LLM/GMS 처리 시작
+        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+            @Override
+            public void afterCommit() {
+                asyncChatProcessor.processAsync(
+                        newChat.getChatUid(),
+                        buildRoomRequest(request),
+                        decryptedKey,
+                        provider.getCode()
+                );
+            }
+        });
+
+        // 응답 반환
+        return ChatCreateResponseDto.builder()
+                .roomId(room.getRoomUid())
+                .nodeId(newChat.getChatUid())
+                .branchId(request.getBranchId())
+                .createdAt(newChat.getCreatedAt())
+                .build();
+    }
+
+    private RoomCreateRequestDto buildRoomRequest(ChatCreateRequestDto request) {
+        RoomCreateRequestDto dto = new RoomCreateRequestDto();
+        dto.setQuestion(request.getQuestion());
+        dto.setBranchId(request.getBranchId());
+        dto.setModel(request.getModel());
+        dto.setUseLlm(request.isUseLlm());
+        return dto;
     }
 
     private void sendRoomCreatedEvent(Room room, List<Chat> createdChats, Long branchId) {
