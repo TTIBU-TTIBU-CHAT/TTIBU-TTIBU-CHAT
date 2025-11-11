@@ -165,6 +165,8 @@ public class RoomServiceImpl implements RoomService {
         chatRepository.save(newChat);
         createdChats.add(newChat);
 
+        String providerCode = provider.getCode();
+
         TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
             @Override
             public void afterCommit() {
@@ -179,7 +181,7 @@ public class RoomServiceImpl implements RoomService {
                 sendRoomCreatedEvent(room, createdChats, request.getBranchId());
 
                 // 2. 커밋 이후 비동기 처리 시작
-                asyncChatProcessor.processAsync(newChat.getChatUid(), request, decryptedKey, provider.getCode());
+                asyncChatProcessor.processAsync(newChat.getChatUid(), request, decryptedKey, providerCode);
             }
         });
 
@@ -262,6 +264,8 @@ public class RoomServiceImpl implements RoomService {
                 new ChatSseEvent<>(ChatSseEventType.QUESTION_CREATED, payload)
         );
 
+        String providerCode = provider.getCode();
+
         // 트랜잭션 종료 후 비동기 LLM/GMS 처리 시작
         TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
             @Override
@@ -270,7 +274,7 @@ public class RoomServiceImpl implements RoomService {
                         newChat.getChatUid(),
                         buildRoomRequest(request),
                         decryptedKey,
-                        provider.getCode()
+                        providerCode
                 );
             }
         });
