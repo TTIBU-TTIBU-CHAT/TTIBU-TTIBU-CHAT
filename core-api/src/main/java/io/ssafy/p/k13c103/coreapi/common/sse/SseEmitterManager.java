@@ -20,7 +20,8 @@ public class SseEmitterManager {
     private static final long HEARTBEAT_INTERVAL = 15L;             // 하트비트(ping): 15초
 
     // roomId -> emitter (1:1 관계)
-    private final Map<Long, SseEmitter> emitters = new ConcurrentHashMap<>();
+    private final Map<Long, SseEmitter> roomEmitters = new ConcurrentHashMap<>();
+    private final Map<String, SseEmitter> sessionEmitters = new ConcurrentHashMap<>();
 
     private final ThreadPoolTaskScheduler scheduler;    // 하트비트 스케줄러 (스레드풀 기반)
 
@@ -37,15 +38,46 @@ public class SseEmitterManager {
         log.info("[SSE] Heartbeat scheduler shut down");
     }
 
-    /* 새로운 SSE 연결 생성 및 저장 */
-    public SseEmitter createEmitter(Long roomId) {
+    public void migrateSessionEmitterToRoom(String sessionUuid, Long roomId) {
+        SseEmitter emitter = sessionEmitters.remove(sessionUuid);
+        if (emitter != null) {
+            roomEmitters.put(roomId, emitter);
+            log.info("[SSE] Migrated session {} → room {}", sessionUuid, roomId);
+        } else {
+            log.warn("[SSE] No emitter found for session {} (migration skipped)", sessionUuid);
+        }
+    }
+
+    public SseEmitter createEmitterBySession(String sessionUuid) {
         SseEmitter emitter = new SseEmitter(DEFAULT_TIMEOUT);
-        emitters.put(roomId, emitter);
+        sessionEmitters.put(sessionUuid, emitter);
+        log.info("[SSE] Session {} connected (pre-room)", sessionUuid);
+
+        emitter.onCompletion(() -> removeSessionEmitter(sessionUuid, "completed"));
+        emitter.onTimeout(() -> removeSessionEmitter(sessionUuid, "timed out"));
+        emitter.onError(e -> removeSessionEmitter(sessionUuid, "error: " + e.getMessage()));
+
+        startHeartbeatForSession(sessionUuid, emitter);
+        return emitter;
+    }
+
+    public void removeSessionEmitter(String sessionUuid, String reason) {
+        SseEmitter emitter = sessionEmitters.remove(sessionUuid);
+        if (emitter != null) {
+            try { emitter.complete(); } catch (Exception ignored) {}
+            log.info("[SSE] Session {} emitter removed ({})", sessionUuid, reason);
+        }
+    }
+
+    /* 새로운 SSE 연결 생성 및 저장 */
+    public SseEmitter createEmitterByRoom(Long roomId) {
+        SseEmitter emitter = new SseEmitter(DEFAULT_TIMEOUT);
+        roomEmitters.put(roomId, emitter);
         log.info("[SSE] Room {} connected", roomId);
 
-        emitter.onCompletion(() -> removeEmitter(roomId, "completed"));
-        emitter.onTimeout(() -> removeEmitter(roomId, "timed out"));
-        emitter.onError(e -> removeEmitter(roomId, "error: " + e.getMessage()));
+        emitter.onCompletion(() -> removeRoomEmitter(roomId, "completed"));
+        emitter.onTimeout(() -> removeRoomEmitter(roomId, "timed out"));
+        emitter.onError(e -> removeRoomEmitter(roomId, "error: " + e.getMessage()));
 
         startHeartbeat(roomId, emitter);
         return emitter;
@@ -53,7 +85,7 @@ public class SseEmitterManager {
 
     /* 특정 roomId에 이벤트 전송 */
     public <T> void sendEvent(Long roomId, ChatSseEvent<T> event) {
-        SseEmitter emitter = emitters.get(roomId);
+        SseEmitter emitter = roomEmitters.get(roomId);
 
         if (emitter == null) {
             log.warn("[SSE] No active emitter found for room {}", roomId);
@@ -68,13 +100,13 @@ public class SseEmitterManager {
             log.info("[SSE] Event sent to room {} => {}", roomId, event.getType());
         } catch (IOException e) {
             log.error("[SSE] Failed to send event to room {}: {}", roomId, e.getMessage());
-            removeEmitter(roomId, "send failed");
+            removeRoomEmitter(roomId, "send failed");
         }
     }
 
     /* 연결 강제 종료 */
-    public void removeEmitter(Long roomId, String reason) {
-        SseEmitter emitter = emitters.remove(roomId);
+    public void removeRoomEmitter(Long roomId, String reason) {
+        SseEmitter emitter = roomEmitters.remove(roomId);
         if (emitter != null) {
             try {
                 emitter.complete();
@@ -92,7 +124,7 @@ public class SseEmitterManager {
     private void startHeartbeat(Long roomId, SseEmitter emitter) {
         // ThreadPoolTaskScheduler 사용 → 15초마다 heartbeat 이벤트 전송
         scheduler.scheduleAtFixedRate(() -> {
-            if (!emitters.containsKey(roomId)) return;  // 이미 종료된 emitter는 skip
+            if (!roomEmitters.containsKey(roomId)) return;  // 이미 종료된 emitter는 skip
 
             try {
                 // heartbeat 이벤트 전송
@@ -103,8 +135,22 @@ public class SseEmitterManager {
             } catch (Exception e) {
                 // 전송 실패 시 emitter 제거 (끊긴 연결로 간주)
                 log.warn("[SSE] Heartbeat failed for room {}, removing emitter", roomId);
-                removeEmitter(roomId, "completed");
+                removeRoomEmitter(roomId, "completed");
             }
         }, TimeUnit.SECONDS.toMillis(HEARTBEAT_INTERVAL));
     }
+
+    private void startHeartbeatForSession(String sessionUuid, SseEmitter emitter) {
+        scheduler.scheduleAtFixedRate(() -> {
+            if (!sessionEmitters.containsKey(sessionUuid)) return;
+            try {
+                emitter.send(SseEmitter.event().name("heartbeat").data("ping"));
+                log.debug("[SSE] Heartbeat sent to session {}", sessionUuid);
+            } catch (Exception e) {
+                log.warn("[SSE] Heartbeat failed for session {}, removing emitter", sessionUuid);
+                removeSessionEmitter(sessionUuid, "heartbeat failed");
+            }
+        }, TimeUnit.SECONDS.toMillis(HEARTBEAT_INTERVAL));
+    }
+
 }

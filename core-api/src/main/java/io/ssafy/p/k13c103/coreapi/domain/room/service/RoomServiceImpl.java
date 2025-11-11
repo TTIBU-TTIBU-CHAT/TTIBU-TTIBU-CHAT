@@ -166,10 +166,18 @@ public class RoomServiceImpl implements RoomService {
         TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
             @Override
             public void afterCommit() {
+                // sessionUuid → roomId로 emitter 이전
+                if (request.getSessionUuid() != null && !request.getSessionUuid().isBlank()) {
+                    sseEmitterManager.migrateSessionEmitterToRoom(request.getSessionUuid(), room.getRoomUid());
+                    log.info("[SSE] Session {} → Room {} emitter migration 완료",
+                            request.getSessionUuid(), room.getRoomUid());
+                }
+
                 // 1. 커밋 이후 ROOM_CREATED 이벤트 전송
                 sendRoomCreatedEvent(room, createdChats, request.getBranchId());
+
                 // 2. 커밋 이후 비동기 처리 시작
-                asyncChatProcessor.processAsync(newChat.getChatUid(), request, decryptedKey);
+                asyncChatProcessor.processAsync(newChat.getChatUid(), request, decryptedKey, provider.getCode());
             }
         });
 

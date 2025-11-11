@@ -9,6 +9,8 @@ import java.util.List;
 @NoArgsConstructor
 public class RoomCreateRequestDto {
 
+    private String sessionUuid;
+
     private List<NodeInfo> nodes;
 
     private String question;

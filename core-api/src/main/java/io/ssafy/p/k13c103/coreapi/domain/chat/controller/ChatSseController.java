@@ -79,7 +79,7 @@ public class ChatSseController {
 
         log.info("[SSE] Member {} connected to room {}", member.getUsername(), roomId);
 
-        SseEmitter emitter = sseEmitterManager.createEmitter(roomId);
+        SseEmitter emitter = sseEmitterManager.createEmitterByRoom(roomId);
 
         try {
             // 연결 직후 FE가 정상적으로 구독되었음을 알리기 위한 초기 메시지
@@ -123,7 +123,34 @@ public class ChatSseController {
         // 해당 채팅방의 소유자인지 검증
         roomService.isOwner(member.getMemberUid(), roomId);
 
-        sseEmitterManager.removeEmitter(roomId, "completed");
+        sseEmitterManager.removeRoomEmitter(roomId, "completed");
         log.info("[SSE] Member {} disconnected from room {}", member.getUsername(), roomId);
+    }
+
+    @GetMapping(value = "/session/{sessionUuid}", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
+    public SseEmitter connectBySession(
+            @Parameter(description = "SSE 연결용 세션 UUID", example = "550e8400-e29b-41d4-a716-446655440000")
+            @PathVariable String sessionUuid) {
+
+        SseEmitter emitter = sseEmitterManager.createEmitterBySession(sessionUuid);
+        log.info("[SSE] Session {} connected (pre-room)", sessionUuid);
+
+        try {
+            emitter.send(SseEmitter.event()
+                    .name("INIT")
+                    .data("Connected to session " + sessionUuid));
+        } catch (Exception e) {
+            log.warn("[SSE] INIT send failed for session {}: {}", sessionUuid, e.getMessage());
+        }
+
+        return emitter;
+    }
+
+    @DeleteMapping("/session/{sessionUuid}")
+    public void disconnectBySession(
+            @Parameter(description = "종료할 SSE 세션 UUID") @PathVariable String sessionUuid) {
+
+        sseEmitterManager.removeSessionEmitter(sessionUuid, "completed");
+        log.info("[SSE] Session {} manually disconnected", sessionUuid);
     }
 }
