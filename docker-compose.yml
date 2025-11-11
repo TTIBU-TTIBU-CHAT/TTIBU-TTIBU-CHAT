@@ -83,7 +83,7 @@ services:
       dockerfile: Dockerfile
     container_name: ttibu-summary-api
     ports:
-      - "8000:8000"
+      - "8001:8001"
     networks:
       - ttibu-network
 
