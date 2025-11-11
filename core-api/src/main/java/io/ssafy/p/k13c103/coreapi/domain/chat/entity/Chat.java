@@ -37,13 +37,13 @@ public class Chat extends BaseTimeEntity {
      @JoinColumn(name = "model_catalog_uid")
      private ModelCatalog modelCatalog;
 
-    @Column
+    @Column(columnDefinition = "TEXT")
     private String question;
 
-    @Column
+    @Column(columnDefinition = "TEXT")
     private String answer;
 
-    @Column
+    @Column(columnDefinition = "TEXT")
     private String summary;
 
     @Column(columnDefinition = "TEXT")
