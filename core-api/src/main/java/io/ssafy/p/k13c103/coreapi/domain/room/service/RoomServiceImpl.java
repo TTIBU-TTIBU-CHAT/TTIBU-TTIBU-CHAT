@@ -26,10 +26,7 @@ import io.ssafy.p.k13c103.coreapi.domain.key.service.KeyService;
 import io.ssafy.p.k13c103.coreapi.domain.llm.AiSummaryClient;
 import io.ssafy.p.k13c103.coreapi.domain.member.entity.Member;
 import io.ssafy.p.k13c103.coreapi.domain.member.repository.MemberRepository;
-import io.ssafy.p.k13c103.coreapi.domain.room.dto.NodeInfo;
-import io.ssafy.p.k13c103.coreapi.domain.room.dto.RoomCreateRequestDto;
-import io.ssafy.p.k13c103.coreapi.domain.room.dto.RoomRenameRequestDto;
-import io.ssafy.p.k13c103.coreapi.domain.room.dto.RoomRenameResponseDto;
+import io.ssafy.p.k13c103.coreapi.domain.room.dto.*;
 import io.ssafy.p.k13c103.coreapi.domain.room.entity.Room;
 import io.ssafy.p.k13c103.coreapi.domain.room.repository.RoomRepository;
 import lombok.RequiredArgsConstructor;
@@ -186,6 +183,15 @@ public class RoomServiceImpl implements RoomService {
         });
 
         return room.getRoomUid();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<RoomResponseDto.RoomListInfo> getList(Long memberUid) {
+        if (!memberRepository.existsById(memberUid))
+            throw new ApiException(ErrorCode.MEMBER_NOT_FOUND);
+
+        return roomRepository.findRoomListWithLastChat(memberUid);
     }
 
     @Override

@@ -7,6 +7,7 @@ import io.ssafy.p.k13c103.coreapi.domain.chat.dto.ChatCreateResponseDto;
 import io.ssafy.p.k13c103.coreapi.domain.room.dto.RoomCreateRequestDto;
 import io.ssafy.p.k13c103.coreapi.domain.room.dto.RoomRenameRequestDto;
 import io.ssafy.p.k13c103.coreapi.domain.room.dto.RoomRenameResponseDto;
+import io.ssafy.p.k13c103.coreapi.domain.room.dto.RoomResponseDto;
 import io.ssafy.p.k13c103.coreapi.domain.room.service.RoomService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -17,6 +18,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.List;
 import java.util.Map;
 
 @Tag(name = "Room", description = "채팅방 관련 API")
@@ -37,6 +39,15 @@ public class RoomController {
                 .body(JSend.success(Map.of(
                 "room_id", roomId
         )));
+    }
+
+    @Operation(summary="채팅방 리스트 조회", description = "")
+    @GetMapping
+    public ResponseEntity<JSend> getList(@AuthenticationPrincipal CustomMemberDetails member) {
+
+        List<RoomResponseDto.RoomListInfo> list =  roomService.getList(member.getMemberUid());
+
+        return ResponseEntity.status(HttpStatus.OK).body(JSend.success(list));
     }
 
     @Operation(summary = "채팅방 이름 수정", description = "특정 채팅방의 이름을 수정합니다.")
