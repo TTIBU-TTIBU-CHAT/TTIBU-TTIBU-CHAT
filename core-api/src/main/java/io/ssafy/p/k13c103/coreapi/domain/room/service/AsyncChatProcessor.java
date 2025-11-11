@@ -28,12 +28,14 @@ public class AsyncChatProcessor {
             ModelCatalog catalog = modelCatalogRepository.findByCode(request.getModel())
                     .orElseThrow(() -> new ApiException(ErrorCode.MODEL_NOT_FOUND));
 
+            String providerCode = catalog.getProvider().getCode();
+
             chatService.processChatAsync(
                     chatId,
                     request.getBranchId(),
                     decryptedKey,
                     request.getModel(),
-                    catalog.getProvider().getCode(),
+                    providerCode,
                     request.isUseLlm()
             );
 
