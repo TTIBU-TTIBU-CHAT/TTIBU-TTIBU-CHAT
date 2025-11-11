@@ -7,6 +7,6 @@ export const groupService = {
   remove: (groupId) => api.delete(`/groups/${groupId}`), // 그룹 삭제
   detail: (groupId) => api.get(`/groups/${groupId}`), // 그룹 상세 조회
   list: (params) => api.get('/groups', { params }), // 그룹 리스트 조회
-  getView: () => api.get('/groups/view'), // 그룹 JSON 조회
-  saveView: (json) => api.patch('/groups/view', json), // 그룹 JSON 저장
+  getGroupView: () => api.get('/groups/view'), // 그룹 JSON 조회
+  updateGroupView: (json) => api.patch('/groups/view', json), // 그룹 JSON 갱신/저장
 };
