@@ -1,5 +1,7 @@
 package io.ssafy.p.k13c103.coreapi.domain.group.service;
 
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import io.ssafy.p.k13c103.coreapi.common.error.ApiException;
 import io.ssafy.p.k13c103.coreapi.common.error.ErrorCode;
 import io.ssafy.p.k13c103.coreapi.domain.chat.entity.Chat;
@@ -43,18 +45,23 @@ public class GroupServiceImpl implements GroupService {
 
         List<Chat> copiedChats;
         copiedChats = originChats.stream()
-                .map(origin -> Chat.builder()
-                        .modelCatalog(origin.getModelCatalog())
-                        .question(origin.getQuestion())
-                        .answer(origin.getAnswer())
-                        .summary(origin.getSummary())
-                        .keywords(origin.getKeywords())
-                        .originId(origin.getChatUid())
-                        .status(origin.getStatus())
-                        .chatType(ChatType.GROUP)
-                        .answeredAt(origin.getAnsweredAt())
-                        .build())
-                .map(chatRepository::save)
+                .map(origin -> {
+                    Chat copy = Chat.builder()
+                            .modelCatalog(origin.getModelCatalog())
+                            .question(origin.getQuestion())
+                            .answer(origin.getAnswer())
+                            .summary(origin.getSummary())
+                            .keywords(origin.getKeywords())
+                            .originId(origin.getChatUid())
+                            .status(origin.getStatus())
+                            .chatType(ChatType.GROUP)
+                            .group(group)
+                            .answeredAt(origin.getAnsweredAt())
+                            .build();
+
+                    copy.setTimestamps(origin.getCreatedAt(), origin.getUpdatedAt());
+                    return chatRepository.save(copy);
+                })
                 .toList();
 
         GroupResponseDto response = GroupResponseDto.builder()
@@ -87,19 +94,23 @@ public class GroupServiceImpl implements GroupService {
 
             List<Chat> originChats = chatRepository.findAllById(request.getNodes());
             List<Chat> copiedChats = originChats.stream()
-                    .map(origin -> Chat.builder()
-                            .modelCatalog(origin.getModelCatalog())
-                            .question(origin.getQuestion())
-                            .answer(origin.getAnswer())
-                            .summary(origin.getSummary())
-                            .keywords(origin.getKeywords())
-                            .originId(origin.getChatUid())
-                            .status(origin.getStatus())
-                            .chatType(ChatType.GROUP)
-                            .group(group)
-                            .answeredAt(origin.getAnsweredAt())
-                            .build())
-                    .map(chatRepository::save)
+                    .map(origin -> {
+                        Chat copy = Chat.builder()
+                                .modelCatalog(origin.getModelCatalog())
+                                .question(origin.getQuestion())
+                                .answer(origin.getAnswer())
+                                .summary(origin.getSummary())
+                                .keywords(origin.getKeywords())
+                                .originId(origin.getChatUid())
+                                .status(origin.getStatus())
+                                .chatType(ChatType.GROUP)
+                                .group(group)
+                                .answeredAt(origin.getAnsweredAt())
+                                .build();
+
+                        copy.setTimestamps(origin.getCreatedAt(), origin.getUpdatedAt());
+                        return chatRepository.save(copy);
+                    })
                     .toList();
 
             log.info("[GROUP_UPDATE] 그룹 채팅 복제 완료 → {}개", copiedChats.size());
@@ -159,5 +170,33 @@ public class GroupServiceImpl implements GroupService {
 
         groupRepository.delete(group);
         log.info("[GROUP_DELETE] 그룹 삭제 완료 → groupId={}", groupId);
+    }
+
+    @Override
+    public List<GroupListResponseDto> getGroups(Long memberId) {
+        Member member = memberRepository.findById(memberId)
+                .orElseThrow(() -> new ApiException(ErrorCode.MEMBER_NOT_FOUND));
+
+        List<Group> groups = groupRepository.findAllByOwnerOrderByUpdatedAtDesc(member);
+
+        return groups.stream()
+                .map(group -> GroupListResponseDto.builder()
+                        .groupId(group.getGroupUid())
+                        .name(group.getName())
+                        .summary(group.getSummary())
+                        .keyword(parseKeywords(group.getKeywords()))
+                        .updatedAt(group.getUpdatedAt())
+                        .build())
+                .toList();
+    }
+
+    private List<String> parseKeywords(String keywordsJson) {
+        if (keywordsJson == null || keywordsJson.isBlank()) return List.of();
+        try {
+            return new ObjectMapper().readValue(keywordsJson, new TypeReference<List<String>>() {});
+        } catch (Exception e) {
+            log.warn("[GROUP_LIST] 키워드 파싱 실패: {}", keywordsJson);
+            return List.of();
+        }
     }
 }
