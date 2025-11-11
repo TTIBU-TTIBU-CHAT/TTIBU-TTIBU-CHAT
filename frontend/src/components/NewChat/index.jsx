@@ -1,13 +1,18 @@
+// components/NewChat.jsx
 import { useEffect, useRef, useState } from "react";
 import * as S from "./NewChat.styles";
 import ModalShell from "@/components/ModalShell/ModalShell";
+import RouteTransitionOverlay from "@/components/common/RouteTransitionOverlay/RouteTransitionOverlay";
 import { useSidebarStore } from "@/store/useSidebarStore";
 import { useStartChat } from "@/hooks/useStartChat";
+import { useNavigate } from "@tanstack/react-router";
 
 export default function NewChat() {
   const { isCollapsed } = useSidebarStore();
-
-  // ✅ 모델 드롭다운 상태
+  const navigate = useNavigate();
+  const navigatedRef = useRef(null);
+  const [redirecting, setRedirecting] = useState(false);
+  // 모델 드롭다운
   const [selectedModel, setSelectedModel] = useState("gpt-4o-mini");
   const [modelOpen, setModelOpen] = useState(false);
   const models = ["ChatGPT 5", "ChatGPT 4o", "ChatGPT 3o"];
@@ -21,10 +26,21 @@ export default function NewChat() {
 
   const { start, roomId, submitting, connected, lastMessage } = useStartChat({
     onRoomCreated: (d) => console.log("[ROOM_CREATED]", d),
-    onChatStream: (d) => console.log("[CHAT_STREAM]", d.chat_id, d.delta),
-    onChatDone: (d) => console.log("[CHAT_DONE]", d),
+    onChatStream: (d) => console.log("[CHAT_STREAM]", d),
+    onChatDone: (d) => {
+      console.log("[CHAT_DONE]", d);
+    },
     onRoomShortSummary: (d) => console.log("[ROOM_SHORT_SUMMARY]", d),
-    onChatSummaryKeywords: (d) => console.log("[CHAT_SUMMARY_KEYWORDS]", d),
+    onChatSummaryKeywords: (d) => {
+      console.log("[CHAT_SUMMARY_KEYWORDS]", d);
+      console.log("Navigating to roomId:", d?.chat_id || d?.roomId || roomId);
+      const id = d?.data.chat_id || d?.roomId || roomId;
+      if (!id) return;
+      if (navigatedRef.current === id) return; // 이미 이동했으면 무시
+      navigatedRef.current = id;
+      setRedirecting(true);
+      navigate({ to: `/chatrooms/${id}` });
+    },
     onChatError: (d) => console.error("[CHAT_ERROR]", d),
   });
 
@@ -38,9 +54,10 @@ export default function NewChat() {
   };
 
   const handleSelect = (item) => {
-    console.log("Selected item:", item);
     setSelectedItems((prev) =>
-      prev.find((i) => i.id === item.id) ? prev : [...prev, item]
+      console.log("Selected item:", item) || prev.find((i) => i.id === item.id)
+        ? prev
+        : [...prev, item]
     );
   };
   const handleRemove = (id) => {
@@ -56,7 +73,7 @@ export default function NewChat() {
     }
   }, [selectedItems]);
 
-  // ✅ 바깥 클릭 시 드롭다운 닫기
+  // 바깥 클릭 시 드롭다운 닫기
   useEffect(() => {
     if (!modelOpen) return;
     const onDocClick = () => setModelOpen(false);
@@ -64,7 +81,7 @@ export default function NewChat() {
     return () => document.removeEventListener("click", onDocClick);
   }, [modelOpen]);
 
-  const stop = (e) => e.stopPropagation(); // 드롭다운 내부 클릭 전파 차단
+  const stop = (e) => e.stopPropagation();
 
   const onKeyDown = (e) => {
     if (e.key === "Enter" && !e.shiftKey) {
@@ -75,14 +92,13 @@ export default function NewChat() {
 
   const isEmpty = text.trim().length === 0;
 
-  // ✅ 전송 → payload.model에 selectedModel 반영
+  // 전송
   const handleSend = async () => {
     if (submitting) return;
     const question = text.trim();
     if (!question) return;
 
-    const branchId = 180; // TODO: 실제 값으로 교체
-    const apiKey = "S13P32C103-b452c8cc-fea1-4d9c-b93a-1b1c0674136b"; // TODO: 실제 값으로 교체
+    const branchId = 100; // TODO: 실제 값으로 교체
     const useLlm = false;
 
     const nodes = selectedItems.length
@@ -94,8 +110,8 @@ export default function NewChat() {
       : undefined;
 
     const payload = nodes
-      ? { nodes, question, branchId, apiKey, model: selectedModel, useLlm }
-      : { question, branchId, apiKey, model: selectedModel, useLlm };
+      ? { nodes, question, branchId, model: selectedModel, useLlm }
+      : { question, branchId, model: selectedModel, useLlm };
 
     console.log("[POST /rooms] payload:", payload);
     const rid = await start(payload);
@@ -109,7 +125,6 @@ export default function NewChat() {
 
   return (
     <S.Container $collapsed={isCollapsed}>
-      {/* ✅ 왼쪽 상단 모델 드롭다운 (주신 스타일 컴포넌트 재사용) */}
       <S.TopLeftBar onClick={stop}>
         <S.Dropdown>
           <S.DropdownToggler
@@ -213,6 +228,10 @@ export default function NewChat() {
           onPick={handleSelect}
         />
       )}
+      <RouteTransitionOverlay
+        show={redirecting}
+        message="채팅방으로 이동 중..."
+      />
     </S.Container>
   );
 }

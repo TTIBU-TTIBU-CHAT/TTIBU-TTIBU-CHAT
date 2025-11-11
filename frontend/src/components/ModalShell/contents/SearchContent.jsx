@@ -1,6 +1,7 @@
-// SearchContent.jsx
-import { useMemo, useRef, useState } from "react";
+// src/components/ModalShell/contents/SearchContent.jsx
+import { useEffect, useMemo, useRef, useState } from "react";
 import * as S from "../ModalShell.styles";
+import { useSearchChats } from "@/hooks/useRoomChats";
 
 /* ✅ 두 MIME 모두로 setData (호환성↑) */
 const DND_MIME_RESULT = "application/x-ttibu-resultcard";
@@ -34,35 +35,68 @@ function makeDragImage(node) {
   return clone;
 }
 
+// 서버 응답 → UI 표준 아이템으로 정규화
+function normalizeResult(raw) {
+  // 서버 필드 예시 대응
+  const id =
+    raw.id ?? raw.chat_id ?? raw.room_id ?? raw.key ?? String(Math.random());
+  const question =
+    raw.question ?? raw.title ?? raw.prompt ?? raw.summary ?? `#${id}`;
+  // 답변 본문 후보
+  const answer =
+    raw.answer ??
+    raw.content ??
+    raw.preview ??
+    raw.snippet ??
+    raw.text ??
+    "";
+  const date =
+    raw.updated_at ?? raw.answered_at ?? raw.created_at ?? raw.date ?? null;
+  const tags = raw.tags ?? raw.keywords ?? [];
+
+  return { id, question, answer, date, tags, __raw: raw };
+}
+
 export function SearchContent({ onPick }) {
   // ← onSelect → onPick 사용
 
+  // 검색 입력 + 태그 칩
   const [query, setQuery] = useState("");
   const [chips, setChips] = useState(["알고리즘"]);
-  const dragImgRef = useRef(null);
-  const dragOriginRef = useRef(null);
 
-  const data = useMemo(
-    () =>
-      Array.from({ length: 8 }).map((_, i) => ({
-        id: `q${i}`,
-        question: "다익스트라 알고리즘이 뭐냐?",
-        answer: "시간 복잡도가 O(E log V)이며 우선순위 큐를 사용...",
-        date: "2025. 10. 24",
-        tags: ["알고리즘", "다익스트라", "BFS", "DFS"],
-      })),
-    []
+  // 디바운스된 키워드(칩 포함)
+  const [debounced, setDebounced] = useState("");
+  useEffect(() => {
+    const q = query.trim();
+    // 칩을 단순히 키워드에 추가: "q chip1 chip2 ..."
+    const combo = [q, ...chips].filter(Boolean).join(" ").trim();
+    const t = setTimeout(() => setDebounced(combo), 250);
+    return () => clearTimeout(t);
+  }, [query, chips]);
+
+  // 필요한 서버 필터가 있으면 body에 추가
+  const extraBody = useMemo(() => {
+    // 예: { branchId: 190, limit: 50 }
+    return {};
+  }, []);
+
+  const { data, isLoading, isFetching, isError, error } = useSearchChats(
+    debounced,
+    extraBody
   );
 
-  const filtered = data.filter((item) => {
-    const q = query.trim().toLowerCase();
-    const inText =
-      !q ||
-      item.question.toLowerCase().includes(q) ||
-      item.answer.toLowerCase().includes(q);
-    const hasAllChips = chips.every((c) => item.tags.includes(c));
-    return inText && hasAllChips;
-  });
+  // 서버 응답 스키마에 맞춰 데이터 꺼내기
+  const rawList =
+    (Array.isArray(data) && data) ||
+    data?.data ||
+    data?.results ||
+    data?.items ||
+    [];
+  const list = Array.isArray(rawList) ? rawList.map(normalizeResult) : [];
+
+  // 드래그 비주얼 관리
+  const dragImgRef = useRef(null);
+  const dragOriginRef = useRef(null);
 
   const removeChip = (label) =>
     setChips((prev) => prev.filter((c) => c !== label));
@@ -166,7 +200,30 @@ export function SearchContent({ onPick }) {
       )}
 
       <S.SearchScroll>
-        {filtered.map((item) => (
+        {/* 상태 안내 */}
+        {(isLoading || isFetching) && (
+          <div style={{ padding: 12, color: "#6b7280", fontSize: 13 }}>
+            검색 중…
+          </div>
+        )}
+        {isError && (
+          <div style={{ padding: 12, color: "#ef4444", fontSize: 13 }}>
+            검색 중 오류가 발생했어요. {error?.message || ""}
+          </div>
+        )}
+        {!isLoading &&
+          !isFetching &&
+          !isError &&
+          debounced &&
+          Array.isArray(list) &&
+          list.length === 0 && (
+            <div style={{ padding: 12, color: "#6b7280", fontSize: 13 }}>
+              검색 결과가 없어요.
+            </div>
+          )}
+
+        {/* 결과 카드 */}
+        {list.map((item) => (
           <S.ResultCard
             key={item.id}
             onClick={() => handlePick(item)} // ★ 클릭 → onPick(payload)
@@ -177,20 +234,35 @@ export function SearchContent({ onPick }) {
           >
             <S.CardHeader>
               <S.Badge tone="blue">QUESTION</S.Badge>
-              <S.MetaDate>{item.date}</S.MetaDate>
+              {item.date && (
+                <S.MetaDate>
+                  {new Date(item.date).toLocaleString()}
+                </S.MetaDate>
+              )}
             </S.CardHeader>
+
             <S.CardTitle>{item.question}</S.CardTitle>
+
             <S.CardDivider />
+
             <S.CardHeader style={{ marginTop: 10 }}>
               <S.Badge tone="gray">ANSWER</S.Badge>
-              <S.MetaDate>{item.date}</S.MetaDate>
+              {item.date && (
+                <S.MetaDate>
+                  {new Date(item.date).toLocaleString()}
+                </S.MetaDate>
+              )}
             </S.CardHeader>
-            <S.CardExcerpt>{item.answer}</S.CardExcerpt>
-            <S.TagRow>
-              {item.tags.map((t) => (
-                <S.TagPill key={t}>{t}</S.TagPill>
-              ))}
-            </S.TagRow>
+
+            {item.answer && <S.CardExcerpt>{item.answer}</S.CardExcerpt>}
+
+            {Array.isArray(item.tags) && item.tags.length > 0 && (
+              <S.TagRow>
+                {item.tags.map((t) => (
+                  <S.TagPill key={String(t)}>{String(t)}</S.TagPill>
+                ))}
+              </S.TagRow>
+            )}
           </S.ResultCard>
         ))}
       </S.SearchScroll>

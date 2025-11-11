@@ -21,7 +21,7 @@ export function useRooms(params) {
   });
 }
 
-/* ---------------------- 상세 조회 ---------------------- */
+/* ---------------------- 채팅 + 브랜치 정보 조회 ---------------------- */
 export function useRoom(roomId) {
   return useQuery({
     queryKey: rk.detail(roomId),

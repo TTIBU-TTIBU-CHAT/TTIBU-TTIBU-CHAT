@@ -1,19 +1,18 @@
 // src/routes/.../ChatFlowPage.jsx
-import { useCallback, useRef, useState } from "react";
-import { useParams } from "@tanstack/react-router";
+import { useCallback, useRef, useState, useEffect } from "react";
+import { useParams, useRouterState } from "@tanstack/react-router";
 import { useChatList } from "@/hooks/useChatList";
 import BranchDropdown from "@/components/BranchDropdown/BranchDropdown";
 import TopleftCard from "@/components/topleftCard/TopleftCard";
 import ModalShell from "@/components/ModalShell/ModalShell";
-import FlowCanvas from "@/components/Chatflow/FlowCanvas";
+import FlowCanvas from "@/components/ChatFlow/FlowCanvas"; // ★ 경로 확인 (Flow/FlowCanvas)
 import * as S from "./-styles.ChatFlowPage";
 import InputDialog from "@/components/common/Modal/InputDialog";
 import ErrorDialog from "@/components/common/Modal/ErrorDialog";
-import { useRouterState } from "@tanstack/react-router";
+import { useRoom } from "@/hooks/useChatRooms";
 
-/* ===== 로컬 스토리지 헬퍼 ===== */
-const LS_BRANCH_BY_NODE = "ttibu-branch-by-node"; // { [nodeId]: branchName }
-const LS_PENDING_MSGS = "ttibu-pending-msgs"; // [{ nodeId, text, ts, branchName }]
+const LS_BRANCH_BY_NODE = "ttibu-branch-by-node";
+const LS_PENDING_MSGS = "ttibu-pending-msgs";
 
 function loadJSON(key, fallback) {
   try {
@@ -30,7 +29,29 @@ function saveJSON(key, value) {
 }
 
 export default function ChatFlowPage() {
+  // ✅ URL: /chatrooms/$roomId  라우트에서 roomId를 바로 받는다
   const { nodeId } = useParams({ strict: false });
+  const [roomId,setRoomId] = useState(nodeId);
+  console.log("ChatFlowPage roomId:", roomId);
+
+  // 상세 조회
+  const {
+    data: roomData,
+    isLoading: roomLoading,
+    error: roomError,
+  } = useRoom(roomId);
+  console.log("useRoom data:", roomData);
+  // 로딩/성공/에러 콘솔 출력
+  useEffect(() => {
+    if (!roomId) {
+      console.log("[useRoom] roomId 없음 → 호출 안 함");
+      return;
+    }
+    if (roomLoading) console.log(`[useRoom] 로딩중... roomId=${roomId}`);
+    if (roomError) console.error("[useRoom] 에러:", roomError);
+    if (roomData) console.log("[useRoom] 성공:", roomData);
+  }, [roomId, roomLoading, roomError, roomData]);
+
   const { messages, addUser, addAssistant } = useChatList([
     {
       id: "u1",
@@ -43,13 +64,13 @@ export default function ChatFlowPage() {
       role: "assistant",
       content: "다익스트라 알고리즘의 예시입니다.",
       ts: Date.now() - 1000,
-      model: "Claude-Sonnet-4"
+      model: "Claude-Sonnet-4",
     },
   ]);
 
   const routerState = useRouterState();
   const pathname = routerState.location.pathname;
-  const isGroups = pathname.startsWith("/groups"); // ★ /groups 여부
+  const isGroups = pathname.startsWith("/groups");
 
   const [input, setInput] = useState("");
   const [editingNodeId, setEditingNodeId] = useState(null);
@@ -65,20 +86,16 @@ export default function ChatFlowPage() {
   const [selectedCount, setSelectedCount] = useState(0);
   const [hasGroupInSelection, setHasGroupInSelection] = useState(false);
 
-  // 그룹명 모달
   const [groupModalOpen, setGroupModalOpen] = useState(false);
   const [groupName, setGroupName] = useState("");
 
-  // 브랜치명 모달
   const [branchModalOpen, setBranchModalOpen] = useState(false);
   const [branchNameInput, setBranchNameInput] = useState("");
-  const branchPromptResolverRef = useRef(null); // Promise resolver 저장
+  const branchPromptResolverRef = useRef(null);
 
-  // (+)로 생성한 임시 노드 id
   const [pendingNodeId, setPendingNodeId] = useState(null);
   const [pendingSource, setPendingSource] = useState(null);
 
-  // 에러 다이얼로그
   const [errorOpen, setErrorOpen] = useState(false);
   const [errorMsg, setErrorMsg] = useState("");
 
@@ -89,7 +106,6 @@ export default function ChatFlowPage() {
     setErrorOpen(true);
   }, []);
 
-  /* ===== 채팅 전송 + 로컬 보관 ===== */
   const handleSend = useCallback(() => {
     const t = input.trim();
     if (!t) return;
@@ -99,10 +115,8 @@ export default function ChatFlowPage() {
     setTimeout(() => addAssistant("응답: " + t), 300);
 
     if (editingNodeId) {
-      // 노드 라벨 업데이트
       canvasRef.current?.updateNodeLabel(editingNodeId, t);
 
-      // 로컬 대기 큐에 적재 (백엔드 미구현이므로 저장만)
       const branchMap = loadJSON(LS_BRANCH_BY_NODE, {});
       const pending = loadJSON(LS_PENDING_MSGS, []);
       pending.push({
@@ -115,32 +129,24 @@ export default function ChatFlowPage() {
     }
   }, [input, addUser, addAssistant, editingNodeId]);
 
-  /* ===== 초기화 ===== */
   const handleInit = () => canvasRef.current?.reset();
 
-  /* ===== 저장: 루트 1개 & 임시노드 0개 검증 ===== */
   const handleSave = useCallback(() => {
     const result = canvasRef.current?.validateForSave?.();
     if (!result) return;
-
     if (!result.ok) {
       setErrorMsg(result.errors.join("\n"));
       setErrorOpen(true);
       return;
     }
-
-    // ✅ 통과 시 실제 저장 로직 실행
     console.log("✅ 검증 통과! 저장 진행");
-    // TODO: saveGraph API 호출 등으로 연결
   }, []);
 
-  /* ===== 보기 모드에서 노드 클릭 → Search 패널 열기 ===== */
   const openSearchPanel = () => {
     setPanelType("search");
     setPanelOpen(true);
   };
 
-  /* ===== 새 노드 만들 때: plus면 Search 패널 열고 pending 설정 / dnd면 스킵 ===== */
   const handleCreateNode = useCallback(
     (newNodeId, payload, meta) => {
       if (meta?.source === "plus") {
@@ -153,7 +159,6 @@ export default function ChatFlowPage() {
     [isGroups]
   );
 
-  /* ===== Search/Group에서 항목 선택 → pending 노드에 적용 ===== */
   const handlePick = useCallback(
     (payload) => {
       if (pendingNodeId) {
@@ -166,31 +171,26 @@ export default function ChatFlowPage() {
     [pendingNodeId]
   );
 
-  /* ===== 빈 노드 클릭 시: 해당 노드를 펜딩 타깃으로 사용 ===== */
   const handleEmptyNodeClick = useCallback(
     (nodeId) => {
       if (!nodeId) return;
       setPendingNodeId(nodeId);
       setPendingSource("emptyClick");
-      setPanelType(isGroups ? "search" : "search");
+      setPanelType("search");
       setPanelOpen(true);
     },
     [isGroups]
   );
 
-  /* ===== 패널 닫기: pending 노드가 남아있으면 취소(삭제) ===== */
   const handleClosePanel = useCallback(() => {
     setPanelOpen(false);
     if (pendingNodeId && pendingSource === "plus") {
-      // '+'로 만든 임시노드는 닫으면 롤백
       canvasRef.current?.discardTempNode(pendingNodeId);
     }
-    // 빈 노드 클릭으로 연 건 삭제하지 않음
     setPendingNodeId(null);
     setPendingSource(null);
   }, [pendingNodeId, pendingSource]);
 
-  // 버튼 노출: 그룹 포함 시 숨김
   const showGroupButton = editMode && selectedCount > 1 && !hasGroupInSelection;
 
   const branchItems = ["전체", "브랜치-1", "브랜치-2", "브랜치-3"].map((v) => ({
@@ -198,7 +198,6 @@ export default function ChatFlowPage() {
     active: v === branch,
   }));
 
-  /* ====== 그룹명 모달 ====== */
   const openGroupModal = () => {
     setGroupName("");
     setGroupModalOpen(true);
@@ -210,11 +209,9 @@ export default function ChatFlowPage() {
     setGroupModalOpen(false);
   };
 
-  /* ====== 브랜치명 모달 (Promise 기반) ====== */
   const askBranchName = useCallback((parentId, newNodeId) => {
     setBranchNameInput("");
     setBranchModalOpen(true);
-
     return new Promise((resolve) => {
       branchPromptResolverRef.current = resolve;
     });
@@ -238,7 +235,6 @@ export default function ChatFlowPage() {
     }
   };
 
-  /* ===== FlowCanvas가 브랜치명 확정 통지 → 로컬 저장 ===== */
   const handleBranchSaved = useCallback((newNodeId, parentId, name) => {
     const map = loadJSON(LS_BRANCH_BY_NODE, {});
     map[newNodeId] = name;
@@ -269,7 +265,6 @@ export default function ChatFlowPage() {
         </S.TopCenterActionBar>
       )}
 
-      {/* 검색/그룹/채팅 패널 */}
       <ModalShell
         open={panelOpen}
         onOpen={() => setPanelOpen(true)}
@@ -285,7 +280,6 @@ export default function ChatFlowPage() {
         onPick={handlePick}
       />
 
-      {/* 그룹명 입력 모달 */}
       <InputDialog
         open={groupModalOpen}
         title="그룹명 입력"
@@ -296,7 +290,6 @@ export default function ChatFlowPage() {
         onConfirm={confirmGroupName}
       />
 
-      {/* 브랜치명 입력 모달 */}
       <InputDialog
         open={branchModalOpen}
         title="브랜치명 입력"
@@ -307,7 +300,6 @@ export default function ChatFlowPage() {
         onConfirm={confirmBranchModal}
       />
 
-      {/* 에러 다이얼로그 */}
       <ErrorDialog
         open={errorOpen}
         title="알림"
@@ -315,6 +307,7 @@ export default function ChatFlowPage() {
         onClose={() => setErrorOpen(false)}
       />
 
+      {/* ✅ ReactFlow에는 아직 주입하지 않고, FlowCore까지 전달만 해서 콘솔 출력 */}
       <FlowCanvas
         ref={canvasRef}
         editMode={editMode}
@@ -325,7 +318,6 @@ export default function ChatFlowPage() {
           setHasGroupInSelection(!!containsGroup);
         }}
         onNodeClickInViewMode={(nodeId, meta) => {
-          // 뷰 모드에서 빈 노드라면 곧바로 search 열어서 꽂을 수도 있음(선택)
           if (meta?.empty) {
             handleEmptyNodeClick(nodeId);
             return;
@@ -349,6 +341,11 @@ export default function ChatFlowPage() {
         askBranchName={askBranchName}
         onBranchSaved={handleBranchSaved}
         onError={handleCoreError}
+        // ★ 전달만
+        roomId={roomId}
+        roomData={roomData}
+        roomLoading={roomLoading}
+        roomError={roomError}
       />
     </S.Page>
   );

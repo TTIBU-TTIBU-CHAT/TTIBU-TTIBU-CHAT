@@ -5,7 +5,7 @@ import { chatService } from '@/services/chatService';
 const rk = {
   roomDetail: (roomId) => ['rooms', 'detail', roomId], // 방 상세/캔버스 데이터 등
   roomChats:  (roomId) => ['rooms', 'chats', roomId],  // 방 채팅 리스트(있다면)
-  search:     (q)      => ['chats', 'search', q],      // 검색 결과
+  search:     (q)      => ['chats', 'search', q ?? ''],      // 검색 결과
 };
 
 /** 그룹 붙이기: POST /rooms/{roomId}/attach-group */

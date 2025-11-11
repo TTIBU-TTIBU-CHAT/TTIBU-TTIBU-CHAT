@@ -69,9 +69,32 @@ const FlowCore = forwardRef(function FlowCore(
     askBranchName,
     onBranchSaved,
     onError,
+    roomId,
+    roomData,
+    roomLoading,
+    roomError,
   },
   ref
 ) {
+  // ----- ★ 여기서 콘솔 로깅만 -----
+  useEffect(() => {
+    if (roomId) console.log("[FlowCore] roomId:", roomId);
+  }, [roomId]);
+
+  useEffect(() => {
+    if (roomLoading) console.log("[FlowCore] useRoom 로딩중…");
+  }, [roomLoading]);
+
+  useEffect(() => {
+    if (roomError) console.error("[FlowCore] useRoom 에러:", roomError);
+  }, [roomError]);
+
+  useEffect(() => {
+    if (roomData) {
+      // 필요하면 원하는 필드만 보자: roomData.room, roomData.chats 등
+      console.log("[FlowCore] useRoom 데이터 수신:", roomData);
+    }
+  }, [roomData]);
   const nodeTypes = useMemo(() => ({ qa: QaNode }), []);
   const edgeTypes = useMemo(() => ({ deletable: DeletableEdge }), []);
   const rf = useReactFlow();
@@ -289,7 +312,7 @@ const FlowCore = forwardRef(function FlowCore(
         (e) => e.source !== lastSelectedId && e.target !== lastSelectedId
       );
 
-    if (incoming.length === 1) {
+      if (incoming.length === 1) {
         const parentId = incoming[0].source;
         const reattached = outgoing
           .map((e) => ({ s: parentId, t: e.target }))
@@ -465,7 +488,13 @@ const FlowCore = forwardRef(function FlowCore(
       discardTempNode,
       validateForSave, // ★ 저장 검증 노출
     }),
-    [reset, updateNodeLabel, applyContentToNode, discardTempNode, validateForSave]
+    [
+      reset,
+      updateNodeLabel,
+      applyContentToNode,
+      discardTempNode,
+      validateForSave,
+    ]
   );
 
   /* 변경 감지 → Reset 가능 여부 */
