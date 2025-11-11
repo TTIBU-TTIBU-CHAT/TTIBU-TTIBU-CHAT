@@ -178,8 +178,10 @@ public class ChatServiceImpl implements ChatService {
                                         log.info("[STEP 2] 짧은 요약 생성 완료: {}", result.getTitle());
 
                                         // 방 이름 업데이트
-                                        room.updateName(result.getTitle());
-                                        roomRepository.save(room);
+                                        Room freshRoom = roomRepository.findById(room.getRoomUid())
+                                                .orElseThrow(() -> new ApiException(ErrorCode.ROOM_NOT_FOUND));
+                                        freshRoom.updateName(result.getTitle());
+                                        roomRepository.saveAndFlush(freshRoom);
 
                                         Map<String, Object> payload = new LinkedHashMap<>();
                                         payload.put("room_id", room.getRoomUid());
