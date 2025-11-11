@@ -3,9 +3,14 @@ import { chatService } from '@/services/chatService';
 
 // 쿼리키 헬퍼
 const rk = {
-  roomDetail: (roomId) => ['rooms', 'detail', roomId], // 방 상세/캔버스 데이터 등
-  roomChats:  (roomId) => ['rooms', 'chats', roomId],  // 방 채팅 리스트(있다면)
-  search:     (q)      => ['chats', 'search', q],      // 검색 결과
+  roomDetail: (roomId) => ['rooms', 'detail', roomId],
+  roomChats:  (roomId) => ['rooms', 'chats', roomId],
+  // ✅ 배열/페이지를 객체로 묶어 캐시 키 안정화
+  search:     (keywords = [], page = 0, size = 20) => [
+    'chats',
+    'search',
+    { keywords: [...keywords], page, size },
+  ],
 };
 
 /** 그룹 붙이기: POST /rooms/{roomId}/attach-group */
@@ -14,7 +19,6 @@ export function useAttachGroup() {
   return useMutation({
     mutationFn: (vars) => chatService.attachGroup(vars),
     onSuccess: (_res, vars) => {
-      // 방 상세/뷰가 있다면 무효화해서 최신 반영
       if (vars?.roomId) {
         qc.invalidateQueries({ queryKey: rk.roomDetail(vars.roomId) });
         qc.invalidateQueries({ queryKey: rk.roomChats(vars.roomId) });
@@ -42,17 +46,6 @@ export function useCreateChat() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (vars) => chatService.createChat(vars),
-    // 필요하면 낙관적 업데이트 추가 가능 (주석 참고)
-    // onMutate: async ({ roomId, text }) => {
-    //   await qc.cancelQueries({ queryKey: rk.roomChats(roomId) });
-    //   const prev = qc.getQueryData(rk.roomChats(roomId));
-    //   const optimistic = { id: `tmp-${Date.now()}`, text, optimistic: true };
-    //   if (prev) qc.setQueryData(rk.roomChats(roomId), [...prev, optimistic]);
-    //   return { prev };
-    // },
-    // onError: (_e, { roomId }, ctx) => {
-    //   if (ctx?.prev) qc.setQueryData(rk.roomChats(roomId), ctx.prev);
-    // },
     onSuccess: (_res, vars) => {
       if (vars?.roomId) {
         qc.invalidateQueries({ queryKey: rk.roomChats(vars.roomId) });
@@ -62,15 +55,21 @@ export function useCreateChat() {
   });
 }
 
-/** 채팅 검색: POST /chats?keyword= */
-export function useSearchChats(keyword, body) {
+/** ✅ 채팅 검색: GET /api/v1/chats?k=&k=&page=&size= */
+export function useSearchChats(keywords = [], page = 0, size = 20) {
+  const enabled = Array.isArray(keywords) && keywords.length > 0;
+  console.log("useSearchChats called with:", { keywords, page, size, enabled });
   return useQuery({
-    queryKey: rk.search(keyword ?? ''),
+    queryKey: rk.search(keywords, page, size),
     queryFn: async () => {
-      const res = await chatService.searchChats({ keyword, ...(body || {}) });
-      return res.data; // 서버 응답 스키마에 맞춰 사용
+      const json = await chatService.searchChats({ keywords, page, size });
+      // 서버 래핑: { status, data }
+      console.log("Search response:", json);
+      if (json?.status === 'success') return json.data; // Page<SearchedResultInfo>
+      const reason = json?.data?.reason || json?.message || '검색 요청에 실패했습니다.';
+      throw new Error(reason);
     },
-    enabled: !!keyword, // 키워드가 있을 때만 실행
+    enabled,
     staleTime: 30_000,
   });
 }

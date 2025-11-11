@@ -1,27 +1,29 @@
+// services/chatRoomService.js
 import { api } from "@services/api";
 
 export const chatRoomService = {
-  createRoom: (payload) => api.post("/rooms", payload), // 새 채팅방 생성
+  // 방 생성(반드시 sessionUuid를 body에 포함)
+  createRoom: (payload) => api.post("/rooms", payload),
 
-  listRooms: (params) => api.get("/rooms", { params }), // 채팅방 리스트 조회
+  listRooms: (params) => api.get("/rooms", { params }),
+  getRoom: (roomId) => api.get(`/rooms/${roomId}`),
+  saveRoomData: ({ roomId, ...body }) => api.post(`/rooms/${roomId}`, body),
+  renameRoom: ({ roomId, name }) => api.patch(`/rooms/${roomId}/name`, { name }),
+  deleteRoom: (roomId) => api.delete(`/rooms/${roomId}`),
 
-  getRoom: (roomId) => api.get(`/rooms/${roomId}`), // 채팅 + 브랜치 정보 조회
-
-  saveRoomData: ({ roomId, ...body }) => api.post(`/rooms/${roomId}`, body), // 채팅 + 브랜치 정보 저장
-
-  renameRoom: ({ roomId, name }) =>
-    api.patch(`/rooms/${roomId}/name`, { name }), // 채팅방 이름 수정
-
-  deleteRoom: (roomId) => api.delete(`/rooms/${roomId}`), // 채팅방 삭제
-
-  openStream: (roomId) => {
-    // SSE 연결 생성
+  /**
+   * ✅ SSE는 sessionUuid로만 연다
+   * GET /chats/stream/session/{sessionUuid}
+   */
+  openStream: (sessionUuid) => {
+    if (!sessionUuid) throw new Error("openStream requires sessionUuid");
     const base = import.meta.env.VITE_API_BASE_URL ?? "/api/v1";
-    console.log("SSE 연결 URL:", `${base}/chats/stream/${roomId}`);
-    return new EventSource(`${base}/chats/stream/${roomId}`, {
-      withCredentials: true,
-    });
+    const url = `${base}/chats/stream/session/${sessionUuid}`;
+    console.log("SSE 연결 URL:", url);
+    return new EventSource(url, { withCredentials: true });
   },
 
-  closeStream: (roomId) => api.delete(`/chats/stream/${roomId}`), // SSE 연결 종료
+  // 선택: 서버가 종료 API 제공하면 사용
+  closeStreamBySession: (sessionUuid) =>
+    api.delete(`/chats/stream/session/${sessionUuid}`),
 };
