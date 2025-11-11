@@ -1,0 +1,14 @@
+FROM postgres:15-bookworm
+
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends \
+      build-essential git ca-certificates postgresql-server-dev-15 \
+ && rm -rf /var/lib/apt/lists/*
+
+RUN git clone --depth 1 https://github.com/pgbigm/pg_bigm.git /tmp/pg_bigm \
+ && make -C /tmp/pg_bigm USE_PGXS=1 \
+ && make -C /tmp/pg_bigm USE_PGXS=1 install \
+ && rm -rf /tmp/pg_bigm
+
+RUN mkdir -p /docker-entrypoint-initdb.d \
+ && printf 'CREATE EXTENSION IF NOT EXISTS pg_bigm;\n' > /docker-entrypoint-initdb.d/001_pg_bigm.sql

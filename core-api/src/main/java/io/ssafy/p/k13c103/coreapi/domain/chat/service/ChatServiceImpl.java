@@ -6,6 +6,7 @@ import io.ssafy.p.k13c103.coreapi.common.error.ApiException;
 import io.ssafy.p.k13c103.coreapi.common.error.ErrorCode;
 import io.ssafy.p.k13c103.coreapi.common.sse.SseEmitterManager;
 import io.ssafy.p.k13c103.coreapi.config.properties.AiProcessingProperties;
+import io.ssafy.p.k13c103.coreapi.domain.chat.dto.ChatResponseDto;
 import io.ssafy.p.k13c103.coreapi.domain.chat.dto.ChatSseEvent;
 import io.ssafy.p.k13c103.coreapi.domain.chat.entity.Chat;
 import io.ssafy.p.k13c103.coreapi.domain.chat.enums.ChatSseEventType;
@@ -13,19 +14,20 @@ import io.ssafy.p.k13c103.coreapi.domain.chat.repository.ChatRepository;
 import io.ssafy.p.k13c103.coreapi.domain.llm.AiAsyncClient;
 import io.ssafy.p.k13c103.coreapi.domain.llm.LiteLlmWebClient;
 import io.ssafy.p.k13c103.coreapi.domain.llm.LlmStreamParser;
+import io.ssafy.p.k13c103.coreapi.domain.member.repository.MemberRepository;
 import io.ssafy.p.k13c103.coreapi.domain.room.entity.Room;
 import io.ssafy.p.k13c103.coreapi.domain.room.repository.RoomRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 import reactor.core.publisher.Flux;
 
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
 
@@ -36,6 +38,7 @@ public class ChatServiceImpl implements ChatService {
 
     private final ChatRepository chatRepository;
     private final RoomRepository roomRepository;
+    private final MemberRepository memberRepository;
     private final SseEmitterManager sseEmitterManager;
     private final LiteLlmWebClient liteLlmWebClient;
     private final LlmStreamParser llmStreamParser;
@@ -43,6 +46,24 @@ public class ChatServiceImpl implements ChatService {
     private final ObjectMapper objectMapper;
     private final Executor aiTaskExecutor;  // 동일 스레드풀 명시적으로 주입
     private final AiProcessingProperties aiProcessingProperties;
+
+    @Override
+    @Transactional(readOnly = true)
+    public Page<ChatResponseDto.SearchedResultInfo> searchByKeywords(List<String> keywords, Pageable pageable, Long memberUid) {
+        if (!memberRepository.existsById(memberUid))
+            throw new ApiException(ErrorCode.MEMBER_NOT_FOUND);
+
+        if (keywords == null || keywords.isEmpty())
+            throw new ApiException(ErrorCode.EMPTY_SEARCH_KEYWORD);
+        else if (keywords.size() > 10)
+            throw new ApiException(ErrorCode.TOO_MANY_SEARCH_KEYWORD);
+
+        String[] array = convertToArray(keywords);
+
+        Page<Chat> page = chatRepository.searchByAllKeywords(memberUid, array, pageable);
+
+        return page.map(chat -> new ChatResponseDto.SearchedResultInfo(chat));
+    }
 
     /**
      * 채팅 처리 비동기 실행
@@ -270,5 +291,24 @@ public class ChatServiceImpl implements ChatService {
             log.warn("[ChatService] 키워드 직렬화 실패: {}", e.getMessage());
             return "[]";
         }
+    }
+
+    private String[] convertToArray(List<String> keywords) {
+        if (keywords == null) return new String[0];
+
+        Set<String> set = new LinkedHashSet<>();
+        for (String k : keywords) {
+            if (k == null) continue;
+            k = k.trim();
+            if (k.isEmpty()) continue;
+            k=k.toLowerCase(Locale.ROOT); // 소문자 통일
+            set.add(k);
+        }
+
+        String arr[] = new String[set.size()];
+        int idx = 0;
+        for (String s : set)
+            arr[idx++] = s;
+        return arr;
     }
 }

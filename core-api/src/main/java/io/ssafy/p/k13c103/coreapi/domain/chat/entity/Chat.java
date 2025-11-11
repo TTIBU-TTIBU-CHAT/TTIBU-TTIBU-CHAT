@@ -33,9 +33,9 @@ public class Chat extends BaseTimeEntity {
     @JoinColumn(name = "group_id")
     private Group group;
 
-     @ManyToOne(fetch = FetchType.LAZY)
-     @JoinColumn(name = "model_catalog_uid")
-     private ModelCatalog modelCatalog;
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "model_catalog_uid")
+    private ModelCatalog modelCatalog;
 
     @Column(columnDefinition = "TEXT")
     private String question;
@@ -48,6 +48,14 @@ public class Chat extends BaseTimeEntity {
 
     @Column(columnDefinition = "TEXT")
     private String keywords;
+
+    // 검색 인덱스(GIN) 적용
+    @Column(name = "search_content", columnDefinition = "TEXT")
+    private String searchContent;
+
+    // N+1 방지용
+    @Column(name = "model_catalog_uid", insertable = false, updatable = false)
+    private Long modelCatalogUid;
 
     @Column(name = "origin_id")
     private Long originId;
@@ -75,6 +83,7 @@ public class Chat extends BaseTimeEntity {
                 .question(question)
                 .status(ChatStatus.QUESTION)
                 .chatType(ChatType.CHAT)
+                .modelCatalogUid(modelCatalog.getModelUid())
                 .build();
     }
 
@@ -91,9 +100,11 @@ public class Chat extends BaseTimeEntity {
                 .answer(origin.getAnswer())
                 .summary(origin.getSummary())
                 .keywords(origin.getKeywords())
+                .searchContent(origin.getSearchContent())
                 .originId(origin.getChatUid())
                 .status(origin.getStatus())
                 .chatType(ChatType.CHAT)
+                .modelCatalogUid(origin.getModelCatalogUid())
                 .build();
     }
 
@@ -107,6 +118,7 @@ public class Chat extends BaseTimeEntity {
         this.answer = answer;
         this.status = ChatStatus.ANSWER;
         this.answeredAt = LocalDateTime.now();
+        updateSearchContent();
     }
 
     /**
@@ -120,5 +132,9 @@ public class Chat extends BaseTimeEntity {
         this.keywords = keywords;
         this.status = ChatStatus.SUMMARY_KEYWORDS;
         this.updatedAt = LocalDateTime.now();
+    }
+
+    public void updateSearchContent() {
+        this.searchContent = String.join(" ", this.question, this.answer);
     }
 }
