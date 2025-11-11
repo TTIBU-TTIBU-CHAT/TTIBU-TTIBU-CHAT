@@ -35,6 +35,8 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import java.util.*;
 import java.util.stream.Collectors;
@@ -161,11 +163,15 @@ public class RoomServiceImpl implements RoomService {
         chatRepository.save(newChat);
         createdChats.add(newChat);
 
-        // SSE: ROOM_CREATED
-        sendRoomCreatedEvent(room, createdChats, request.getBranchId());
-
-        // 트랜잭션 커밋 이후 비동기 실행하도록 분리
-        asyncChatProcessor.processAsync(newChat, request, decryptedKey);
+        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+            @Override
+            public void afterCommit() {
+                // 1. 커밋 이후 ROOM_CREATED 이벤트 전송
+                sendRoomCreatedEvent(room, createdChats, request.getBranchId());
+                // 2. 커밋 이후 비동기 처리 시작
+                asyncChatProcessor.processAsync(newChat.getChatUid(), request, decryptedKey);
+            }
+        });
 
         return room.getRoomUid();
     }
