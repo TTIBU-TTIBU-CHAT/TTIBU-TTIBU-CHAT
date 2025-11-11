@@ -19,7 +19,6 @@ export default function LoginForm() {
 
   const handleChange = (e) => {
     setForm({ ...form, [e.target.name]: e.target.value})
-    console.log('나 바뀌는 중임')
     setError('')
   }
 
