@@ -110,7 +110,7 @@ public class RoomServiceImpl implements RoomService {
                                     .orElseThrow(() -> new ApiException(ErrorCode.GROUP_NOT_FOUND));
 
                             // 그룹 내 채팅들 조회
-                            List<Chat> groupChats = chatRepository.findAllByGroup_GroupUid(originGroup.getGroupUid());
+                            List<Chat> groupChats = chatRepository.findAllByGroup_GroupUidAndChatType(originGroup.getGroupUid(), ChatType.GROUP);
                             if (groupChats.isEmpty()) {
                                 log.warn("[ROOM] 그룹 내 채팅이 없음 - groupId={}", originGroup.getGroupUid());
                             }

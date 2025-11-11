@@ -69,4 +69,15 @@ public class GroupController {
         List<GroupListResponseDto> response = groupService.getGroups(member.getMemberUid());
         return ResponseEntity.ok(JSend.success(response));
     }
+
+    @Operation(summary = "그룹 상세 조회", description = "특정 그룹의 상세 정보를 조회합니다. 복제된 채팅 노드 및 원본 노드 정보를 함께 반환합니다.")
+    @GetMapping("/{groupId}")
+    public ResponseEntity<JSend> getGroupDetail(
+            @AuthenticationPrincipal CustomMemberDetails member,
+            @PathVariable Long groupId
+    ) {
+        GroupDetailResponseDto response = groupService.getGroupDetail(member.getMemberUid(), groupId);
+        return ResponseEntity.ok(JSend.success(response));
+    }
+
 }

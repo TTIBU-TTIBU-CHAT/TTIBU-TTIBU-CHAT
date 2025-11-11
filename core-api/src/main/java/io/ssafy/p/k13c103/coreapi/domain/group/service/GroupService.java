@@ -15,4 +15,6 @@ public interface GroupService {
     void deleteGroup(Long memberId, Long groupId);
 
     List<GroupListResponseDto> getGroups(Long memberId);
+
+    GroupDetailResponseDto getGroupDetail(Long memberId, Long groupId);
 }
