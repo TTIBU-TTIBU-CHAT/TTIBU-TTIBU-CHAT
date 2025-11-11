@@ -28,5 +28,7 @@ public interface RoomRepository extends JpaRepository<Room, Long> {
             """)
     List<RoomResponseDto.RoomListInfo> findRoomListWithLastChat(Long memberUid);
 
+    int deleteByRoomUidAndOwner_MemberUid(Long roomUid, Long memberUid);
+
 }
 

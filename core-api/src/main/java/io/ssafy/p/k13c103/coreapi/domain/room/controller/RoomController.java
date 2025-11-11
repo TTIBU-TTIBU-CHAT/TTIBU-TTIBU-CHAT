@@ -61,6 +61,15 @@ public class RoomController {
         return ResponseEntity.ok(JSend.success(response));
     }
 
+    @Operation(summary = " 채팅방 삭제", description = "")
+    @DeleteMapping("/{roomId}")
+    public ResponseEntity<JSend> delete(@PathVariable Long roomId, @AuthenticationPrincipal CustomMemberDetails member) {
+
+        roomService.delete(roomId, member.getMemberUid());
+
+        return ResponseEntity.status(HttpStatus.OK).body(JSend.success("채팅방 삭제 완료"));
+    }
+
     @Operation(summary = "기존 Room에 새 채팅 생성", description = "기존 채팅방 내 특정 노드(parent_id)에 새 질문을 추가합니다.")
     @PostMapping("/{roomId}/chats")
     public ResponseEntity<JSend> createChatInRoom(

@@ -15,6 +15,8 @@ public interface RoomService {
 
     List<RoomResponseDto.RoomListInfo> getList(Long memberUid);
 
+    void delete(Long roomUid, Long memberUid);
+
     void isOwner(Long memberId, Long roomId);
 
     RoomRenameResponseDto updateRoomName(Long memberId, Long roomId, RoomRenameRequestDto request);

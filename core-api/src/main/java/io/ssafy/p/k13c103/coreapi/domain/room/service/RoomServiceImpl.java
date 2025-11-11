@@ -195,6 +195,21 @@ public class RoomServiceImpl implements RoomService {
     }
 
     @Override
+    @Transactional
+    public void delete(Long roomUid, Long memberUid) {
+        if (!memberRepository.existsById(memberUid))
+            throw new ApiException(ErrorCode.MEMBER_NOT_FOUND);
+
+        if (!roomRepository.existsById(roomUid))
+            throw new ApiException(ErrorCode.ROOM_NOT_FOUND);
+
+        chatRepository.detachGroupChats(roomUid);
+        chatRepository.deleteChatsByRoom(roomUid);
+
+        roomRepository.deleteByRoomUidAndOwner_MemberUid(roomUid, memberUid);
+    }
+
+    @Override
     public void isOwner(Long memberId, Long roomId) {
         Room room = roomRepository.findById(roomId)
                 .orElseThrow(() -> new ApiException(ErrorCode.ROOM_NOT_FOUND));
