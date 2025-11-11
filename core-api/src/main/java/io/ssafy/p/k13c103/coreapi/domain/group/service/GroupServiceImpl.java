@@ -90,7 +90,7 @@ public class GroupServiceImpl implements GroupService {
         }
 
         if (request.getNodes() != null && !request.getNodes().isEmpty()) {
-            chatRepository.deleteAllByGroup_GroupUid(groupId);
+            chatRepository.deleteAllGroupCopies(groupId);
 
             List<Chat> originChats = chatRepository.findAllById(request.getNodes());
             List<Chat> copiedChats = originChats.stream()
@@ -124,8 +124,11 @@ public class GroupServiceImpl implements GroupService {
         groupRepository.save(group);
 
         List<Long> originIds = request.getNodes() != null ? request.getNodes() : List.of();
-        List<Long> copiedIds = chatRepository.findAllByGroup_GroupUid(groupId)
-                .stream().map(Chat::getChatUid).toList();
+        List<Long> copiedIds = chatRepository
+                .findAllByGroup_GroupUidAndChatType(groupId, ChatType.GROUP)
+                .stream()
+                .map(Chat::getChatUid)
+                .toList();
 
         return GroupResponseDto.builder()
                 .groupId(group.getGroupUid())
@@ -188,6 +191,41 @@ public class GroupServiceImpl implements GroupService {
                         .updatedAt(group.getUpdatedAt())
                         .build())
                 .toList();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public GroupDetailResponseDto getGroupDetail(Long memberId, Long groupId) {
+        Member member = memberRepository.findById(memberId)
+                .orElseThrow(() -> new ApiException(ErrorCode.MEMBER_NOT_FOUND));
+
+        Group group = groupRepository.findById(groupId)
+                .orElseThrow(() -> new ApiException(ErrorCode.GROUP_NOT_FOUND));
+
+        if (!group.getOwner().getMemberUid().equals(memberId)) {
+            throw new ApiException(ErrorCode.GROUP_FORBIDDEN);
+        }
+
+        List<Chat> copiedChats = chatRepository.findAllByGroup_GroupUidAndChatType(groupId, ChatType.GROUP);
+
+        return GroupDetailResponseDto.builder()
+                .groupId(group.getGroupUid())
+                .name(group.getName())
+                .originNodes(copiedChats.stream().map(Chat::getOriginId).toList())
+                .copiedNodes(copiedChats.stream().map(Chat::getChatUid).toList())
+                .createdAt(group.getCreatedAt())
+                .updatedAt(group.getUpdatedAt())
+                .originNodeDetails(copiedChats.stream()
+                        .map(chat -> NodeDetail.builder()
+                                .nodeId(chat.getOriginId())
+                                .question(chat.getQuestion())
+                                .answer(chat.getAnswer())
+                                .summary(chat.getSummary())
+                                .keywords(parseKeywords(chat.getKeywords()))
+                                .build())
+                        .toList()
+                )
+                .build();
     }
 
     private List<String> parseKeywords(String keywordsJson) {
