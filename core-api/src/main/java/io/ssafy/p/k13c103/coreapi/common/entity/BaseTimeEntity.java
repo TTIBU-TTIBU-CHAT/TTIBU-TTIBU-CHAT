@@ -13,6 +13,7 @@ import java.time.LocalDateTime;
 @Getter
 @MappedSuperclass
 public abstract class BaseTimeEntity {
+
     @CreatedDate
     @Column(name = "created_at", nullable = false, updatable = false)
     protected LocalDateTime createdAt;
@@ -23,12 +24,29 @@ public abstract class BaseTimeEntity {
 
     @PrePersist
     public void prePersist() {
-        this.createdAt = LocalDateTime.now();
-        this.updatedAt = this.createdAt;
+        if (this.createdAt == null) {
+            this.createdAt = LocalDateTime.now();
+        }
+        if (this.updatedAt == null) {
+            this.updatedAt = this.createdAt;
+        }
     }
 
     @PreUpdate
     public void preUpdate() {
         this.updatedAt = LocalDateTime.now();
+    }
+
+    public void setCreatedAtManually(LocalDateTime createdAt) {
+        this.createdAt = createdAt;
+    }
+
+    public void setUpdatedAtManually(LocalDateTime updatedAt) {
+        this.updatedAt = updatedAt;
+    }
+
+    public void setTimestamps(LocalDateTime createdAt, LocalDateTime updatedAt) {
+        this.createdAt = createdAt;
+        this.updatedAt = updatedAt;
     }
 }

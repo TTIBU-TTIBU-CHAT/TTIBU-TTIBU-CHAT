@@ -12,6 +12,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.List;
 import java.util.Map;
 
 @Tag(name = "Group", description = "그룹 관련 API")
@@ -60,5 +61,12 @@ public class GroupController {
     ) {
         groupService.deleteGroup(member.getMemberUid(), groupId);
         return ResponseEntity.ok(JSend.success(Map.of("group_id", groupId)));
+    }
+
+    @Operation(summary = "그룹 목록 조회", description = "로그인한 사용자가 소유한 그룹 리스트를 조회합니다.")
+    @GetMapping
+    public ResponseEntity<JSend> getGroups(@AuthenticationPrincipal CustomMemberDetails member) {
+        List<GroupListResponseDto> response = groupService.getGroups(member.getMemberUid());
+        return ResponseEntity.ok(JSend.success(response));
     }
 }
