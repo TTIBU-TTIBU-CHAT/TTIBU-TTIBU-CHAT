@@ -4,6 +4,10 @@ spring:
   profiles:
     active: local
 
+app:
+  index-initializer:
+    enabled: true
+
 server:
   servlet:
     session:
