@@ -18,3 +18,5 @@ scikit-learn           # TF-IDF용
 
 # --- 4. NumPy 버전 고정 ---
 numpy<2.0
+
+krwordrank
