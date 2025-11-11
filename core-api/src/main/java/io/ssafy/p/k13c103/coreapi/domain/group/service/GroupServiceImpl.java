@@ -16,6 +16,8 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import java.util.List;
 
@@ -64,19 +66,22 @@ public class GroupServiceImpl implements GroupService {
                 })
                 .toList();
 
-        GroupResponseDto response = GroupResponseDto.builder()
+        log.info("[GROUP] 그룹 생성 완료 → groupId={}, name={}, chats={}", group.getGroupUid(), group.getName(), copiedChats.size());
+
+        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+            @Override
+            public void afterCommit() {
+                groupSummaryService.generateSummaryAsync(group.getGroupUid());
+            }
+        });
+
+        return GroupResponseDto.builder()
                 .groupId(group.getGroupUid())
                 .name(group.getName())
                 .originNodes(originChats.stream().map(Chat::getChatUid).toList())
                 .copiedNodes(copiedChats.stream().map(Chat::getChatUid).toList())
                 .createdAt(group.getCreatedAt())
                 .build();
-
-        log.info("[GROUP] 그룹 생성 완료 → groupId={}, name={}, chats={}", group.getGroupUid(), group.getName(), copiedChats.size());
-
-        groupSummaryService.generateSummaryAsync(group.getGroupUid());
-
-        return response;
     }
 
     @Override
@@ -196,9 +201,6 @@ public class GroupServiceImpl implements GroupService {
     @Override
     @Transactional(readOnly = true)
     public GroupDetailResponseDto getGroupDetail(Long memberId, Long groupId) {
-        Member member = memberRepository.findById(memberId)
-                .orElseThrow(() -> new ApiException(ErrorCode.MEMBER_NOT_FOUND));
-
         Group group = groupRepository.findById(groupId)
                 .orElseThrow(() -> new ApiException(ErrorCode.GROUP_NOT_FOUND));
 
