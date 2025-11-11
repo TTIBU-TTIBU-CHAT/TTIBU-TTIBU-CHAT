@@ -55,4 +55,21 @@ public interface ChatRepository extends JpaRepository<Chat, Long> {
         """,
             nativeQuery = true)
     Page<Chat> searchByAllKeywords(Long memberId, String[] keywords, Pageable pageable);
+
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
+    @Query("""
+        update Chat c
+           set c.room = null
+         where c.room.roomUid = :roomUid
+           and c.chatType = 'GROUP'
+           and c.group.groupUid is not null
+        """)
+    int detachGroupChats(Long roomUid);
+
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
+    @Query("""
+        delete from Chat c
+         where c.room.roomUid = :roomUid
+        """)
+    int deleteChatsByRoom(Long roomUid);
 }
