@@ -2,6 +2,7 @@ package io.ssafy.p.k13c103.coreapi.domain.group.service;
 
 import io.ssafy.p.k13c103.coreapi.common.error.ApiException;
 import io.ssafy.p.k13c103.coreapi.common.error.ErrorCode;
+import io.ssafy.p.k13c103.coreapi.domain.chat.enums.ChatType;
 import io.ssafy.p.k13c103.coreapi.domain.chat.repository.ChatRepository;
 import io.ssafy.p.k13c103.coreapi.domain.group.entity.Group;
 import io.ssafy.p.k13c103.coreapi.domain.group.repository.GroupRepository;
@@ -31,7 +32,7 @@ public class GroupSummaryServiceImpl implements GroupSummaryService {
                 .orElseThrow(() -> new ApiException(ErrorCode.GROUP_NOT_FOUND));
 
         // 그룹에 포함된 모든 복제 Chat 내용 병합
-        String mergedText = chatRepository.findAllByGroup_GroupUid(groupId)
+        String mergedText = chatRepository.findAllByGroup_GroupUidAndChatType(groupId, ChatType.GROUP)
                 .stream()
                 .map(chat -> {
                     String content;

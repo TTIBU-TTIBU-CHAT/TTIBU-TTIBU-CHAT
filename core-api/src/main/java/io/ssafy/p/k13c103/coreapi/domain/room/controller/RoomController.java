@@ -2,6 +2,8 @@ package io.ssafy.p.k13c103.coreapi.domain.room.controller;
 
 import io.ssafy.p.k13c103.coreapi.common.jsend.JSend;
 import io.ssafy.p.k13c103.coreapi.config.security.CustomMemberDetails;
+import io.ssafy.p.k13c103.coreapi.domain.chat.dto.ChatCreateRequestDto;
+import io.ssafy.p.k13c103.coreapi.domain.chat.dto.ChatCreateResponseDto;
 import io.ssafy.p.k13c103.coreapi.domain.room.dto.RoomCreateRequestDto;
 import io.ssafy.p.k13c103.coreapi.domain.room.dto.RoomRenameRequestDto;
 import io.ssafy.p.k13c103.coreapi.domain.room.dto.RoomRenameResponseDto;
@@ -45,6 +47,17 @@ public class RoomController {
             @Valid @RequestBody RoomRenameRequestDto request
     ) {
         RoomRenameResponseDto response = roomService.updateRoomName(member.getMemberUid(), roomId, request);
+        return ResponseEntity.ok(JSend.success(response));
+    }
+
+    @Operation(summary = "기존 Room에 새 채팅 생성", description = "기존 채팅방 내 특정 노드(parent_id)에 새 질문을 추가합니다.")
+    @PostMapping("/{roomId}/chats")
+    public ResponseEntity<JSend> createChatInRoom(
+            @AuthenticationPrincipal CustomMemberDetails member,
+            @PathVariable Long roomId,
+            @Valid @RequestBody ChatCreateRequestDto request
+    ) {
+        ChatCreateResponseDto response = roomService.createChatInRoom(member.getMemberUid(), roomId, request);
         return ResponseEntity.ok(JSend.success(response));
     }
 

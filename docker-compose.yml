@@ -3,12 +3,16 @@ version: '3.8'
 services:
   # PostgreSQL Database
   postgres:
-    image: postgres:15
+    build:
+      context: .
+      dockerfile: Dockerfile.pg
     container_name: ttibu-postgres
     environment:
       POSTGRES_DB: ttibu_db
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
+      TZ: Asia/Seoul
+      LANG: C.UTF-8
     ports:
       - "5432:5432"
     volumes:
