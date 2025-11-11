@@ -1,13 +1,52 @@
 // src/routes/groups/GroupFlowPage.jsx
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useRef, useState, useEffect } from "react";
 import styled from "styled-components";
+
+import { useParams } from "@tanstack/react-router";
+import { groupService } from "@/services/groupService";
 
 import { useChatList } from "@/hooks/useChatList";
 import TopleftCard from "@/components/topleftCard/TopleftCard";
 import ModalShell from "@/components/ModalShell/ModalShell";
 import FlowCanvas from "@/components/Groupflow/FlowCanvas";
 import ErrorDialog from "@/components/common/Modal/ErrorDialog";
+
 export default function GroupFlowPage() {
+  /* ===== URL 파라미터 ===== */
+  const { groupId } = useParams({ from: "/groups/$groupId" });
+
+  /* ===== 그룹 상세 상태 ===== */
+  const [groupData, setGroupData] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+
+  /* ===== 그룹 상세 불러오기 ===== */
+  useEffect(() => {
+    const fetchGroupDetail = async () => {
+      if (!groupId){
+        console.log(groupId)
+        return;
+      } 
+        
+      try {
+        setLoading(true);
+        const res = await groupService.detail(groupId);
+        if (res?.data?.status === "success") {
+          setGroupData(res.data.data);
+          console.log("[GROUP_FLOW_PAGE] 그룹 상세 불러오기 성공:", res.data.data);
+        } else {
+          throw new Error("그룹 정보를 불러오지 못했습니다.");
+        }
+      } catch (err) {
+        console.error("[GROUP_FLOW_PAGE] 그룹 상세 조회 실패:", err);
+        setError("그룹 정보를 불러오지 못했습니다.");
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchGroupDetail();
+  }, [groupId]);
+  
   /* ===== 채팅 데이터 ===== */
   const { messages, addUser, addAssistant } = useChatList([
     {
@@ -24,7 +63,6 @@ export default function GroupFlowPage() {
     },
   ]);
   const [input, setInput] = useState("");
-
   const canvasRef = useRef(null);
 
   // ➕로 생성한 임시 노드 id (Search/Group 선택 시 여기에 채워넣음)
@@ -163,6 +201,7 @@ export default function GroupFlowPage() {
       <FlowCanvas
         ref={canvasRef}
         editMode={editMode}
+        groupData={groupData}
         onCanResetChange={setCanReset}
         onSelectionCountChange={setSelectedCount}
         // 보기 모드 클릭: meta.empty면 해당 노드를 펜딩 타깃으로 사용

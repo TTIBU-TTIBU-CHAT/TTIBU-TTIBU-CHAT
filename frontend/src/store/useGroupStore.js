@@ -65,6 +65,68 @@ export const useGroupStore = create(
         }
       },
 
+      // 그룹 생성 후 view 반영 
+      addGroupToView: async (newGroupData) => {
+        const pastelColors = ['#C8E6C9', '#BBDEFB', '#FFF59D', '#FFCCBC', '#E1BEE7', '#F8BBD0']
+        const color = pastelColors[Math.floor(Math.random() * pastelColors.length)]
+        const { groupView } = get()
+
+        const updatedView = groupView ?? { max_groups: 10, groups: [], last_updated: new Date().toISOString() }
+
+        const newGroup = {
+          group_id: newGroupData.groupId,
+          name: newGroupData.name,
+          origin_nodes: newGroupData.originNodes,
+          copied_nodes: newGroupData.copiedNodes,
+          color,
+        }
+
+        const newGroups = [...updatedView.groups, newGroup]
+        const newGroupView = { ...updatedView, groups: newGroups, last_updated: new Date().toISOString() }
+
+        await get().saveGroupView(newGroupView)
+      },
+
+      // 그룹 수정 후 view 반영
+      updateGroupInView: async (updatedGroupData) => {
+        const { groupView } = get()
+        if (!groupView) return
+
+        const updatedGroups = groupView.groups.map((g) =>
+          g.group_id === updatedGroupData.groupId
+            ? {
+                ...g,
+                name: updatedGroupData.name ?? g.name,
+                origin_nodes: updatedGroupData.originNodes ?? g.origin_nodes,
+                copied_nodes: updatedGroupData.copiedNodes ?? g.copied_nodes,
+              }
+            : g
+        )
+
+        const newGroupView = {
+          ...groupView,
+          groups: updatedGroups,
+          last_updated: new Date().toISOString(),
+        }
+
+        await get().saveGroupView(newGroupView)
+      },
+
+      // 그룹 삭제 후 view 반영
+      removeGroupFromView: async (groupId) => {
+        const { groupView } = get()
+        if (!groupView) return
+
+        const newGroups = groupView.groups.filter((g) => g.group_id !== groupId)
+        const newGroupView = {
+          ...groupView,
+          groups: newGroups,
+          last_updated: new Date().toISOString(),
+        }
+
+        await get().saveGroupView(newGroupView)
+      },
+
       // 그룹 상태 초기화
       resetGroupView: () => {
         set({ groupView: null, initialized: false })

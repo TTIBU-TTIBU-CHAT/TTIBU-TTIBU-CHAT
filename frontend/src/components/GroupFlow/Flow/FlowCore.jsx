@@ -1,4 +1,4 @@
-import React, {
+import {
   forwardRef,
   useCallback,
   useEffect,
@@ -61,6 +61,7 @@ const tempNodeStyle = {
 const FlowCore = forwardRef(function FlowCore(
   {
     editMode = true,
+    groupData,
     onCanResetChange,
     onSelectionCountChange,
     onNodeClickInViewMode,
@@ -74,16 +75,48 @@ const FlowCore = forwardRef(function FlowCore(
   const nodeTypes = useMemo(() => ({ qa: QaNode }), []);
   const edgeTypes = useMemo(() => ({ deletable: DeletableEdge }), []);
 
-  const [nodes, setNodes, onNodesChange] = useNodesState(
-    withHandlesByRoot(
-      initialNodes.map((n) => ({ ...n, type: "qa", style: nodeStyle })),
-      initialEdges,
-      { keepTargetForRoots: true }
-    )
-  );
-  const [edges, setEdges, onEdgesChange] = useEdgesState(
-    initialEdges.map(stripRuntimeEdge)
-  );
+  // 기본값은 빈 배열
+  const [nodes, setNodes, onNodesChange] = useNodesState([]);
+  const [edges, setEdges, onEdgesChange] = useEdgesState([]);
+
+  /* ========================
+    그룹 데이터 수신 시 그래프 세팅
+  ======================== */
+  useEffect(() => {
+    if (!groupData || !groupData.originNodeDetails) return;
+
+    console.log("[FLOW] 그룹 데이터 수신:", groupData);
+
+    const newNodes = groupData.originNodeDetails.map((n, idx) => ({
+      id: `n${n.nodeId}`,
+      type: "qa",
+      position: { x: idx * 300, y: 0 }, // 간단한 좌표 배치
+      data: {
+        label: n.question || `노드 ${n.nodeId}`,
+        summary: n.summary || "",
+        question: n.question,
+        answer: n.answer,
+        keyword: n.keyword || [],
+      },
+      style: nodeStyle,
+      sourcePosition: Position.Right,
+      targetPosition: Position.Left,
+    }));
+
+    // 순차 연결용 엣지 구성 (originNodes 순서대로 연결)
+    const newEdges =
+      groupData.originNodes?.slice(0, -1).map((srcId, idx) => ({
+        id: `e${srcId}-${groupData.originNodes[idx + 1]}`,
+        source: `n${srcId}`,
+        target: `n${groupData.originNodes[idx + 1]}`,
+        type: "deletable",
+        style: edgeStyle,
+        data: { onRemove: () => {} },
+      })) ?? [];
+
+    setNodes(newNodes);
+    setEdges(newEdges);
+  }, [groupData, setNodes, setEdges]);
 
   /* 공통: 노드 용량 가드 */
   const ensureCapacity = useCallback(() => {

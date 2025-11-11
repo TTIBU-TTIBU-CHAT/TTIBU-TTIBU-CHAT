@@ -1,15 +1,13 @@
-// src/components/Flow/FlowCanvas.jsx
-import React from "react";
 import { ReactFlowProvider } from "reactflow";
 import { GlobalRFStyles } from "./styles";
 import FlowCore from "./Flow/FlowCore";
 
-export default function FlowCanvas(props) {
+export default function FlowCanvas({ groupData, ...props }) {
   return (
     <>
       <GlobalRFStyles />
       <ReactFlowProvider>
-        <FlowCore {...props} />
+        <FlowCore groupData={groupData} {...props} />
       </ReactFlowProvider>
     </>
   );
