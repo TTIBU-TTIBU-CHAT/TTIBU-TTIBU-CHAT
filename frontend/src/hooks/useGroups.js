@@ -89,25 +89,3 @@ export function useDeleteGroup() {
     },
   });
 }
-
-// 그룹 JSON(View) 조회/저장
-export function useGroupView() {
-  return useQuery({
-    queryKey: gk.view,
-    queryFn: async () => {
-      const res = await groupService.getView();
-      return res.data; // ReactFlow JSON 등
-    },
-    staleTime: 0,
-  });
-}
-
-export function useSaveGroupView() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: (json) => groupService.saveView(json),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: gk.view });
-    },
-  });
-}

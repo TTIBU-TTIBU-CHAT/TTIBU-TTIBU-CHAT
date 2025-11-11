@@ -27,7 +27,6 @@ export default function APIKeyList() {
             isActive: k.isActive,
           }))
         )
-        console.log(apis)
       }
     } catch (err) {
       setToast({ type: 'error', message: '키 목록 조회 실패' })
