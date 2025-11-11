@@ -55,16 +55,18 @@ public class GlobalExceptionHandler {
     }
 
     @ExceptionHandler(Exception.class)
-    public ResponseEntity<JSend> handleException(Exception ex, HttpServletRequest request) {
-        String errorId = UUID.randomUUID().toString();
-        log.error("[{}] ", errorId, ex);
-        Map<String, String> data = Map.of(
-                "errorId", errorId,
-                "path", request.getRequestURI()
-        );
-        ErrorCode error = ErrorCode.INTERNAL_ERROR;
+    public ResponseEntity<?> handleException(Exception e, HttpServletRequest request) {
+        String contentType = request.getHeader("Accept");
 
-        return ResponseEntity.status(error.getStatus())
-                .body(JSend.error(error.getMessage(), error.name(), data));
+        // SSE 요청이면 에러 이벤트로 전송만 하고 JSON 반환 X
+        if (contentType != null && contentType.contains("text/event-stream")) {
+            log.warn("[SSE] Error 발생: {}", e.getMessage());
+            return ResponseEntity.status(HttpStatus.OK).build();
+        }
+
+        // 일반 요청은 JSON 반환
+        return ResponseEntity
+                .status(HttpStatus.INTERNAL_SERVER_ERROR)
+                .body(JSend.error(e.getMessage()));
     }
 }
