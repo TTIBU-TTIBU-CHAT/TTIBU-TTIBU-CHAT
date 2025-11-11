@@ -27,6 +27,8 @@ public enum ErrorCode {
 
     /* === 채팅 === */
     CHAT_NOT_FOUND(HttpStatus.NOT_FOUND, "채팅을 찾을 수 없습니다."),
+    EMPTY_SEARCH_KEYWORD(HttpStatus.BAD_REQUEST, "검색할 키워드가 없습니다."),
+    TOO_MANY_SEARCH_KEYWORD(HttpStatus.BAD_REQUEST, "검색할 키워드가 10개 초과입니다."),
 
     /* === 그룹 === */
     GROUP_NOT_FOUND(HttpStatus.NOT_FOUND, "존재하지 않는 그룹입니다."),
