@@ -162,6 +162,16 @@ public class RoomServiceImpl implements RoomService {
         chatRepository.save(newChat);
         createdChats.add(newChat);
 
+        // 복제된 채팅/그룹 스탭샷들의 요약 및 답변을 병합하여 컨텍스트 생성
+        String contextPrompt = createdChats.stream()
+                .filter(c -> !Objects.equals(c.getChatUid(), newChat.getChatUid()))
+                .map(c -> {
+                    return Optional.ofNullable(c.getAnswer()).orElse("").trim();
+                })
+                .filter(s -> !s.isBlank())
+                .collect(Collectors.joining("\n\n"));
+
+
         String providerCode = provider.getCode();
 
         TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
@@ -178,7 +188,7 @@ public class RoomServiceImpl implements RoomService {
                 sendRoomCreatedEvent(room, createdChats, request.getBranchId());
 
                 // 2. 커밋 이후 비동기 처리 시작
-                asyncChatProcessor.processAsync(newChat.getChatUid(), request, decryptedKey, providerCode);
+                asyncChatProcessor.processAsync(newChat.getChatUid(), request, decryptedKey, providerCode, contextPrompt);
             }
         });
 
@@ -276,7 +286,7 @@ public class RoomServiceImpl implements RoomService {
         payload.put("node_id", newChat.getChatUid());
         payload.put("type", newChat.getChatType().name());
         payload.put("question", newChat.getQuestion());
-        payload.put("parents", request.getParentId());
+        payload.put("parents", request.getParents());
         payload.put("children", List.of());
         payload.put("created_at", newChat.getCreatedAt());
 
@@ -287,6 +297,16 @@ public class RoomServiceImpl implements RoomService {
 
         String providerCode = provider.getCode();
 
+        String tempPrompt = "";
+        if (request.getParents() != null && !request.getParents().isEmpty()) {
+            List<Chat> parentChats = chatRepository.findAllById(request.getParents());
+            tempPrompt = parentChats.stream()
+                    .map(parent -> Optional.ofNullable(parent.getAnswer()).orElse("").trim())
+                    .filter(s -> !s.isBlank())
+                    .collect(Collectors.joining("\n\n"));
+        }
+        final String contextPrompt = tempPrompt;
+
         // 트랜잭션 종료 후 비동기 LLM/GMS 처리 시작
         TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
             @Override
@@ -295,7 +315,8 @@ public class RoomServiceImpl implements RoomService {
                         newChat.getChatUid(),
                         buildRoomRequest(request),
                         decryptedKey,
-                        providerCode
+                        providerCode,
+                        contextPrompt
                 );
             }
         });
