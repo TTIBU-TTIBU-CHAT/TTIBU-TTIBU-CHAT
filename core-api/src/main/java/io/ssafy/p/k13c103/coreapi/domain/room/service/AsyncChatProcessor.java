@@ -18,7 +18,7 @@ public class AsyncChatProcessor {
      * 채팅 비동기 처리 (트랜잭션 종료 이후 실행)
      */
     @Async("aiTaskExecutor")
-    public void processAsync(Long chatId, RoomCreateRequestDto request, String decryptedKey, String providerCode) {
+    public void processAsync(Long chatId, RoomCreateRequestDto request, String decryptedKey, String providerCode, String contextPrompt) {
         try {
             chatService.processChatAsync(
                     chatId,
@@ -26,7 +26,8 @@ public class AsyncChatProcessor {
                     decryptedKey,
                     request.getModel(),
                     providerCode,
-                    request.isUseLlm()
+                    request.isUseLlm(),
+                    contextPrompt
             );
 
             log.info("[ASYNC] 비동기 채팅 처리 시작 → chatId={}, model={}, provider={}",

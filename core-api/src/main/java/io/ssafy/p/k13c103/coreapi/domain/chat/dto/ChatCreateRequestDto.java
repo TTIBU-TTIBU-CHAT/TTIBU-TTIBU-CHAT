@@ -2,12 +2,14 @@ package io.ssafy.p.k13c103.coreapi.domain.chat.dto;
 
 import lombok.Getter;
 
+import java.util.List;
+
 @Getter
 public class ChatCreateRequestDto {
 
     private String question;
 
-    private Long parentId;
+    private List<Long> parents;
 
     private Long branchId;
 

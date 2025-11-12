@@ -10,5 +10,5 @@ public interface ChatService {
 
     Page<ChatResponseDto.SearchedResultInfo> searchByKeywords(List<String> keywords, Pageable pageable, Long memberUid);
 
-    void processChatAsync(Long chatId, Long branchId, String apiKey, String model, String provider, boolean useLlm);
+    void processChatAsync(Long chatId, Long branchId, String apiKey, String model, String provider, boolean useLlm, String contextPrompt);
 }
