@@ -206,11 +206,54 @@ public class RoomServiceImpl implements RoomService {
 
     @Override
     @Transactional
+    public RoomResponseDto.ChatBranchUpdatedInfo saveChatAndBranch(Long roomUid, Long memberUid, String chatInfo, String branchView) {
+        if (!memberRepository.existsById(memberUid))
+            throw new ApiException(ErrorCode.MEMBER_NOT_FOUND);
+
+        if (!roomRepository.existsByRoomUidAndOwner_MemberUid(roomUid, memberUid))
+            throw new ApiException(ErrorCode.ROOM_NOT_FOUND);
+
+        try {
+            objectMapper.readTree(chatInfo);
+            objectMapper.readTree(branchView);
+        } catch (Exception e) {
+            throw new ApiException(ErrorCode.INVALID_JSON);
+        }
+
+        roomRepository.updateViews(roomUid, chatInfo, branchView);
+
+        return RoomResponseDto.ChatBranchUpdatedInfo.builder()
+                .roomUid(roomUid)
+                .updatedAt(roomRepository.getUpdatedAtByRoomUid(roomUid))
+                .build();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public RoomResponseDto.ChatBranchInfo getChatAndBranch(Long roomUid, Long memberUid) {
+        if (!memberRepository.existsById(memberUid))
+            throw new ApiException(ErrorCode.MEMBER_NOT_FOUND);
+
+        if (!roomRepository.existsByRoomUidAndOwner_MemberUid(roomUid, memberUid))
+            throw new ApiException(ErrorCode.ROOM_NOT_FOUND);
+
+        RoomRepository.RoomViewsRow info = roomRepository.findViewsByRoomUid(roomUid);
+
+        return RoomResponseDto.ChatBranchInfo.builder()
+                .roomUid(roomUid)
+                .chatInfo(info.getChatInfo())
+                .branchView(info.getBranchView())
+                .build();
+    }
+
+
+    @Override
+    @Transactional
     public void delete(Long roomUid, Long memberUid) {
         if (!memberRepository.existsById(memberUid))
             throw new ApiException(ErrorCode.MEMBER_NOT_FOUND);
 
-        if (!roomRepository.existsById(roomUid))
+        if (!roomRepository.existsByRoomUidAndOwner_MemberUid(roomUid, memberUid))
             throw new ApiException(ErrorCode.ROOM_NOT_FOUND);
 
         chatRepository.detachGroupChats(roomUid);

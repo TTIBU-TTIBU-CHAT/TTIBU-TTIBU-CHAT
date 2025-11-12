@@ -25,10 +25,10 @@ public class Room extends BaseTimeEntity {
     @Column(nullable = false)
     private String name;
 
-    @Column(name = "branch_view", columnDefinition = "TEXT", nullable = false)
+    @Column(name = "branch_view", columnDefinition = "json", nullable = false)
     private String branchView;
 
-    @Column(name = "chat_info", columnDefinition = "TEXT", nullable = false)
+    @Column(name = "chat_info", columnDefinition = "json", nullable = false)
     private String chatInfo;
 
     /**
@@ -50,13 +50,5 @@ public class Room extends BaseTimeEntity {
         if (name != null && !name.isBlank()) {
             this.name = name;
         }
-    }
-
-    /**
-     * 브랜치 뷰 / 채팅 정보 갱신
-     */
-    public void updateViews(String branchView, String chatInfo) {
-        this.branchView = branchView;
-        this.chatInfo = chatInfo;
     }
 }
