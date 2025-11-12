@@ -10,8 +10,11 @@ import { useNavigate } from "@tanstack/react-router";
 export default function NewChat() {
   const { isCollapsed } = useSidebarStore();
   const navigate = useNavigate();
+
+  // 이동 중복 방지
   const navigatedRef = useRef(null);
   const [redirecting, setRedirecting] = useState(false);
+
   // 모델 드롭다운
   const [selectedModel, setSelectedModel] = useState("gpt-4o-mini");
   const [modelOpen, setModelOpen] = useState(false);
@@ -24,46 +27,83 @@ export default function NewChat() {
   const [text, setText] = useState("");
   const tagBoxRef = useRef(null);
 
+  // ---- 두 이벤트 모두 수신했는지 체크하는 플래그 + 타겟 roomId 보관 ----
+  const flagsRef = useRef({ short: false, keywords: false });
+  const targetRoomIdRef = useRef(null);
+  const hookRoomIdRef = useRef(null); // useStartChat에서 내려오는 roomId 보관
+
+  // 이벤트 페이로드에서 roomId 뽑기 (백엔드 포맷 다양성 대응)
+  const getTargetRoomId = (payload) => {
+    return (
+      payload?.chat_id ??
+      payload?.room_id ??
+      payload?.roomId ??
+      payload?.data?.chat_id ??
+      payload?.data?.roomId ??
+      hookRoomIdRef.current ?? // 훅이 반환하는 roomId로 폴백
+      null
+    );
+  };
+
+  // 두 이벤트가 모두 왔는지 확인하고, 한 번만 이동
+  const maybeNavigate = () => {
+    const { short, keywords } = flagsRef.current;
+    if (!short || !keywords) return;
+    const id = targetRoomIdRef.current;
+    if (!id) return;
+    if (navigatedRef.current === id) return;
+    navigatedRef.current = id;
+
+    navigate({ to: `/chatrooms/${id}` });
+  };
+
   const { start, roomId, submitting, connected, lastMessage } = useStartChat({
-    onRoomCreated: (d) => console.log("[ROOM_CREATED]", d),
+    onRoomCreated: (payload) => {
+      // 서버가 주는 형태가 { type, data: {...} } 일 수도, 바로 data일 수도 있으니 모두 대응
+      const data = payload?.data ?? payload;
+      const rid = data?.room_id ?? data?.roomId ?? data?.chat_id; // 안전하게
+      if (!rid) return;
+      if (navigatedRef.current === String(rid)) return;
+      navigatedRef.current = String(rid);
+      setRedirecting(true);
+      // ✅ /chatrooms/$roomId 로 이동하면서 초기 데이터(data)도 state로 넘김
+      navigate({
+        to: "/chatrooms/$roomId",
+        params: { roomId: String(rid) },
+        state: { roomInit: data },
+        replace: true,
+      });
+    },
     onChatStream: (d) => console.log("[CHAT_STREAM]", d),
     onChatDone: (d) => {
       console.log("[CHAT_DONE]", d);
+      const id = getTargetRoomId(d);
+      if (!id) return;
+      if (navigatedRef.current === id) return;
+      navigatedRef.current = id;
+      navigate({ to: `/chatrooms/${id}` });
     },
-    onRoomShortSummary: (d) => console.log("[ROOM_SHORT_SUMMARY]", d),
+    onRoomShortSummary: (d) => {
+      console.log("[ROOM_SHORT_SUMMARY]", d);
+      flagsRef.current.short = true;
+      targetRoomIdRef.current = getTargetRoomId(d) || targetRoomIdRef.current;
+      // maybeNavigate();
+    },
     onChatSummaryKeywords: (d) => {
       console.log("[CHAT_SUMMARY_KEYWORDS]", d);
-      console.log("Navigating to roomId:", d?.chat_id || d?.roomId || roomId);
-      const id = d?.data.chat_id || d?.roomId || roomId;
-      if (!id) return;
-      if (navigatedRef.current === id) return; // 이미 이동했으면 무시
-      navigatedRef.current = id;
-      setRedirecting(true);
-      navigate({ to: `/chatrooms/${id}` });
+      flagsRef.current.keywords = true;
+      targetRoomIdRef.current = getTargetRoomId(d) || targetRoomIdRef.current;
+      // maybeNavigate();
     },
     onChatError: (d) => console.error("[CHAT_ERROR]", d),
   });
 
-  const openModal = (type) => {
-    setModalType(type);
-    setModalOpen(true);
-  };
-  const closeModal = () => {
-    setModalOpen(false);
-    setModalType(null);
-  };
+  // 훅이 주는 roomId 최신값 보관
+  useEffect(() => {
+    if (roomId) hookRoomIdRef.current = roomId;
+  }, [roomId]);
 
-  const handleSelect = (item) => {
-    setSelectedItems((prev) =>
-      console.log("Selected item:", item) || prev.find((i) => i.id === item.id)
-        ? prev
-        : [...prev, item]
-    );
-  };
-  const handleRemove = (id) => {
-    setSelectedItems((prev) => prev.filter((i) => i.id !== id));
-  };
-
+  // 입력창 등의 부수효과
   useEffect(() => {
     if (tagBoxRef.current) {
       tagBoxRef.current.scrollTo({
@@ -97,6 +137,11 @@ export default function NewChat() {
     if (submitting) return;
     const question = text.trim();
     if (!question) return;
+    setRedirecting(true);
+    // 새 대화 시작 시 이전 플래그는 리셋해 두세요.
+    flagsRef.current = { short: false, keywords: false };
+    targetRoomIdRef.current = null;
+    navigatedRef.current = null;
 
     const branchId = 100; // TODO: 실제 값으로 교체
     const useLlm = false;
@@ -116,12 +161,36 @@ export default function NewChat() {
     console.log("[POST /rooms] payload:", payload);
     const rid = await start(payload);
     console.log("새 채팅 시작, roomId:", rid);
-    if (rid) setText("");
+    if (rid) {
+      setText("");
+    } else {
+      setRedirecting(false); // 실패 시 오버레이 닫기
+    }
   };
 
   useEffect(() => {
     if (lastMessage) console.log("[SSE lastMessage]", lastMessage);
   }, [lastMessage]);
+
+  const openModal = (type) => {
+    setModalType(type);
+    setModalOpen(true);
+  };
+  const closeModal = () => {
+    setModalOpen(false);
+    setModalType(null);
+  };
+
+  const handleSelect = (item) => {
+    setSelectedItems((prev) =>
+      console.log("Selected item:", item) || prev.find((i) => i.id === item.id)
+        ? prev
+        : [...prev, item]
+    );
+  };
+  const handleRemove = (id) => {
+    setSelectedItems((prev) => prev.filter((i) => i.id !== id));
+  };
 
   return (
     <S.Container $collapsed={isCollapsed}>
@@ -228,6 +297,7 @@ export default function NewChat() {
           onPick={handleSelect}
         />
       )}
+
       <RouteTransitionOverlay
         show={redirecting}
         message="채팅방으로 이동 중..."

@@ -215,13 +215,7 @@ export function SearchContent({ onPick }) {
 
             {item.answer && <S.CardExcerpt>{item.answer}</S.CardExcerpt>}
 
-            {Array.isArray(item.tags) && item.tags.length > 0 && (
-              <S.TagRow>
-                {item.tags.map((t, idx) => (
-                  <S.TagPill key={`${String(t)}-${idx}`}>{String(t)}</S.TagPill>
-                ))}
-              </S.TagRow>
-            )}
+
           </S.ResultCard>
         ))}
       </S.SearchScroll>
