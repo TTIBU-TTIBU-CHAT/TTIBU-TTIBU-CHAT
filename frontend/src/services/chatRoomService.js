@@ -1,4 +1,4 @@
-// services/chatRoomService.js
+// src/services/chatRoomService.js
 import { api } from "@services/api";
 
 export const chatRoomService = {
@@ -7,8 +7,32 @@ export const chatRoomService = {
 
   listRooms: (params) => api.get("/rooms", { params }),
   getRoom: (roomId) => api.get(`/rooms/${roomId}`),
-  saveRoomData: ({ roomId, ...body }) => api.post(`/rooms/${roomId}`, body),
-  renameRoom: ({ roomId, name }) => api.patch(`/rooms/${roomId}/name`, { name }),
+
+  /**
+   * ✅ 저장: multipart/form-data 로 chatInfo / branchView 전송
+   * vars: { roomId, chatInfo, branchView }  (chatInfo/branchView는 JSON string)
+   */
+  saveRoomData: ({ roomId, chatInfo, branchView }) => {
+    const form = new FormData();
+    // 서버 스펙: key 이름이 정확히 chatInfo, branchView 여야 함
+    form.append(
+      "chatInfo",
+      new Blob([chatInfo], { type: "text/plain" }),
+      "chatInfo.json"
+    );
+    form.append(
+      "branchView",
+      new Blob([branchView], { type: "text/plain" }),
+      "branchView.json"
+    );
+    console.log("Saving room data:", { roomId, chatInfo, branchView });
+    return api.post(`/rooms/${roomId}`, form, {
+    });
+  },
+
+  renameRoom: ({ roomId, name }) =>
+    api.patch(`/rooms/${roomId}/name`, { name }),
+
   deleteRoom: (roomId) => api.delete(`/rooms/${roomId}`),
 
   /**

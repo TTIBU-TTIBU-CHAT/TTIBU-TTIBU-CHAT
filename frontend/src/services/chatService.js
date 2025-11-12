@@ -25,7 +25,7 @@ export const chatService = {
     params.set('size', String(size));
 
     // NOTE: api 인스턴스의 baseURL이 이미 /api/v1라면 아래를 `/chats?...`로 바꿔도 됩니다.
-    const url = `/api/v1/chats?${params.toString()}`;
+    const url = `/chats?${params.toString()}`;
 
     const res = await api.get(url, {
       withCredentials: true, // Cookie: JSESSIONID=...

@@ -1,3 +1,4 @@
+// src/hooks/useChatRooms.js
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { chatRoomService } from '@/services/chatRoomService';
 
@@ -27,7 +28,7 @@ export function useRoom(roomId) {
     queryKey: rk.detail(roomId),
     queryFn: async () => {
       const res = await chatRoomService.getRoom(roomId);
-      return res.data; // {room, chats, branches} (확실하지 않음)
+      return res.data; // {room, chats, branches} (서버 스펙에 따름)
     },
     enabled: !!roomId,
     staleTime: 30_000,
@@ -43,13 +44,17 @@ export function useCreateRoom() {
   });
 }
 
-/* ---------------------- 채팅 + 브랜치 정보 저장 ---------------------- */
+/* ---------------------- 채팅 + 브랜치 정보 저장 (multipart/form-data) ---------------------- */
 export function useSaveRoomData() {
   const qc = useQueryClient();
   return useMutation({
+    // vars: { roomId, chatInfo, branchView }  (둘 다 JSON string)
     mutationFn: (vars) => chatRoomService.saveRoomData(vars),
     onSuccess: (_res, vars) => {
-      qc.invalidateQueries({ queryKey: rk.detail(vars.roomId) });
+      // 상세 다시 불러오도록 무효화
+      if (vars?.roomId) {
+        qc.invalidateQueries({ queryKey: rk.detail(vars.roomId) });
+      }
     },
   });
 }

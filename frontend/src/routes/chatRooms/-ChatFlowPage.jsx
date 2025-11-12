@@ -1,19 +1,21 @@
-// src/routes/.../ChatFlowPage.jsx
-import { useCallback, useRef, useState, useEffect } from "react";
+// src/routes/chatrooms/-ChatFlowPage.jsx
+import { useCallback, useRef, useState, useEffect, useMemo } from "react";
 import { useParams, useRouterState } from "@tanstack/react-router";
 import { useChatList } from "@/hooks/useChatList";
 import BranchDropdown from "@/components/BranchDropdown/BranchDropdown";
 import TopleftCard from "@/components/topleftCard/TopleftCard";
 import ModalShell from "@/components/ModalShell/ModalShell";
-import FlowCanvas from "@/components/ChatFlow/FlowCanvas"; // ★ 경로 확인 (Flow/FlowCanvas)
+import FlowCanvas from "@/components/ChatFlow/FlowCanvas";
 import * as S from "./-styles.ChatFlowPage";
 import InputDialog from "@/components/common/Modal/InputDialog";
 import ErrorDialog from "@/components/common/Modal/ErrorDialog";
-import { useRoom } from "@/hooks/useChatRooms";
+import { useRoom, useSaveRoomData } from "@/hooks/useChatRooms";
+import { useSSEStore } from "@/store/useSSEStore";
 
 const LS_BRANCH_BY_NODE = "ttibu-branch-by-node";
 const LS_PENDING_MSGS = "ttibu-pending-msgs";
 
+/* -------------------------- LocalStorage 유틸 -------------------------- */
 function loadJSON(key, fallback) {
   try {
     const raw = localStorage.getItem(key);
@@ -28,30 +30,222 @@ function saveJSON(key, value) {
   } catch {}
 }
 
+/* 작은 유틸: 노드 변경 헬퍼 (변경된 key만 수집해 로그용으로 반환) */
+function updateNodeByChatId(prevChatViews, chatId, updater) {
+  if (!prevChatViews) return { next: prevChatViews, changed: null };
+  const nextNodes = prevChatViews.nodes.map((n) => {
+    const nid = n?.chat_id ?? n?.id;
+    if (String(nid) === String(chatId)) {
+      const next = updater(n);
+      return next;
+    }
+    return n;
+  });
+
+  const prevNode = prevChatViews.nodes.find(
+    (n) => String(n?.chat_id ?? n?.id) === String(chatId)
+  );
+  const nextNode = nextNodes.find(
+    (n) => String(n?.chat_id ?? n?.id) === String(chatId)
+  );
+
+  let changed = null;
+  if (prevNode && nextNode) {
+    changed = {};
+    for (const k of Object.keys(nextNode)) {
+      if (prevNode[k] !== nextNode[k]) {
+        changed[k] = { before: prevNode[k], after: nextNode[k] };
+      }
+    }
+  }
+  return { next: { ...prevChatViews, nodes: nextNodes }, changed };
+}
+
+/* ======================================================================= */
+
 export default function ChatFlowPage() {
-  // ✅ URL: /chatrooms/$roomId  라우트에서 roomId를 바로 받는다
+  /* ✅ URL 파라미터 (/chatrooms/$roomId) */
   const { nodeId } = useParams({ strict: false });
-  const [roomId,setRoomId] = useState(nodeId);
+  const [roomId] = useState(nodeId);
   console.log("ChatFlowPage roomId:", roomId);
 
-  // 상세 조회
+  /* ✅ 라우터 state (NewChat → navigate 시 넘긴 roomInit) */
+  const routeState = useRouterState();
+  const roomInit = routeState?.location?.state?.roomInit;
+  console.log("[ChatFlowPage] roomInit from state:", roomInit);
+
+  /* ✅ 서버 최신 데이터 */
   const {
-    data: roomData,
+    data: fetchedRoom,
     isLoading: roomLoading,
     error: roomError,
   } = useRoom(roomId);
-  console.log("useRoom data:", roomData);
-  // 로딩/성공/에러 콘솔 출력
+
+  /* ✅ 초기 데이터 우선 사용 */
+  const effectiveRoomData =
+    roomInit &&
+    String(roomInit.room_id ?? roomInit.roomId ?? roomInit.chat_id) ===
+      String(roomId)
+      ? roomInit
+      : fetchedRoom;
+
   useEffect(() => {
-    if (!roomId) {
-      console.log("[useRoom] roomId 없음 → 호출 안 함");
-      return;
-    }
+    if (!roomId) return console.log("[useRoom] roomId 없음 → 호출 안 함");
     if (roomLoading) console.log(`[useRoom] 로딩중... roomId=${roomId}`);
     if (roomError) console.error("[useRoom] 에러:", roomError);
-    if (roomData) console.log("[useRoom] 성공:", roomData);
-  }, [roomId, roomLoading, roomError, roomData]);
+    if (fetchedRoom) console.log("[useRoom] 성공:", fetchedRoom);
+  }, [roomId, roomLoading, roomError, fetchedRoom]);
 
+  /* ---------------------------------------------------------------------
+     ✨ roomInit/effectiveRoomData → chatViews / branchViews 생성
+     - nodes → chatViews.nodes (created_at 오름차순 + position 자동 부여)
+       + 각 노드 필드 추가:
+         group_id: null
+         branch_id: (상위 branch_id, 숫자 또는 null)
+         parent: (부모 chat_id 또는 null)
+         children: (자식 chat_id 배열)
+     - chatViews.edges = included_edges
+     - position 규칙: (100,100) 시작, x는 250씩 증가
+  --------------------------------------------------------------------- */
+  const deriveViews = useCallback((src) => {
+    // 기본 스켈레톤
+    let chatViews = {
+      chat_room_id: 0,
+      nodes: [],
+      edges: [],
+      last_updated: "",
+    };
+    let branchViews = {
+      chat_room_id: 0,
+      max_branch_number: 0,
+      branches: {},
+      last_updated: "",
+    };
+
+    if (!src) {
+      console.log("[deriveViews] src 없음 → 기본값 유지");
+      return { chatViews, branchViews };
+    }
+
+    const room_id = src.room_id ?? src.roomId ?? 0;
+    const branch_id_raw = src.branch_id ?? src.branchId ?? null;
+    const branch_id_num = branch_id_raw != null ? Number(branch_id_raw) : null;
+    const created_at = src.created_at ?? "";
+    const nodesArr = Array.isArray(src.nodes) ? src.nodes : [];
+
+    // 1) created_at 정렬
+    const nodesArrSorted = nodesArr.slice().sort((a, b) => {
+      const ta = a?.created_at ? +new Date(a.created_at) : 0;
+      const tb = b?.created_at ? +new Date(b.created_at) : 0;
+      return ta - tb;
+    });
+
+    // 2) 좌표 자동 배치
+    const START_X = 100;
+    const START_Y = 100;
+    const GAP_X = 250;
+
+    const nodesWithPos = nodesArrSorted.map((n, i) => {
+      const pos = { x: START_X + GAP_X * i, y: START_Y };
+      return { ...n, position: pos };
+    });
+
+    // 3) included_nodes / included_edges
+    let included_nodes = [];
+    let included_edges = [];
+    if (branch_id_num != null) {
+      included_nodes = nodesWithPos
+        .map((n) => n?.chat_id ?? n?.id)
+        .filter((v) => v != null);
+
+      included_edges =
+        included_nodes.length < 2
+          ? []
+          : included_nodes.slice(1).map((targetId, idx) => ({
+              source: included_nodes[idx],
+              target: targetId,
+            }));
+    }
+
+    // 4) parent/children 계산
+    const parentMap = new Map();
+    const childrenMap = new Map();
+    for (const e of included_edges) {
+      const { source, target } = e;
+      if (target != null) parentMap.set(target, source);
+      if (source != null) {
+        const arr = childrenMap.get(source) ?? [];
+        arr.push(target);
+        childrenMap.set(source, arr);
+      }
+    }
+
+    // 5) 노드 enrich (group_id/branch_id/parent/children)
+    const enrichedNodes = nodesWithPos.map((n) => {
+      const id = n?.chat_id ?? n?.id;
+      const parent = id != null ? parentMap.get(id) ?? null : null;
+      const children = id != null ? childrenMap.get(id) ?? [] : [];
+      return {
+        ...n,
+        group_id: null,
+        branch_id: branch_id_num,
+        parent,
+        children,
+      };
+    });
+
+    // 6) 최종 뷰
+    chatViews = {
+      chat_room_id: Number(room_id) || 0,
+      nodes: enrichedNodes,
+      edges: included_edges,
+      last_updated: created_at,
+    };
+
+    const branchesObj = {};
+    if (branch_id_num != null) {
+      branchesObj[String(branch_id_num)] = {
+        branch_name: "",
+        included_nodes,
+        included_edges,
+      };
+    }
+
+    branchViews = {
+      chat_room_id: Number(room_id) || 0,
+      max_branch_number: branch_id_num || 0,
+      branches: branchesObj,
+      last_updated: created_at,
+    };
+
+    return { chatViews, branchViews };
+  }, []);
+
+  // 최초 계산값
+  const initialViews = useMemo(
+    () => deriveViews(roomInit ?? effectiveRoomData),
+    [deriveViews, roomInit, effectiveRoomData]
+  );
+
+  // ✅ state로 보관하여 이후 SSE로 갱신 가능하도록
+  const [chatViews, setChatViews] = useState(initialViews.chatViews);
+  const [branchViews, setBranchViews] = useState(initialViews.branchViews);
+
+  // 최신값 레퍼런스(로그/저장용)
+  const latestBranchViewsRef = useRef(branchViews);
+  useEffect(() => {
+    latestBranchViewsRef.current = branchViews;
+  }, [branchViews]);
+
+  // 서버 데이터 교체 시 state 동기화
+  useEffect(() => {
+    const next = deriveViews(roomInit ?? effectiveRoomData);
+    setChatViews(next.chatViews);
+    setBranchViews(next.branchViews);
+    console.log("[deriveViews -> state sync] chatViews, branchViews 갱신");
+  }, [deriveViews, roomInit, effectiveRoomData]);
+
+  /* ------------------------ 채팅 리스트 (Mock) ------------------------ */
   const { messages, addUser, addAssistant } = useChatList([
     {
       id: "u1",
@@ -68,8 +262,183 @@ export default function ChatFlowPage() {
     },
   ]);
 
-  const routerState = useRouterState();
-  const pathname = routerState.location.pathname;
+  /* -------------------------- 저장 훅 (multipart/form-data) -------------------------- */
+  const saveRoomData = useSaveRoomData();
+
+  // 저장 유틸: chatViews(next) + branchViews(current ref)를 서버에 보냄
+  const persistViews = useCallback(
+    (nextChatViews) => {
+      try {
+        const chatInfo = JSON.stringify(nextChatViews);
+        const branchView = JSON.stringify(latestBranchViewsRef.current);
+
+        console.log("=== [SAVE] chatInfo ===", nextChatViews);
+        console.log("=== [SAVE] branchView ===", latestBranchViewsRef.current);
+
+        saveRoomData.mutate({
+          roomId,
+          chatInfo,
+          branchView,
+        });
+      } catch (e) {
+        console.error("[persistViews] 직렬화 실패:", e);
+      }
+    },
+    [roomId, saveRoomData]
+  );
+
+  /* -------------------------- 전역 SSE 리스너 -------------------------- */
+  const attachHandlers = useSSEStore((s) => s.attachHandlers);
+  const sessionUuid = useSSEStore((s) => s.sessionUuid);
+
+  useEffect(() => {
+    if (!sessionUuid) return;
+
+    const getPayloadRoomId = (p) =>
+      p?.room_id ?? p?.roomId ?? p?.chat_id ?? p?.data?.room_id;
+
+    const off = attachHandlers({
+      onChatStream: (d) => console.log("[ROOM STREAM]", d),
+
+      // ✅ CHAT_DONE: answer / answered_at
+      onChatDone: (evt) => {
+        try {
+          const payload = evt?.data ?? evt;
+          const chatId =
+            payload?.chat_id ??
+            payload?.id ??
+            payload?.node_id ??
+            payload?.data?.chat_id;
+          const answer = payload?.answer ?? payload?.data?.answer ?? undefined;
+          const answered_at =
+            payload?.answered_at ?? payload?.data?.answered_at ?? undefined;
+
+          if (chatId == null) {
+            console.warn("[CHAT_DONE] chat_id 없음 → 업데이트 불가");
+            return;
+          }
+
+          setChatViews((prev) => {
+            const { next, changed } = updateNodeByChatId(prev, chatId, (node) => ({
+              ...node,
+              ...(answer !== undefined ? { answer } : {}),
+              ...(answered_at !== undefined ? { answered_at } : {}),
+            }));
+
+            console.log("=== [CHAT_DONE] 변경 필드 ===", changed ?? "(변경 없음)");
+            console.log("=== [CHAT_DONE] chatViews (after) ===", next);
+            console.log(
+              "=== [CHAT_DONE] branchViews (current) ===",
+              latestBranchViewsRef.current
+            );
+
+            // 저장
+            persistViews(next);
+            return next;
+          });
+        } catch (e) {
+          console.error("[CHAT_DONE] update fail:", e);
+        }
+      },
+
+      // ✅ CHAT_SUMMARY_KEYWORDS: updated_at, summary, keywords
+      onChatSummaryKeywords: (evt) => {
+        try {
+          const payload = evt?.data ?? evt;
+          const chatId =
+            payload?.chat_id ??
+            payload?.id ??
+            payload?.node_id ??
+            payload?.data?.chat_id;
+          const updated_at =
+            payload?.updated_at ?? payload?.data?.updated_at ?? undefined;
+          const summary = payload?.summary ?? payload?.data?.summary ?? undefined;
+          const keywords =
+            payload?.keywords ?? payload?.data?.keywords ?? undefined;
+
+          if (chatId == null) {
+            console.warn("[CHAT_SUMMARY_KEYWORDS] chat_id 없음 → 업데이트 불가");
+            return;
+          }
+
+          setChatViews((prev) => {
+            const { next, changed } = updateNodeByChatId(prev, chatId, (node) => ({
+              ...node,
+              ...(updated_at !== undefined ? { updated_at } : {}),
+              ...(summary !== undefined ? { summary } : {}),
+              ...(keywords !== undefined ? { keywords } : {}),
+            }));
+
+            console.log("=== [CHAT_SUMMARY_KEYWORDS] 변경 필드 ===", changed ?? "(변경 없음)");
+            console.log("=== [CHAT_SUMMARY_KEYWORDS] chatViews (after) ===", next);
+            console.log(
+              "=== [CHAT_SUMMARY_KEYWORDS] branchViews (current) ===",
+              latestBranchViewsRef.current
+            );
+
+            // 저장
+            persistViews(next);
+            return next;
+          });
+        } catch (e) {
+          console.error("[CHAT_SUMMARY_KEYWORDS] update fail:", e);
+        }
+      },
+
+      // ✅ ROOM_SHORT_SUMMARY: short_summary, updated_at  (⚠ chat_id 필수)
+      onRoomShortSummary: (evt) => {
+        try {
+          const payload = evt?.data ?? evt;
+          const chatId =
+            payload?.chat_id ??
+            payload?.id ??
+            payload?.node_id ??
+            payload?.data?.chat_id;
+          const updated_at =
+            payload?.updated_at ?? payload?.data?.updated_at ?? undefined;
+          const short_summary =
+            payload?.short_summary ??
+            payload?.data?.short_summary ??
+            undefined;
+
+          if (chatId == null) {
+            console.warn(
+              "[ROOM_SHORT_SUMMARY] chat_id 없음 → 노드 갱신 불가. room/branch 수준 메타만 제공된 것으로 보임."
+            );
+            return;
+          }
+
+          setChatViews((prev) => {
+            const { next, changed } = updateNodeByChatId(prev, chatId, (node) => ({
+              ...node,
+              ...(updated_at !== undefined ? { updated_at } : {}),
+              ...(short_summary !== undefined ? { short_summary } : {}),
+            }));
+
+            console.log("=== [ROOM_SHORT_SUMMARY] 변경 필드 ===", changed ?? "(변경 없음)");
+            console.log("=== [ROOM_SHORT_SUMMARY] chatViews (after) ===", next);
+            console.log(
+              "=== [ROOM_SHORT_SUMMARY] branchViews (current) ===",
+              latestBranchViewsRef.current
+            );
+
+            // 저장
+            persistViews(next);
+            return next;
+          });
+        } catch (e) {
+          console.error("[ROOM_SHORT_SUMMARY] update fail:", e);
+        }
+      },
+
+      onChatError: (e) => console.error("[ROOM ERROR]", e),
+    });
+
+    return () => off && off();
+  }, [sessionUuid, attachHandlers, persistViews]);
+
+  /* ----------------------------- 상태 ----------------------------- */
+  const pathname = routeState.location.pathname;
   const isGroups = pathname.startsWith("/groups");
 
   const [input, setInput] = useState("");
@@ -101,22 +470,22 @@ export default function ChatFlowPage() {
 
   const canvasRef = useRef(null);
 
+  /* --------------------------- 에러 핸들러 --------------------------- */
   const handleCoreError = useCallback(({ message }) => {
     setErrorMsg(message || "오류가 발생했습니다.");
     setErrorOpen(true);
   }, []);
 
+  /* ----------------------------- 채팅 전송 ----------------------------- */
   const handleSend = useCallback(() => {
     const t = input.trim();
     if (!t) return;
-
     addUser(t);
     setInput("");
     setTimeout(() => addAssistant("응답: " + t), 300);
 
     if (editingNodeId) {
       canvasRef.current?.updateNodeLabel(editingNodeId, t);
-
       const branchMap = loadJSON(LS_BRANCH_BY_NODE, {});
       const pending = loadJSON(LS_PENDING_MSGS, []);
       pending.push({
@@ -129,6 +498,7 @@ export default function ChatFlowPage() {
     }
   }, [input, addUser, addAssistant, editingNodeId]);
 
+  /* ------------------------- FlowCanvas 조작 ------------------------- */
   const handleInit = () => canvasRef.current?.reset();
 
   const handleSave = useCallback(() => {
@@ -191,7 +561,8 @@ export default function ChatFlowPage() {
     setPendingSource(null);
   }, [pendingNodeId, pendingSource]);
 
-  const showGroupButton = editMode && selectedCount > 1 && !hasGroupInSelection;
+  const showGroupButton =
+    editMode && selectedCount > 1 && !hasGroupInSelection;
 
   const branchItems = ["전체", "브랜치-1", "브랜치-2", "브랜치-3"].map((v) => ({
     value: v,
@@ -241,6 +612,7 @@ export default function ChatFlowPage() {
     saveJSON(LS_BRANCH_BY_NODE, map);
   }, []);
 
+  /* ----------------------------- 렌더 ----------------------------- */
   return (
     <S.Page>
       <TopleftCard
@@ -248,7 +620,7 @@ export default function ChatFlowPage() {
         setEditMode={setEditMode}
         onSave={handleSave}
         onInit={handleInit}
-        canReset={canReset}
+        canReset={setCanReset}
       />
 
       <BranchDropdown
@@ -307,7 +679,7 @@ export default function ChatFlowPage() {
         onClose={() => setErrorOpen(false)}
       />
 
-      {/* ✅ ReactFlow에는 아직 주입하지 않고, FlowCore까지 전달만 해서 콘솔 출력 */}
+      {/* ✅ FlowCanvas 전달 */}
       <FlowCanvas
         ref={canvasRef}
         editMode={editMode}
@@ -341,9 +713,8 @@ export default function ChatFlowPage() {
         askBranchName={askBranchName}
         onBranchSaved={handleBranchSaved}
         onError={handleCoreError}
-        // ★ 전달만
         roomId={roomId}
-        roomData={roomData}
+        roomData={{ ...effectiveRoomData, ...chatViews }} // 필요 시 전달 형태 조정
         roomLoading={roomLoading}
         roomError={roomError}
       />
