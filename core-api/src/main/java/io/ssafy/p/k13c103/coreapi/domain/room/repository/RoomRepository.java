@@ -8,6 +8,7 @@ import org.springframework.data.jpa.repository.Query;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Optional;
 
 public interface RoomRepository extends JpaRepository<Room, Long> {
     @Query("""
@@ -43,6 +44,8 @@ public interface RoomRepository extends JpaRepository<Room, Long> {
     int updateViews(Long roomUid, String chatInfo, String branchView);
 
     boolean existsByRoomUidAndOwner_MemberUid(Long roomUid, Long memberUid);
+
+    Optional<Room> findByRoomUidAndOwner_MemberUid(Long roomUid, Long memberUid);
 
     @Query(value = "SELECT updated_at FROM room WHERE room_uid = :roomUid", nativeQuery = true)
     LocalDateTime getUpdatedAtByRoomUid(Long roomUid);

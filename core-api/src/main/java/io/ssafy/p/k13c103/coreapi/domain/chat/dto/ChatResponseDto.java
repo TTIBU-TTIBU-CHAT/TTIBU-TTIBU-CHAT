@@ -3,6 +3,7 @@ package io.ssafy.p.k13c103.coreapi.domain.chat.dto;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.ssafy.p.k13c103.coreapi.domain.chat.entity.Chat;
+import lombok.Builder;
 import lombok.extern.slf4j.Slf4j;
 
 import java.time.LocalDateTime;
@@ -52,5 +53,16 @@ public class ChatResponseDto {
                 return List.of();
             }
         }
+    }
+
+
+    /**
+     * 채팅 복사 응답 DTO
+     */
+    @Builder
+    public record CopiedChatInfo(
+            Long roomUid, // 붙여넣기 된 채팅방 아이디
+            Long copyId // 새로 생성된 채팅 아이디
+    ) {
     }
 }
