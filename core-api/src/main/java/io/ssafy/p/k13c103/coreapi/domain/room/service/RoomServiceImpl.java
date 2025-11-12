@@ -243,7 +243,7 @@ public class RoomServiceImpl implements RoomService {
         if (!memberRepository.existsById(memberUid))
             throw new ApiException(ErrorCode.MEMBER_NOT_FOUND);
 
-        if (!roomRepository.existsById(roomUid))
+        if (!roomRepository.existsByRoomUidAndOwner_MemberUid(roomUid, memberUid))
             throw new ApiException(ErrorCode.ROOM_NOT_FOUND);
 
         chatRepository.detachGroupChats(roomUid);
