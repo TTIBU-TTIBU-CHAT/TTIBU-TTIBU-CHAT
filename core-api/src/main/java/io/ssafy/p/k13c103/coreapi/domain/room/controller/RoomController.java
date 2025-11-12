@@ -35,15 +35,15 @@ public class RoomController {
         Long roomId = roomService.createRoom(member.getMemberUid(), request);
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(JSend.success(Map.of(
-                "room_id", roomId
-        )));
+                        "room_id", roomId
+                )));
     }
 
-    @Operation(summary="채팅방 리스트 조회", description = "")
+    @Operation(summary = "채팅방 리스트 조회", description = "")
     @GetMapping
     public ResponseEntity<JSend> getList(@AuthenticationPrincipal CustomMemberDetails member) {
 
-        List<RoomResponseDto.RoomListInfo> list =  roomService.getList(member.getMemberUid());
+        List<RoomResponseDto.RoomListInfo> list = roomService.getList(member.getMemberUid());
 
         return ResponseEntity.status(HttpStatus.OK).body(JSend.success(list));
     }
