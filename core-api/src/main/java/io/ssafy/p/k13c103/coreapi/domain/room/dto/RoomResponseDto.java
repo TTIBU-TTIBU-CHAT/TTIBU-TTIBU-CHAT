@@ -1,5 +1,6 @@
 package io.ssafy.p.k13c103.coreapi.domain.room.dto;
 
+import com.fasterxml.jackson.annotation.JsonRawValue;
 import lombok.Builder;
 
 import java.time.LocalDateTime;
@@ -25,6 +26,18 @@ public class RoomResponseDto {
     public record ChatBranchUpdatedInfo(
             Long roomUid,
             LocalDateTime updatedAt
+    ) {
+    }
+
+
+    /**
+     * 채팅 브랜치 조회 응답 DTO
+     */
+    @Builder
+    public record ChatBranchInfo(
+            Long roomUid,
+            @JsonRawValue String chatInfo,
+            @JsonRawValue String branchView
     ) {
     }
 }
