@@ -15,7 +15,7 @@ public interface RoomService {
 
     List<RoomResponseDto.RoomListInfo> getList(Long memberUid);
 
-    RoomResponseDto.ChatBranchInfo saveChatAndBranch(Long roomUid, Long memberUid, String chatInfo, String branchView);
+    RoomResponseDto.ChatBranchUpdatedInfo saveChatAndBranch(Long roomUid, Long memberUid, String chatInfo, String branchView);
 
     void delete(Long roomUid, Long memberUid);
 

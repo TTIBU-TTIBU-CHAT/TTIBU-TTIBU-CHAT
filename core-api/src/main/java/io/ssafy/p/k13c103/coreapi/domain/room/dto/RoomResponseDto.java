@@ -22,7 +22,7 @@ public class RoomResponseDto {
      * 채팅 브랜치 저장 응답 DTO
      */
     @Builder
-    public record ChatBranchInfo(
+    public record ChatBranchUpdatedInfo(
             Long roomUid,
             LocalDateTime updatedAt
     ) {

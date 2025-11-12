@@ -52,7 +52,7 @@ public class RoomController {
     @PostMapping(value = "/{roomId}", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseEntity<JSend> saveChatAndBranch(@PathVariable Long roomId, @RequestPart("chatInfo") String chatInfo, @RequestPart("branchView") String branchView, @AuthenticationPrincipal CustomMemberDetails member) {
 
-        RoomResponseDto.ChatBranchInfo info = roomService.saveChatAndBranch(roomId, member.getMemberUid(), chatInfo, branchView);
+        RoomResponseDto.ChatBranchUpdatedInfo info = roomService.saveChatAndBranch(roomId, member.getMemberUid(), chatInfo, branchView);
 
         return ResponseEntity.status(HttpStatus.CREATED).body(JSend.success(info));
     }
