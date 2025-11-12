@@ -46,5 +46,18 @@ public interface RoomRepository extends JpaRepository<Room, Long> {
 
     @Query(value="SELECT updated_at FROM room WHERE room_uid = :roomUid", nativeQuery = true)
     LocalDateTime getUpdatedAtByRoomUid(Long roomUid);
+
+    @Query(value = """
+        SELECT r.chat_info::text AS chatInfo,
+               r.branch_view::text AS branchView
+        FROM room r
+        WHERE r.room_uid = :roomUid
+        """, nativeQuery = true)
+    RoomViewsRow findViewsByRoomUid(Long roomUid);
+
+    interface RoomViewsRow {
+        String getChatInfo();
+        String getBranchView(); 
+    }
 }
 

@@ -219,6 +219,25 @@ public class RoomServiceImpl implements RoomService {
     }
 
     @Override
+    @Transactional(readOnly = true)
+    public RoomResponseDto.ChatBranchInfo getChatAndBranch(Long roomUid, Long memberUid) {
+        if (!memberRepository.existsById(memberUid))
+            throw new ApiException(ErrorCode.MEMBER_NOT_FOUND);
+
+        if (!roomRepository.existsByRoomUidAndOwner_MemberUid(roomUid, memberUid))
+            throw new ApiException(ErrorCode.ROOM_NOT_FOUND);
+
+        RoomRepository.RoomViewsRow info = roomRepository.findViewsByRoomUid(roomUid);
+
+        return RoomResponseDto.ChatBranchInfo.builder()
+                .roomUid(roomUid)
+                .chatInfo(info.getChatInfo())
+                .branchView(info.getBranchView())
+                .build();
+    }
+
+
+    @Override
     @Transactional
     public void delete(Long roomUid, Long memberUid) {
         if (!memberRepository.existsById(memberUid))

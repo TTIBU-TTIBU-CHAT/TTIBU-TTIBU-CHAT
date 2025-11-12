@@ -57,6 +57,16 @@ public class RoomController {
         return ResponseEntity.status(HttpStatus.CREATED).body(JSend.success(info));
     }
 
+    @Operation(summary = "채팅 및 브랜치 정보 조회", description = "")
+    @GetMapping("/{roomId}")
+    public ResponseEntity<JSend> getChatAndBranch(@PathVariable Long roomId, @AuthenticationPrincipal CustomMemberDetails member) {
+
+        RoomResponseDto.ChatBranchInfo info = roomService.getChatAndBranch(roomId, member.getMemberUid());
+
+        return ResponseEntity.status(HttpStatus.OK).body(JSend.success(info));
+    }
+
+
     @Operation(summary = "채팅방 이름 수정", description = "특정 채팅방의 이름을 수정합니다.")
     @PatchMapping("/{roomId}/name")
     public ResponseEntity<JSend> updateRoomName(
