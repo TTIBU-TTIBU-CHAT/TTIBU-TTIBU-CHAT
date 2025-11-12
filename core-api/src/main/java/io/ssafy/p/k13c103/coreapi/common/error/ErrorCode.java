@@ -21,6 +21,7 @@ public enum ErrorCode {
     /* === 채팅방 === */
     ROOM_NOT_FOUND(HttpStatus.NOT_FOUND, "존재하지 않는 채팅방입니다."),
     ROOM_FORBIDDEN(HttpStatus.FORBIDDEN, "해당 채팅방에 접근할 권한이 없습니다."),
+    INVALID_JSON(HttpStatus.BAD_REQUEST, "JSON 형식이 올바르지 않습니다."),
 
     /* === 브랜치 === */
     BRANCH_NOT_FOUND(HttpStatus.NOT_FOUND, "존재하지 않는 브랜치입니다."),
