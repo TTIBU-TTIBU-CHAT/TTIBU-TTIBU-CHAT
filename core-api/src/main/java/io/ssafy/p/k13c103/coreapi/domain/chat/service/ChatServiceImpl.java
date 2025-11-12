@@ -6,6 +6,7 @@ import io.ssafy.p.k13c103.coreapi.common.error.ApiException;
 import io.ssafy.p.k13c103.coreapi.common.error.ErrorCode;
 import io.ssafy.p.k13c103.coreapi.common.sse.SseEmitterManager;
 import io.ssafy.p.k13c103.coreapi.config.properties.AiProcessingProperties;
+import io.ssafy.p.k13c103.coreapi.domain.chat.dto.ChatRequestDto;
 import io.ssafy.p.k13c103.coreapi.domain.chat.dto.ChatResponseDto;
 import io.ssafy.p.k13c103.coreapi.domain.chat.dto.ChatSseEvent;
 import io.ssafy.p.k13c103.coreapi.domain.chat.entity.Chat;
@@ -66,6 +67,27 @@ public class ChatServiceImpl implements ChatService {
         return page.map(chat -> new ChatResponseDto.SearchedResultInfo(chat));
     }
 
+    @Override
+    @Transactional
+    public ChatResponseDto.CopiedChatInfo copyChat(ChatRequestDto.CopyChat request, Long memberUid) {
+        if (!memberRepository.existsById(memberUid))
+            throw new ApiException(ErrorCode.MEMBER_NOT_FOUND);
+
+        Room room = roomRepository.findByRoomUidAndOwner_MemberUid(request.roomUid(), memberUid)
+                .orElseThrow(() -> new ApiException(ErrorCode.ROOM_NOT_FOUND));
+
+        Chat origin = chatRepository.findById(request.originUid())
+                .orElseThrow(() -> new ApiException(ErrorCode.CHAT_NOT_FOUND));
+
+        Chat newChat = Chat.cloneFrom(origin, room);
+        chatRepository.save(newChat);
+
+        return ChatResponseDto.CopiedChatInfo.builder()
+                .copyId(newChat.getChatUid())
+                .roomUid(room.getRoomUid())
+                .build();
+    }
+
     /**
      * 채팅 처리 비동기 실행
      * 1. 답변 생성
@@ -90,11 +112,11 @@ public class ChatServiceImpl implements ChatService {
                     "role", "system",
                     "content",
                     """
-                    당신은 사용자의 대화 히스토리를 이해하고 일관성 있는 응답을 생성하는 AI 어시스턴트입니다.
-                    아래의 대화 내용을 참고해 맥락을 유지한 자연스러운 답변을 생성하세요.
-        
-                    [이전 대화 요약 또는 내용]
-                    """ + contextPrompt
+                            당신은 사용자의 대화 히스토리를 이해하고 일관성 있는 응답을 생성하는 AI 어시스턴트입니다.
+                            아래의 대화 내용을 참고해 맥락을 유지한 자연스러운 답변을 생성하세요.
+                            
+                            [이전 대화 요약 또는 내용]
+                            """ + contextPrompt
             ));
         }
         messages.add(Map.of("role", "user", "content", chat.getQuestion()));

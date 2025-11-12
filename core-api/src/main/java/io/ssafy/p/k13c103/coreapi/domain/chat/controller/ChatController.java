@@ -2,6 +2,7 @@ package io.ssafy.p.k13c103.coreapi.domain.chat.controller;
 
 import io.ssafy.p.k13c103.coreapi.common.jsend.JSend;
 import io.ssafy.p.k13c103.coreapi.config.security.CustomMemberDetails;
+import io.ssafy.p.k13c103.coreapi.domain.chat.dto.ChatRequestDto;
 import io.ssafy.p.k13c103.coreapi.domain.chat.dto.ChatResponseDto;
 import io.ssafy.p.k13c103.coreapi.domain.chat.service.ChatService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -13,10 +14,7 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RequestParam;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 
@@ -37,4 +35,14 @@ public class ChatController {
 
         return ResponseEntity.status(HttpStatus.OK).body(JSend.success(page));
     }
+
+    @Operation(summary = "채팅 복사", description = "")
+    @PostMapping("/copies")
+    public ResponseEntity<JSend> copyChat(@RequestBody ChatRequestDto.CopyChat request, @AuthenticationPrincipal CustomMemberDetails member) {
+
+        ChatResponseDto.CopiedChatInfo copy = chatService.copyChat(request, member.getMemberUid());
+
+        return ResponseEntity.status(HttpStatus.CREATED).body(JSend.success(copy));
+    }
+
 }
