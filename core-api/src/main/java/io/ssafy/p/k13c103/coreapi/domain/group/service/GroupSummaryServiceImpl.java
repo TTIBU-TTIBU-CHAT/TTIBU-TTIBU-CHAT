@@ -1,5 +1,8 @@
 package io.ssafy.p.k13c103.coreapi.domain.group.service;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
+import io.ssafy.p.k13c103.coreapi.common.error.ApiException;
+import io.ssafy.p.k13c103.coreapi.common.error.ErrorCode;
 import io.ssafy.p.k13c103.coreapi.domain.chat.enums.ChatType;
 import io.ssafy.p.k13c103.coreapi.domain.chat.repository.ChatRepository;
 import io.ssafy.p.k13c103.coreapi.domain.group.entity.Group;
@@ -9,6 +12,8 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.stream.Collectors;
 
@@ -23,16 +28,12 @@ public class GroupSummaryServiceImpl implements GroupSummaryService {
 
     @Async("aiTaskExecutor")
     @Override
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void generateSummaryAsync(Long groupId) {
         log.info("[GROUP_SUMMARY] 그룹 요약 비동기 처리 시작 -> groupId={}", groupId);
 
-        Group group;
-        try {
-            group = groupRepository.getReferenceById(groupId);
-        } catch (Exception e) {
-            log.error("[GROUP_SUMMARY] 그룹 조회 실패 → groupId={}", groupId);
-            return;
-        }
+        Group group = groupRepository.findById(groupId)
+                .orElseThrow(() -> new ApiException(ErrorCode.GROUP_NOT_FOUND));
 
         // 그룹에 포함된 모든 복제 Chat 내용 병합
         String mergedText = chatRepository.findAllByGroup_GroupUidAndChatType(groupId, ChatType.GROUP)
@@ -60,8 +61,16 @@ public class GroupSummaryServiceImpl implements GroupSummaryService {
         aiAsyncClient.summarizeAsync(mergedText)
                 .thenAccept(result -> {
                     try {
-                        group.updateSummaryAndKeywords(result.getSummary(), String.join(",", result.getKeywords()));
-                        groupRepository.save(group);
+                        Group refreshed = groupRepository.findById(groupId)
+                                .orElseThrow(() -> new ApiException(ErrorCode.GROUP_NOT_FOUND));
+
+                        refreshed.updateSummaryAndKeywords(
+                                result.getSummary(),
+                                new ObjectMapper().writeValueAsString(result.getKeywords())
+                        );
+
+                        groupRepository.save(refreshed);
+
                         log.info("[GROUP_SUMMARY] 요약/키워드 생성 완료 → groupId={}", groupId);
                     } catch (Exception e) {
                         log.error("[GROUP_SUMMARY] 그룹 요약 저장 실패: {}", e.getMessage());
