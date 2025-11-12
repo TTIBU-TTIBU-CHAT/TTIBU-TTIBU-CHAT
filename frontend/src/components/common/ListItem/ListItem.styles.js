@@ -9,6 +9,7 @@ export const Item = styled.div`
   border-bottom: 1px solid #e5e7eb;
   cursor: pointer;
   transition: background 0.2s ease;
+  min-width: 0;
 
   &:hover {
     background-color: #f3f4f6;
@@ -34,31 +35,33 @@ export const Title = styled.h3`
 export const Summary = styled.p`
   font-size: 14px;
   color: #475569;
+  margin: 0;
+  line-height: 1.4;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  margin: 0;
+
+  max-width: 100%;
 `;
 
 export const TagWrapper = styled.div`
   display: flex;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   gap: 6px;
+  min-width: 0;
+  overflow: hidden; 
+  mask-image: linear-gradient(to right, black 80%, transparent 100%); /* 부드럽게 fade-out 효과 */
 `;
 
 export const Tag = styled.span`
+  flex-shrink: 0;
   font-size: 12px;
   font-weight: 500;
   background: ${({ $extra }) => ($extra ? "#e2e8f0" : "#2f4a75")};
   color: ${({ $extra }) => ($extra ? "#334155" : "#fff")};
   padding: 3px 8px;
   border-radius: 8px;
-
-  ${({ $extra }) =>
-    $extra &&
-    css`
-      border: 1px solid #cbd5e1;
-    `}
+  white-space: nowrap;
 `;
 
 /* ----- 오른쪽 영역 + 날짜 + 케밥 메뉴 ----- */
