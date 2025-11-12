@@ -106,7 +106,7 @@ export default function SidebarMenu() {
                 <>
                   <S.SubList>
                     {groups.slice(0, 5).map((group) => {
-                      const gid = group.id ?? group._id;
+                      const gid = group.groupId ?? group.group_id;
                       return (
                         <S.SubItem
                           key={gid}
