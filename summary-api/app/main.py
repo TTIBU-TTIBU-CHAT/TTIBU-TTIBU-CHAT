@@ -5,8 +5,8 @@ import os
 import time
 
 # 내부 모듈 import
-from .models import TextRequest, SummaryKeywordResponse, TitleRequest, TitleResponse
-from .services import generate_summary, extract_keywords, generate_title
+from models import TextRequest, SummaryKeywordResponse, TitleRequest, TitleResponse
+from services import generate_summary, extract_keywords, generate_title
 
 # ----------------------------------------------------
 # ⚙️ PyTorch 스레드 설정
