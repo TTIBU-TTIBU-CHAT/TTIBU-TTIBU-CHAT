@@ -305,14 +305,14 @@ public class RoomServiceImpl implements RoomService {
             payload.put("created_at", room.getCreatedAt());
 
             payload.put("nodes", createdChats.stream()
-                    .map(chat -> Map.of(
-                            "chat_id", chat.getChatUid(),
-                            "type", chat.getChatType().name(),
-                            "summary", chat.getSummary(),
-                            "keywords", parseKeywords(chat),
-                            "question", chat.getQuestion(),
-                            "answer", chat.getAnswer(),
-                            "created_at", chat.getCreatedAt()
+                    .map(chat -> Map.ofEntries(
+                            Map.entry("chat_id", chat.getChatUid()),
+                            Map.entry("type", chat.getChatType().name()),
+                            Map.entry("summary", chat.getSummary() != null ? chat.getSummary() : ""),
+                            Map.entry("keywords", parseKeywords(chat) != null ? parseKeywords(chat) : List.of()),
+                            Map.entry("question", chat.getQuestion() != null ? chat.getQuestion() : ""),
+                            Map.entry("answer", chat.getAnswer() != null ? chat.getAnswer() : ""),
+                            Map.entry("created_at", chat.getCreatedAt())
                     ))
                     .collect(Collectors.toList()));
 
