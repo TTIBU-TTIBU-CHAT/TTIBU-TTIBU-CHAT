@@ -92,7 +92,7 @@ public class Chat extends BaseTimeEntity {
      * - 채팅/그룹 기반 복제 시 사용
      */
     public static Chat cloneFrom(Chat origin, Room newRoom) {
-        return Chat.builder()
+        Chat chat = Chat.builder()
                 .room(newRoom)
                 .group(origin.getGroup())
                 .modelCatalog(origin.getModelCatalog())
@@ -106,6 +106,10 @@ public class Chat extends BaseTimeEntity {
                 .chatType(ChatType.CHAT)
                 .modelCatalogUid(origin.getModelCatalogUid())
                 .build();
+        chat.createdAt = origin.createdAt;
+        chat.answeredAt = origin.getAnsweredAt();
+        chat.updatedAt = LocalDateTime.now();
+        return chat;
     }
 
     /**
