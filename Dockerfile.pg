@@ -1,4 +1,5 @@
-FROM postgres:15-bookworm
+# Build stage - pg_bigm 컴파일
+FROM postgres:15-bookworm AS builder
 
 RUN apt-get update \
  && apt-get install -y --no-install-recommends \
@@ -10,5 +11,13 @@ RUN git clone --depth 1 https://github.com/pgbigm/pg_bigm.git /tmp/pg_bigm \
  && make -C /tmp/pg_bigm USE_PGXS=1 install \
  && rm -rf /tmp/pg_bigm
 
+# Runtime stage - 실행 환경
+FROM postgres:15-bookworm
+
+# builder stage에서 컴파일된 확장 파일만 복사
+COPY --from=builder /usr/share/postgresql/15/extension/pg_bigm* /usr/share/postgresql/15/extension/
+COPY --from=builder /usr/lib/postgresql/15/lib/pg_bigm.so /usr/lib/postgresql/15/lib/
+
+# PostgreSQL 시작 시 자동으로 pg_bigm 확장 활성화
 RUN mkdir -p /docker-entrypoint-initdb.d \
  && printf 'CREATE EXTENSION IF NOT EXISTS pg_bigm;\n' > /docker-entrypoint-initdb.d/001_pg_bigm.sql

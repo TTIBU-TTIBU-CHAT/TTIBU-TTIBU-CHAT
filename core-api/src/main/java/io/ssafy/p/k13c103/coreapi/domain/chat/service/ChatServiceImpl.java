@@ -53,9 +53,10 @@ public class ChatServiceImpl implements ChatService {
         if (!memberRepository.existsById(memberUid))
             throw new ApiException(ErrorCode.MEMBER_NOT_FOUND);
 
-        if (keywords == null || keywords.isEmpty())
-            throw new ApiException(ErrorCode.EMPTY_SEARCH_KEYWORD);
-        else if (keywords.size() > 10)
+        if (keywords == null || keywords.isEmpty()) {
+            Page<Chat> page = chatRepository.findAllChats(memberUid, pageable);
+            return page.map(chat -> new ChatResponseDto.SearchedResultInfo(chat));
+        } else if (keywords.size() > 5)
             throw new ApiException(ErrorCode.TOO_MANY_SEARCH_KEYWORD);
 
         String[] array = convertToArray(keywords);
@@ -303,7 +304,7 @@ public class ChatServiceImpl implements ChatService {
             if (k == null) continue;
             k = k.trim();
             if (k.isEmpty()) continue;
-            k=k.toLowerCase(Locale.ROOT); // 소문자 통일
+            k = k.toLowerCase(Locale.ROOT); // 소문자 통일
             set.add(k);
         }
 

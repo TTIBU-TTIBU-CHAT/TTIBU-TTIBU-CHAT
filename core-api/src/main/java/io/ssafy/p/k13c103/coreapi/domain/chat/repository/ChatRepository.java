@@ -72,4 +72,34 @@ public interface ChatRepository extends JpaRepository<Chat, Long> {
          where c.room.roomUid = :roomUid
         """)
     int deleteChatsByRoom(Long roomUid);
+
+    @Query(
+            value = """
+        SELECT c.*
+        FROM chat c
+        WHERE c.status  = 'SUMMARY_KEYWORDS'
+          AND c.is_chat = 'CHAT'
+          AND EXISTS (
+              SELECT 1
+              FROM room r
+              WHERE r.room_uid = c.room_id
+                AND r.owner_id = :memberId
+          )
+        ORDER BY c.created_at DESC
+        """,
+            countQuery = """
+        SELECT COUNT(*)
+        FROM chat c
+        WHERE c.status  = 'SUMMARY_KEYWORDS'
+          AND c.is_chat = 'CHAT'
+          AND EXISTS (
+              SELECT 1
+              FROM room r
+              WHERE r.room_uid = c.room_id
+                AND r.owner_id = :memberId
+          )
+        """,
+            nativeQuery = true
+    )
+    Page<Chat> findAllChats(Long memberId, Pageable pageable);
 }
