@@ -52,9 +52,9 @@ public class RoomController {
     @PostMapping(value = "/{roomId}", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseEntity<JSend> saveChatAndBranch(@PathVariable Long roomId, @RequestPart("chatInfo") String chatInfo, @RequestPart("branchView") String branchView, @AuthenticationPrincipal CustomMemberDetails member) {
 
-        roomService.saveChatAndBranch(roomId, member.getMemberUid(), chatInfo, branchView);
+        RoomResponseDto.ChatBranchInfo info = roomService.saveChatAndBranch(roomId, member.getMemberUid(), chatInfo, branchView);
 
-        return ResponseEntity.status(HttpStatus.CREATED).body(JSend.success("채팅 및 브랜치 정보 저장 성공"));
+        return ResponseEntity.status(HttpStatus.CREATED).body(JSend.success(info));
     }
 
     @Operation(summary = "채팅방 이름 수정", description = "특정 채팅방의 이름을 수정합니다.")

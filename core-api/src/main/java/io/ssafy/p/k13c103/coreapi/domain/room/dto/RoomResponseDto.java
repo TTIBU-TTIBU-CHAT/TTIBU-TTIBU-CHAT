@@ -17,4 +17,14 @@ public class RoomResponseDto {
             LocalDateTime updatedAt
     ) {
     }
+
+    /**
+     * 채팅 브랜치 저장 응답 DTO
+     */
+    @Builder
+    public record ChatBranchInfo(
+            Long roomUid,
+            LocalDateTime updatedAt
+    ) {
+    }
 }

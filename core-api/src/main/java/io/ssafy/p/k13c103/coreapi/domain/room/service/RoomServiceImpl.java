@@ -196,7 +196,7 @@ public class RoomServiceImpl implements RoomService {
 
     @Override
     @Transactional
-    public void saveChatAndBranch(Long roomUid, Long memberUid, String chatInfo, String branchView) {
+    public RoomResponseDto.ChatBranchInfo saveChatAndBranch(Long roomUid, Long memberUid, String chatInfo, String branchView) {
         if (!memberRepository.existsById(memberUid))
             throw new ApiException(ErrorCode.MEMBER_NOT_FOUND);
 
@@ -211,6 +211,11 @@ public class RoomServiceImpl implements RoomService {
         }
 
         roomRepository.updateViews(roomUid, chatInfo, branchView);
+
+        return RoomResponseDto.ChatBranchInfo.builder()
+                .roomUid(roomUid)
+                .updatedAt(roomRepository.getUpdatedAtByRoomUid(roomUid))
+                .build();
     }
 
     @Override
