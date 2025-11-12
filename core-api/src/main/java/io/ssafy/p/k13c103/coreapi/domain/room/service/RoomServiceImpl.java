@@ -196,6 +196,25 @@ public class RoomServiceImpl implements RoomService {
 
     @Override
     @Transactional
+    public void saveChatAndBranch(Long roomUid, Long memberUid, String chatInfo, String branchView) {
+        if (!memberRepository.existsById(memberUid))
+            throw new ApiException(ErrorCode.MEMBER_NOT_FOUND);
+
+        if (!roomRepository.existsByRoomUidAndOwner_MemberUid(roomUid, memberUid))
+            throw new ApiException(ErrorCode.ROOM_NOT_FOUND);
+
+        try {
+            objectMapper.readTree(chatInfo);
+            objectMapper.readTree(branchView);
+        } catch (Exception e) {
+            throw new ApiException(ErrorCode.INVALID_JSON);
+        }
+
+        roomRepository.updateViews(roomUid, chatInfo, branchView);
+    }
+
+    @Override
+    @Transactional
     public void delete(Long roomUid, Long memberUid) {
         if (!memberRepository.existsById(memberUid))
             throw new ApiException(ErrorCode.MEMBER_NOT_FOUND);

@@ -4,16 +4,14 @@ import io.ssafy.p.k13c103.coreapi.common.jsend.JSend;
 import io.ssafy.p.k13c103.coreapi.config.security.CustomMemberDetails;
 import io.ssafy.p.k13c103.coreapi.domain.chat.dto.ChatCreateRequestDto;
 import io.ssafy.p.k13c103.coreapi.domain.chat.dto.ChatCreateResponseDto;
-import io.ssafy.p.k13c103.coreapi.domain.room.dto.RoomCreateRequestDto;
-import io.ssafy.p.k13c103.coreapi.domain.room.dto.RoomRenameRequestDto;
-import io.ssafy.p.k13c103.coreapi.domain.room.dto.RoomRenameResponseDto;
-import io.ssafy.p.k13c103.coreapi.domain.room.dto.RoomResponseDto;
+import io.ssafy.p.k13c103.coreapi.domain.room.dto.*;
 import io.ssafy.p.k13c103.coreapi.domain.room.service.RoomService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
@@ -48,6 +46,15 @@ public class RoomController {
         List<RoomResponseDto.RoomListInfo> list =  roomService.getList(member.getMemberUid());
 
         return ResponseEntity.status(HttpStatus.OK).body(JSend.success(list));
+    }
+
+    @Operation(summary = "채팅 및 브랜치 정보 저장", description = "")
+    @PostMapping(value = "/{roomId}", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ResponseEntity<JSend> saveChatAndBranch(@PathVariable Long roomId, @RequestPart("chatInfo") String chatInfo, @RequestPart("branchView") String branchView, @AuthenticationPrincipal CustomMemberDetails member) {
+
+        roomService.saveChatAndBranch(roomId, member.getMemberUid(), chatInfo, branchView);
+
+        return ResponseEntity.status(HttpStatus.CREATED).body(JSend.success("채팅 및 브랜치 정보 저장 성공"));
     }
 
     @Operation(summary = "채팅방 이름 수정", description = "특정 채팅방의 이름을 수정합니다.")
