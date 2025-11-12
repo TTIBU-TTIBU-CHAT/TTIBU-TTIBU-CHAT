@@ -75,7 +75,7 @@ public class ChatServiceImpl implements ChatService {
     @Async("aiTaskExecutor")
     @Transactional(propagation = Propagation.REQUIRES_NEW, rollbackFor = Exception.class)
     @Override
-    public void processChatAsync(Long chatId, Long branchId, String apiKey, String model, String provider, boolean useLlm) {
+    public void processChatAsync(Long chatId, Long branchId, String apiKey, String model, String provider, boolean useLlm, String contextPrompt) {
         Chat chat = chatRepository.findById(chatId)
                 .orElseThrow(() -> new ApiException(ErrorCode.CHAT_NOT_FOUND));
         Room room = chat.getRoom();
@@ -84,9 +84,21 @@ public class ChatServiceImpl implements ChatService {
 
         // 1. 답변 생성
         // message 구성: LLM API 규격에 맞춰 user 질문으로 변환
-        List<Map<String, String>> messages = List.of(
-                Map.of("role", "user", "content", chat.getQuestion())
-        );
+        List<Map<String, String>> messages = new ArrayList<>();
+        if (contextPrompt != null && !contextPrompt.isBlank()) {
+            messages.add(Map.of(
+                    "role", "system",
+                    "content",
+                    """
+                    당신은 사용자의 대화 히스토리를 이해하고 일관성 있는 응답을 생성하는 AI 어시스턴트입니다.
+                    아래의 대화 내용을 참고해 맥락을 유지한 자연스러운 답변을 생성하세요.
+        
+                    [이전 대화 요약 또는 내용]
+                    """ + contextPrompt
+            ));
+        }
+        messages.add(Map.of("role", "user", "content", chat.getQuestion()));
+
         StringBuilder accumulatedAnswer = new StringBuilder();
 
         CompletableFuture<String> answerFuture = CompletableFuture.supplyAsync(() -> {
