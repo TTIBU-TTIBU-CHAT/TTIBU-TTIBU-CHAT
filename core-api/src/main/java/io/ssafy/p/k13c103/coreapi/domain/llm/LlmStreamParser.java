@@ -24,7 +24,7 @@ public class LlmStreamParser {
             JsonNode root = safeParse(json);
             if (root == null) return null;
 
-            /* 1) OpenAI / GPT-4 / GPT-5 / LiteLLM → choices[0].delta.content */
+            // 1) OpenAI / GPT / LiteLLM
             if (p.equals("openai") || p.equals("litellm")) {
                 JsonNode choices = root.path("choices");
                 if (choices.isArray() && !choices.isEmpty()) {
@@ -35,7 +35,7 @@ public class LlmStreamParser {
                 }
             }
 
-            /* 2) Claude / Anthropic → type: content_block_delta, delta.text */
+            // 2) Claude / Anthropic
             if (p.equals("anthropic") || p.equals("claude")) {
                 if (root.has("type")
                         && "content_block_delta".equals(root.get("type").asText())) {
@@ -47,7 +47,7 @@ public class LlmStreamParser {
                 }
             }
 
-            /* 3) Gemini / Google → candidates[0].content.parts[n].text */
+            // 3) Gemini / Google
             if (p.equals("gemini") || p.equals("google")) {
                 JsonNode parts = root
                         .path("candidates").path(0)
@@ -58,6 +58,7 @@ public class LlmStreamParser {
                     if (t.isTextual()) return t.asText();
                 }
             }
+
         } catch (Exception e) {
             log.warn("[Parser] extractDeltaContent 오류 provider={}, err={}, chunk={}",
                     provider, e.getMessage(), chunk);
@@ -76,29 +77,41 @@ public class LlmStreamParser {
         String c = chunk.trim();
 
         try {
-             /* 1) OpenAI / GPT-4 / GPT-5 / LiteLLM → "[DONE]" */
-            if (p.equals("openai") || p.equals("litellm")) {
-                return c.equals("[DONE]") || c.equalsIgnoreCase("data: [DONE]");
+
+            // 0) 모든 provider 공통: SSE 센티넬 문자열 "[DONE]" 우선 처리
+            if (c.equals("[DONE]") || c.equalsIgnoreCase("data: [DONE]")) {
+                return true;
             }
 
-            /* 2) Gemini / Google → finishReason: "STOP" */
+            // 1) OpenAI / GPT / LiteLLM
+            if (p.equals("openai") || p.equals("litellm")) {
+                // 이미 위에서 [DONE] 처리함 → 여기서는 false
+                return false;
+            }
+
+            // 2) Gemini / Google
             if (p.equals("gemini") || p.equals("google")) {
+                // [수정] Gemini의 NDJSON 조각을 JsonNode로 해석
                 String json = normalizeJson(c);
                 JsonNode root = safeParse(json);
                 if (root == null) return false;
 
                 JsonNode candidates = root.path("candidates");
                 if (candidates.isArray() && candidates.size() > 0) {
+
+                    // [수정] Gemini의 finishReason 기반 종료 처리
                     String reason = candidates.get(0).path("finishReason").asText("");
                     return reason.equalsIgnoreCase("STOP")
                             || reason.equalsIgnoreCase("MAX_TOKENS")
                             || reason.equalsIgnoreCase("SAFETY");
                 }
+
                 return false;
             }
 
-            /* 3) Claude / Anthropic → type = "message_stop" */
+            // 3) Claude / Anthropic
             if (p.equals("anthropic") || p.equals("claude")) {
+                // [수정] Anthropic의 message_stop 구조 처리
                 String json = normalizeJson(c);
                 JsonNode root = safeParse(json);
                 if (root == null) return false;
@@ -115,7 +128,7 @@ public class LlmStreamParser {
     }
 
     /**
-     * usage 추출 (OpenAI, LiteLLM 등이 제공)
+     * usage 추출 (OpenAI, Gemini 등)
      */
     public JsonNode extractUsage(String provider, String chunk) {
         if (chunk == null || chunk.isBlank()) return null;
@@ -125,7 +138,15 @@ public class LlmStreamParser {
             JsonNode root = safeParse(json);
             if (root == null) return null;
 
-            if (root.has("usage")) return root.get("usage");
+            // 1) OpenAI / LiteLLM
+            if (root.has("usage")) {
+                return root.get("usage");
+            }
+
+            // [수정] 2) Gemini / Google - usageMetadata 지원
+            if (root.has("usageMetadata")) {
+                return root.get("usageMetadata");
+            }
 
         } catch (Exception e) {
             log.warn("[Parser] usage 파싱 실패 provider={}", provider);
