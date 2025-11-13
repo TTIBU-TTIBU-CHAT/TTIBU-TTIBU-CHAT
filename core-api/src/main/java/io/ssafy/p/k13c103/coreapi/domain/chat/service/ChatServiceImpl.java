@@ -344,9 +344,31 @@ public class ChatServiceImpl implements ChatService {
     private void applyTokenUsageIfPresent(Room room, String provider, JsonNode usageNode) {
         if (usageNode == null) return;
 
-        int prompt = usageNode.path("prompt_tokens").asInt(0);
-        int completion = usageNode.path("completion_tokens").asInt(0);
-        int total = prompt + completion;
+        // ✅ OpenAI / LiteLLM 스타일 (usage.prompt_tokens / completion_tokens)
+        int prompt = 0;
+        int completion = 0;
+        int total = 0;
+
+        // OpenAI 스타일
+        if (usageNode.has("prompt_tokens") || usageNode.has("completion_tokens")) {
+            prompt = usageNode.path("prompt_tokens").asInt(0);
+            completion = usageNode.path("completion_tokens").asInt(0);
+            total = prompt + completion;
+        }
+
+        // ✅ Gemini 스타일 (usageMetadata.*TokenCount)
+        if (usageNode.has("promptTokenCount") || usageNode.has("candidatesTokenCount")) {
+            int gPrompt = usageNode.path("promptTokenCount").asInt(0);
+            int gCompletion = usageNode.path("candidatesTokenCount").asInt(0);
+            int gTotal = usageNode.path("totalTokenCount").asInt(gPrompt + gCompletion);
+
+            // 둘 중 더 신뢰 가는 값으로 덮어쓰기 (OpenAI가 아닌 경우 대부분 여기로 들어옴)
+            if (gTotal > 0) {
+                prompt = gPrompt;
+                completion = gCompletion;
+                total = gTotal;
+            }
+        }
 
         if (total <= 0) {
             log.debug("[USAGE] provider={}, totalTokens=0 → 누적 건너뜀", provider);
@@ -366,4 +388,5 @@ public class ChatServiceImpl implements ChatService {
         log.info("[USAGE] member={}, provider={}, +{} tokens (prompt={}, completion={})",
                 room.getOwner().getMemberUid(), provider, total, prompt, completion);
     }
+
 }
