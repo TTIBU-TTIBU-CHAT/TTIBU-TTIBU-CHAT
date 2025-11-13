@@ -7,6 +7,7 @@ import org.springframework.data.jpa.repository.Query;
 
 import java.util.Collection;
 import java.util.List;
+import java.util.Optional;
 
 public interface ProviderCatalogRepository extends JpaRepository<ProviderCatalog, Long>, ProviderCatalogRepositoryCustom  {
     List<ProviderCatalog> findByIsActiveTrueOrderByCodeAsc();
@@ -23,4 +24,6 @@ public interface ProviderCatalogRepository extends JpaRepository<ProviderCatalog
         returning provider_catalog_uid
     """, nativeQuery = true)
     List<Long> softDeleteNotInReturningIds(Collection<String> providerCodes);
+
+    Optional<ProviderCatalog> findByCode(String code);
 }

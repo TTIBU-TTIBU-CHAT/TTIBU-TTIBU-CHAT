@@ -51,4 +51,14 @@ public class Key extends BaseTimeEntity {
         if (isActive != null) this.isActive = isActive;
         if (expirationAt != null) this.expirationAt = expirationAt;
     }
+
+    public void updateTokenUsage(int amount) {
+        if (amount <= 0) return;
+
+        if (this.tokenUsage == null) {
+            this.tokenUsage = amount;
+        } else {
+            this.tokenUsage += amount;
+        }
+    }
 }
