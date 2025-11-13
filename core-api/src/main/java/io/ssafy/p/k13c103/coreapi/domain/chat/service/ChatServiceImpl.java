@@ -100,7 +100,9 @@ public class ChatServiceImpl implements ChatService {
     public void processChatAsync(Long chatId, Long branchId, String apiKey, String model, String provider, boolean useLlm, String contextPrompt) {
         Chat chat = chatRepository.findById(chatId)
                 .orElseThrow(() -> new ApiException(ErrorCode.CHAT_NOT_FOUND));
-        Room room = chat.getRoom();
+        Long roomId = chat.getRoom().getRoomUid();
+        Room room = roomRepository.findById(roomId)
+                .orElseThrow(() -> new ApiException(ErrorCode.ROOM_NOT_FOUND));
 
         log.info("[ASYNC] Chat {} -> 비동기 AI 처리 시작", chatId);
 
@@ -213,19 +215,19 @@ public class ChatServiceImpl implements ChatService {
                                         log.info("[STEP 2] 짧은 요약 생성 완료: {}", result.getTitle());
 
                                         // 방 이름 업데이트
-                                        Room freshRoom = roomRepository.findById(room.getRoomUid())
+                                        Room freshRoom = roomRepository.findById(roomId)
                                                 .orElseThrow(() -> new ApiException(ErrorCode.ROOM_NOT_FOUND));
                                         freshRoom.updateName(result.getTitle());
                                         roomRepository.saveAndFlush(freshRoom);
 
                                         Map<String, Object> payload = new LinkedHashMap<>();
-                                        payload.put("room_id", room.getRoomUid());
+                                        payload.put("room_id", roomId);
                                         payload.put("branch_id", branchId);
-                                        payload.put("updated_at", room.getUpdatedAt());
+                                        payload.put("updated_at", freshRoom.getUpdatedAt());
                                         payload.put("short_summary", result.getTitle());
 
                                         sseEmitterManager.sendEvent(
-                                                room.getRoomUid(),
+                                                roomId,
                                                 new ChatSseEvent<>(ChatSseEventType.ROOM_SHORT_SUMMARY, payload)
                                         );
                                     } catch (Exception e) {
@@ -248,7 +250,7 @@ public class ChatServiceImpl implements ChatService {
                                         chatRepository.save(chat);
 
                                         Map<String, Object> payload = new LinkedHashMap<>();
-                                        payload.put("room_id", room.getRoomUid());
+                                        payload.put("room_id", roomId);
                                         payload.put("branch_id", branchId);
                                         payload.put("updated_at", chat.getUpdatedAt());
                                         payload.put("chat_id", chat.getChatUid());
@@ -256,7 +258,7 @@ public class ChatServiceImpl implements ChatService {
                                         payload.put("keywords", aiResult.getKeywords());
 
                                         sseEmitterManager.sendEvent(
-                                                room.getRoomUid(),
+                                                roomId,
                                                 new ChatSseEvent<>(ChatSseEventType.CHAT_SUMMARY_KEYWORDS, payload)
                                         );
 
@@ -278,44 +280,6 @@ public class ChatServiceImpl implements ChatService {
                     log.error("[ASYNC] Chat {} 처리 중 오류: {}", chatId, e.getMessage());
                     return null;
                 });
-    }
-
-    /**
-     * SSE: 짧은 요약
-     */
-    private void sendRoomShortSummaryEvent(Room room, Long branchId, String shortSummary) {
-        Map<String, Object> payload = new LinkedHashMap<>();
-        payload.put("room_id", room.getRoomUid());
-        payload.put("branch_id", branchId);
-        payload.put("updated_at", room.getUpdatedAt());
-        payload.put("short_summary", shortSummary);
-
-        sseEmitterManager.sendEvent(
-                room.getRoomUid(),
-                new ChatSseEvent<>(ChatSseEventType.ROOM_SHORT_SUMMARY, payload)
-        );
-
-        log.info("[SSE] ROOM_SHORT_SUMMARY 전송 완료 → roomId={}", room.getRoomUid());
-    }
-
-    /**
-     * SSE: 요약 + 키워드
-     */
-    private void sendChatSummaryKeywordsEvent(Room room, Chat chat, Long branchId, String summary, List<String> keywords) {
-        Map<String, Object> payload = new LinkedHashMap<>();
-        payload.put("room_id", room.getRoomUid());
-        payload.put("branch_id", branchId);
-        payload.put("updated_at", chat.getUpdatedAt());
-        payload.put("chat_id", chat.getChatUid());
-        payload.put("summary", summary);
-        payload.put("keywords", keywords);
-
-        sseEmitterManager.sendEvent(
-                room.getRoomUid(),
-                new ChatSseEvent<>(ChatSseEventType.CHAT_SUMMARY_KEYWORDS, payload)
-        );
-
-        log.info("[SSE] CHAT_SUMMARY_KEYWORDS 전송 완료 → roomId={}, chatId={}", room.getRoomUid(), chat.getChatUid());
     }
 
     /**
