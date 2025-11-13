@@ -26,7 +26,7 @@ public class WebClientConfig {
     public WebClient liteLlmWebClient(WebClient.Builder builder) {
         HttpClient httpClient = HttpClient.create()
                 .option(ChannelOption.CONNECT_TIMEOUT_MILLIS, 3000)
-                .responseTimeout(Duration.ofSeconds(5));
+                .responseTimeout(Duration.ofSeconds(20));
 
         return builder
                 .baseUrl(liteLlmProperties.getBaseUrl())
