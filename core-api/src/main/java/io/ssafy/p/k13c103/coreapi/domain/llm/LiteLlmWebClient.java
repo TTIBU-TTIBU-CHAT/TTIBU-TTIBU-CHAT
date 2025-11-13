@@ -158,7 +158,7 @@ public class LiteLlmWebClient implements LiteLlmClient {
         final String masterKey = liteLlmProperties.getApiKey();
 
         final boolean streamEnabled = aiProcessingProperties.isStreamEnabled();
-        final double temperature = aiProcessingProperties.getTemperature();
+        final double temperature = resolveTemperature(model, aiProcessingProperties.getTemperature());
 
         if (useLlm) {
             Map<String, Object> llmBody = Map.of(
@@ -321,6 +321,20 @@ public class LiteLlmWebClient implements LiteLlmClient {
             sb.append(msg.getOrDefault("content", "")).append("\n");
         }
         return sb.toString().trim();
+    }
+
+    private double resolveTemperature(String model, double defaultTemperature) {
+        if (model == null) return defaultTemperature;
+
+        String m = model.toLowerCase(Locale.ROOT);
+
+        // gpt-5, gpt-5-mini, gpt-5-nano 모두 포함
+        if (m.startsWith("gpt-5")) {
+            return 1.0;
+        }
+
+        // 나머지는 기존 설정값 그대로
+        return defaultTemperature;
     }
 
     /** 4xx 로깅 강화: provider/model/stream 포함 */
