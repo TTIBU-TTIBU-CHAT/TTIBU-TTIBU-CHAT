@@ -17,4 +17,6 @@ public interface GroupService {
     List<GroupListResponseDto> getGroups(Long memberId);
 
     GroupDetailResponseDto getGroupDetail(Long memberId, Long groupId);
+
+    GroupAttachResponseDto attachGroup(Long roomId, Long memberId, GroupAttachRequestDto request);
 }
