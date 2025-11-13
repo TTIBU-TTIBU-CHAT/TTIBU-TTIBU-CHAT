@@ -5,6 +5,7 @@ import io.ssafy.p.k13c103.coreapi.common.error.ErrorCode;
 import io.ssafy.p.k13c103.coreapi.config.properties.AiProcessingProperties;
 import io.ssafy.p.k13c103.coreapi.config.properties.GmsProperties;
 import io.ssafy.p.k13c103.coreapi.config.properties.LiteLlmProperties;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatusCode;
@@ -14,9 +15,10 @@ import org.springframework.web.reactive.function.client.WebClient;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
-import java.util.List;
-import java.util.Map;
+import java.util.*;
+import java.util.stream.Collectors;
 
+@Slf4j
 @Service
 public class LiteLlmWebClient implements LiteLlmClient {
 
@@ -53,7 +55,8 @@ public class LiteLlmWebClient implements LiteLlmClient {
                     .header(HttpHeaders.AUTHORIZATION, "Bearer " + liteLlmProperties.getApiKey())
                     .bodyValue(body)
                     .retrieve()
-                    .onStatus(HttpStatusCode::is4xxClientError, this::map4xxToApiEx)
+                    .onStatus(HttpStatusCode::is4xxClientError,
+                            r -> map4xxToApiEx(r, "litellm", model, false))
                     .onStatus(HttpStatusCode::is5xxServerError, r -> Mono.error(new ApiException(ErrorCode.UPSTREAM_ERROR)))
                     .toBodilessEntity()
                     .block();
@@ -85,7 +88,8 @@ public class LiteLlmWebClient implements LiteLlmClient {
                         .header(HttpHeaders.AUTHORIZATION, "Bearer " + apiKey)
                         .bodyValue(body)
                         .retrieve()
-                        .onStatus(HttpStatusCode::is4xxClientError, this::map4xxToApiEx)
+                        .onStatus(HttpStatusCode::is4xxClientError,
+                                r -> map4xxToApiEx(r, "openai", model, false))
                         .onStatus(HttpStatusCode::is5xxServerError, r -> Mono.error(new ApiException(ErrorCode.UPSTREAM_ERROR)))
                         .toBodilessEntity()
                         .block();
@@ -108,7 +112,8 @@ public class LiteLlmWebClient implements LiteLlmClient {
                                 .build(model))
                         .bodyValue(body)
                         .retrieve()
-                        .onStatus(HttpStatusCode::is4xxClientError, this::map4xxToApiEx)
+                        .onStatus(HttpStatusCode::is4xxClientError,
+                                r -> map4xxToApiEx(r, "gemini", model, false))
                         .onStatus(HttpStatusCode::is5xxServerError, r -> Mono.error(new ApiException(ErrorCode.UPSTREAM_ERROR)))
                         .toBodilessEntity()
                         .block();
@@ -129,7 +134,8 @@ public class LiteLlmWebClient implements LiteLlmClient {
                         .header("anthropic-version", "2023-06-01")
                         .bodyValue(body)
                         .retrieve()
-                        .onStatus(HttpStatusCode::is4xxClientError, this::map4xxToApiEx)
+                        .onStatus(HttpStatusCode::is4xxClientError,
+                                r -> map4xxToApiEx(r, "anthropic", model, false))
                         .onStatus(HttpStatusCode::is5xxServerError, r -> Mono.error(new ApiException(ErrorCode.UPSTREAM_ERROR)))
                         .toBodilessEntity()
                         .block();
@@ -148,18 +154,11 @@ public class LiteLlmWebClient implements LiteLlmClient {
      */
     @Override
     public Flux<String> createChatStream(String apiKey, String model, String provider, List<Map<String, String>> messages, boolean useLlm) {
-        String gmsBaseUrl = gmsProperties.getBaseUrl();
-        String masterKey = liteLlmProperties.getApiKey();
+        final String gmsBaseUrl = gmsProperties.getBaseUrl();
+        final String masterKey = liteLlmProperties.getApiKey();
 
-        boolean streamEnabled = aiProcessingProperties.isStreamEnabled();
-        double temperature = aiProcessingProperties.getTemperature();
-
-        Map<String, Object> body = Map.of(
-                "model", model,
-                "messages", messages,
-                "stream", streamEnabled ,
-                "temperature", temperature
-        );
+        final boolean streamEnabled = aiProcessingProperties.isStreamEnabled();
+        final double temperature = aiProcessingProperties.getTemperature();
 
         if (useLlm) {
             Map<String, Object> llmBody = Map.of(
@@ -170,91 +169,150 @@ public class LiteLlmWebClient implements LiteLlmClient {
                     "temperature", temperature
             );
 
-            return liteLlmWebClient.post()
+            var spec = liteLlmWebClient.post()
                     .uri("/v1/chat/completions")
                     .header(HttpHeaders.AUTHORIZATION, "Bearer " + masterKey)
-                    .bodyValue(llmBody)
+                    .bodyValue(llmBody);
+
+            return addAcceptIfStream(spec, streamEnabled)
                     .retrieve()
-                    .onStatus(HttpStatusCode::is4xxClientError, this::map4xxToApiEx)
-                    .onStatus(HttpStatusCode::is5xxServerError,
-                            r -> Mono.error(new ApiException(ErrorCode.UPSTREAM_ERROR)))
+                    .onStatus(HttpStatusCode::is4xxClientError, r -> map4xxToApiEx(r, "litellm", model, streamEnabled))
+                    .onStatus(HttpStatusCode::is5xxServerError, r -> Mono.error(new ApiException(ErrorCode.UPSTREAM_ERROR)))
                     .bodyToFlux(String.class);
-        } else {
-            switch (provider.toLowerCase()) {
-                case "openai": {
-                    WebClient client = liteLlmWebClient.mutate()
-                            .baseUrl(gmsBaseUrl + "/api.openai.com")
-                            .build();
-
-                    return client.post()
-                            .uri("/v1/chat/completions")
-                            .header(HttpHeaders.AUTHORIZATION, "Bearer " + apiKey)
-                            .bodyValue(body)
-                            .retrieve()
-                            .onStatus(HttpStatusCode::is4xxClientError, this::map4xxToApiEx)
-                            .onStatus(HttpStatusCode::is5xxServerError,
-                                    r -> Mono.error(new ApiException(ErrorCode.UPSTREAM_ERROR)))
-                            .bodyToFlux(String.class);
-                }
-
-                case "gemini":
-                case "google": {
-                    WebClient client = liteLlmWebClient.mutate()
-                            .baseUrl(gmsBaseUrl + "/generativelanguage.googleapis.com")
-                            .build();
-
-                    Map<String, Object> geminiBody = Map.of(
-                            "contents", List.of(Map.of(
-                                    "role", "user",
-                                    "parts", List.of(Map.of("text", mergeMessages(messages)))
-                            )),
-                            "generationConfig", Map.of(
-                                    "temperature", temperature
-                            ),
-                            "stream", streamEnabled
-                    );
-
-                    return client.post()
-                            .uri(uriBuilder -> uriBuilder
-                                    .path("/v1beta/models/{model}:streamGenerateContent")
-                                    .queryParam("key", apiKey)
-                                    .build(model))
-                            .bodyValue(geminiBody)
-                            .retrieve()
-                            .onStatus(HttpStatusCode::is4xxClientError, this::map4xxToApiEx)
-                            .onStatus(HttpStatusCode::is5xxServerError,
-                                    r -> Mono.error(new ApiException(ErrorCode.UPSTREAM_ERROR)))
-                            .bodyToFlux(String.class);
-                }
-                case "anthropic":
-                case "claude": {
-                    WebClient client = liteLlmWebClient.mutate()
-                            .baseUrl(gmsBaseUrl + "/api.anthropic.com")
-                            .build();
-
-                    Map<String, Object> claudeBody = Map.of(
-                            "model", model,
-                            "temperature", temperature,
-                            "stream", streamEnabled,
-                            "messages", messages
-                    );
-
-                    return client.post()
-                            .uri("/v1/messages")
-                            .header("x-api-key", apiKey)
-                            .header("anthropic-version", "2023-06-01")
-                            .bodyValue(claudeBody)
-                            .retrieve()
-                            .onStatus(HttpStatusCode::is4xxClientError, this::map4xxToApiEx)
-                            .onStatus(HttpStatusCode::is5xxServerError,
-                                    r -> Mono.error(new ApiException(ErrorCode.UPSTREAM_ERROR)))
-                            .bodyToFlux(String.class);
-                }
-
-                default:
-                    return Flux.error(new ApiException(ErrorCode.PROVIDER_NOT_FOUND));
-            }
         }
+
+        switch (provider.toLowerCase(Locale.ROOT)) {
+            case "openai": {
+                // GPT-4 / GPT-5 모두 동일 포맷
+                List<Map<String, String>> openAiMsgs = normalizeOpenAiMessages(messages);
+                Map<String, Object> body = Map.of(
+                        "model", model,
+                        "messages", openAiMsgs,
+                        "stream", streamEnabled,
+                        "temperature", temperature
+                );
+
+                WebClient client = liteLlmWebClient.mutate()
+                        .baseUrl(gmsBaseUrl + "/api.openai.com")
+                        .build();
+
+                var spec = client.post()
+                        .uri("/v1/chat/completions")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + apiKey)
+                        .bodyValue(body);
+
+                return addAcceptIfStream(spec, streamEnabled)
+                        .retrieve()
+                        .onStatus(HttpStatusCode::is4xxClientError, r -> map4xxToApiEx(r, "openai", model, streamEnabled))
+                        .onStatus(HttpStatusCode::is5xxServerError, r -> Mono.error(new ApiException(ErrorCode.UPSTREAM_ERROR)))
+                        .bodyToFlux(String.class);
+            }
+
+            case "gemini":
+            case "google": {
+                // Gemini는 contents 스키마 필요
+                String systemText = messages.stream()
+                        .filter(m -> "system".equalsIgnoreCase(m.getOrDefault("role", "")))
+                        .map(m -> m.getOrDefault("content", ""))
+                        .collect(Collectors.joining("\n")).trim();
+
+                String userText = messages.stream()
+                        .filter(m -> !"system".equalsIgnoreCase(m.getOrDefault("role", "")))
+                        .map(m -> m.getOrDefault("content", ""))
+                        .collect(Collectors.joining("\n")).trim();
+
+                Map<String, Object> body = new HashMap<>();
+                body.put("contents", List.of(Map.of("parts", List.of(Map.of("text", userText)))));
+                body.put("generationConfig", Map.of("temperature", temperature));
+                if (!systemText.isBlank()) {
+                    body.put("systemInstruction", Map.of("parts", List.of(Map.of("text", systemText))));
+                }
+
+                String path = streamEnabled
+                        ? "/v1beta/models/{model}:streamGenerateContent"
+                        : "/v1beta/models/{model}:generateContent";
+
+                WebClient client = liteLlmWebClient.mutate()
+                        .baseUrl(gmsBaseUrl + "/generativelanguage.googleapis.com")
+                        .build();
+
+                var spec = client.post()
+                        .uri(uriBuilder -> uriBuilder.path(path)
+                                .queryParam("key", apiKey)
+                                .build(model))
+                        .bodyValue(body);
+
+                return addAcceptIfStream(spec, streamEnabled)
+                        .retrieve()
+                        .onStatus(HttpStatusCode::is4xxClientError, r -> map4xxToApiEx(r, "gemini", model, streamEnabled))
+                        .onStatus(HttpStatusCode::is5xxServerError, r -> Mono.error(new ApiException(ErrorCode.UPSTREAM_ERROR)))
+                        .bodyToFlux(String.class);
+            }
+            case "anthropic":
+            case "claude": {
+                // Claude는 messages 스키마지만 content는 String (배열 아님)
+                List<Map<String, Object>> anthropicMsgs = toAnthropicMessages(messages);
+
+                Map<String, Object> body = new HashMap<>();
+                body.put("model", model);
+                body.put("messages", anthropicMsgs);
+                body.put("stream", streamEnabled);
+                body.put("temperature", temperature);
+                body.put("max_tokens", 1024);
+
+                WebClient client = liteLlmWebClient.mutate()
+                        .baseUrl(gmsBaseUrl + "/api.anthropic.com")
+                        .build();
+
+                var spec = client.post()
+                        .uri("/v1/messages")
+                        .header("x-api-key", apiKey)
+                        .header("anthropic-version", "2023-06-01")
+                        .bodyValue(body);
+
+                return addAcceptIfStream(spec, streamEnabled)
+                        .retrieve()
+                        .onStatus(HttpStatusCode::is4xxClientError, r -> map4xxToApiEx(r, "anthropic", model, streamEnabled))
+                        .onStatus(HttpStatusCode::is5xxServerError, r -> Mono.error(new ApiException(ErrorCode.UPSTREAM_ERROR)))
+                        .bodyToFlux(String.class);
+            }
+
+            default:
+                return Flux.error(new ApiException(ErrorCode.PROVIDER_NOT_FOUND));
+        }
+    }
+
+
+    private WebClient.RequestHeadersSpec<?> addAcceptIfStream(WebClient.RequestHeadersSpec<?> spec, boolean stream) {
+        return stream ? spec.header(HttpHeaders.ACCEPT, "text/event-stream") : spec;
+    }
+
+    /** OpenAI 호환: developer→system, 기타 미인식 role은 user로 다운그레이드 */
+    private List<Map<String, String>> normalizeOpenAiMessages(List<Map<String, String>> in) {
+        return in.stream().map(m -> {
+            String role = Optional.ofNullable(m.get("role")).orElse("user").toLowerCase(Locale.ROOT);
+            role = switch (role) {
+                case "developer" -> "system";
+                case "assistant", "system", "user", "tool" -> role;
+                default -> "user";
+            };
+            return Map.of(
+                    "role", role,
+                    "content", m.getOrDefault("content", "")
+            );
+        }).toList();
+    }
+
+    /** Anthropic 호환: user/assistant만 허용, 나머지는 user로; content는 [{type:text,text:"..."}] */
+    private List<Map<String, Object>> toAnthropicMessages(List<Map<String, String>> messages) {
+        return messages.stream().map(m -> {
+            String role = Optional.ofNullable(m.get("role")).orElse("user").toLowerCase(Locale.ROOT);
+            if (!role.equals("user") && !role.equals("assistant")) role = "user";
+            return Map.of(
+                    "role", role,
+                    "content", List.of(Map.of("type", "text", "text", m.getOrDefault("content", "")))
+            );
+        }).toList();
     }
 
     private String mergeMessages(List<Map<String, String>> messages) {
@@ -265,12 +323,18 @@ public class LiteLlmWebClient implements LiteLlmClient {
         return sb.toString().trim();
     }
 
-    private Mono<? extends Throwable> map4xxToApiEx(ClientResponse response) {
+    /** 4xx 로깅 강화: provider/model/stream 포함 */
+    private Mono<? extends Throwable> map4xxToApiEx(ClientResponse response, String provider, String model, boolean stream) {
         return response.bodyToMono(String.class).defaultIfEmpty("")
-                .map(__ -> switch (response.statusCode().value()) {
-                    case 401, 403 -> new ApiException(ErrorCode.INVALID_KEY);
-                    case 429 -> new ApiException(ErrorCode.RATE_LIMITED);
-                    default -> new ApiException(ErrorCode.UPSTREAM_ERROR);
+                .map(body -> {
+                    int sc = response.statusCode().value();
+                    log.warn("[LLM-4xx] provider={}, model={}, stream={}, status={}, body={}",
+                            provider, model, stream, sc, body);
+                    return switch (sc) {
+                        case 401, 403 -> new ApiException(ErrorCode.INVALID_KEY, body);
+                        case 429 -> new ApiException(ErrorCode.RATE_LIMITED, body);
+                        default -> new ApiException(ErrorCode.UPSTREAM_ERROR, body);
+                    };
                 });
     }
 }
