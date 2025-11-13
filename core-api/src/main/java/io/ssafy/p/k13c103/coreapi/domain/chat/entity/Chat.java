@@ -108,6 +108,18 @@ public class Chat extends BaseTimeEntity {
                 .build();
     }
 
+    public static Chat createGroupSnapshot(Room room, Group group) {
+        return Chat.builder()
+                .room(room)
+                .group(group)
+                .question("")
+                .answer("")
+                .summary(group.getSummary())
+                .keywords(group.getKeywords())
+                .chatType(ChatType.CHAT)
+                .build();
+    }
+
     /**
      * 답변 업데이트
      * - LLM이 답변을 생성한 시점에 호출
@@ -137,4 +149,5 @@ public class Chat extends BaseTimeEntity {
     public void updateSearchContent() {
         this.searchContent = String.join(" ", this.question, this.answer);
     }
+
 }
