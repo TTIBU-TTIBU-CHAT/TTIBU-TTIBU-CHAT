@@ -1,17 +1,22 @@
 package io.ssafy.p.k13c103.coreapi.domain.chat.service;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.ssafy.p.k13c103.coreapi.common.error.ApiException;
 import io.ssafy.p.k13c103.coreapi.common.error.ErrorCode;
 import io.ssafy.p.k13c103.coreapi.common.sse.SseEmitterManager;
 import io.ssafy.p.k13c103.coreapi.config.properties.AiProcessingProperties;
+import io.ssafy.p.k13c103.coreapi.domain.catalog.entity.ProviderCatalog;
+import io.ssafy.p.k13c103.coreapi.domain.catalog.repository.ProviderCatalogRepository;
 import io.ssafy.p.k13c103.coreapi.domain.chat.dto.ChatRequestDto;
 import io.ssafy.p.k13c103.coreapi.domain.chat.dto.ChatResponseDto;
 import io.ssafy.p.k13c103.coreapi.domain.chat.dto.ChatSseEvent;
 import io.ssafy.p.k13c103.coreapi.domain.chat.entity.Chat;
 import io.ssafy.p.k13c103.coreapi.domain.chat.enums.ChatSseEventType;
 import io.ssafy.p.k13c103.coreapi.domain.chat.repository.ChatRepository;
+import io.ssafy.p.k13c103.coreapi.domain.key.entity.Key;
+import io.ssafy.p.k13c103.coreapi.domain.key.repository.KeyRepository;
 import io.ssafy.p.k13c103.coreapi.domain.llm.AiAsyncClient;
 import io.ssafy.p.k13c103.coreapi.domain.llm.LiteLlmWebClient;
 import io.ssafy.p.k13c103.coreapi.domain.llm.LlmStreamParser;
@@ -31,6 +36,7 @@ import reactor.core.publisher.Flux;
 import java.util.*;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
+import java.util.concurrent.atomic.AtomicReference;
 
 @Slf4j
 @Service
@@ -40,6 +46,8 @@ public class ChatServiceImpl implements ChatService {
     private final ChatRepository chatRepository;
     private final RoomRepository roomRepository;
     private final MemberRepository memberRepository;
+    private final KeyRepository keyRepository;
+    private final ProviderCatalogRepository providerCatalogRepository;
     private final SseEmitterManager sseEmitterManager;
     private final LiteLlmWebClient liteLlmWebClient;
     private final LlmStreamParser llmStreamParser;
@@ -134,13 +142,21 @@ public class ChatServiceImpl implements ChatService {
                     log.warn("[STEP 1] Stream 비활성화됨 → 동기 모드로 처리 예정");
                 }
 
+                AtomicReference<JsonNode> usageRef = new AtomicReference<>();
+                final boolean[] doneEmitted = {false};
+
                 // Flux<String> 스트림 수신
                 Flux<String> stream = liteLlmWebClient.createChatStream(apiKey, model, provider, messages, useLlm);
 
                 // 스트림 구독: 청크 단위로 처리
                 stream
                         .doOnNext(chunk -> {
-                            String delta = llmStreamParser.extractDeltaContent(chunk);
+                            JsonNode usageNode = llmStreamParser.extractUsage(provider, chunk);
+                            if (usageNode != null) {
+                                usageRef.set(usageNode);
+                            }
+
+                            String delta = llmStreamParser.extractDeltaContent(provider, chunk);
                             if (delta != null && !delta.isBlank()) {
                                 accumulatedAnswer.append(delta);
 
@@ -155,8 +171,13 @@ public class ChatServiceImpl implements ChatService {
                             }
 
                             // [DONE] 감지 시 DB 업데이트 + SSE 완료 이벤트 전송
-                            if (llmStreamParser.isDoneChunk(chunk)) {
+                            if (!doneEmitted[0] && llmStreamParser.isDoneChunk(provider, chunk)) {
+                                doneEmitted[0] = true;
+
                                 chat.updateAnswer(accumulatedAnswer.toString());
+
+                                applyTokenUsageIfPresent(room, provider, usageRef.get());
+
                                 chatRepository.save(chat);
 
                                 Map<String, Object> payload = new LinkedHashMap<>();
@@ -169,11 +190,18 @@ public class ChatServiceImpl implements ChatService {
                                         new ChatSseEvent<>(ChatSseEventType.CHAT_DONE, payload)
                                 );
 
-                                log.info("[STREAM] Chat {} 스트리밍 종료", chat.getChatUid());
+                                log.info("[STREAM] Chat {} 스트리밍 종료 (provider={}, model={})",
+                                        chat.getChatUid(), provider, model);
                             }
                         })
                         .doOnError(error -> {
                             log.error("[STREAM] Chat {} 오류 발생: {}", chat.getChatUid(), error.getMessage());
+
+                            try {
+                                applyTokenUsageIfPresent(room, provider, usageRef.get());
+                            } catch (Exception ex) {
+                                log.warn("[STREAM] 오류 중 tokenUsage 반영 실패: {}", ex.getMessage());
+                            }
 
                             Map<String, Object> payload = new LinkedHashMap<>();
                             payload.put("chat_id", chat.getChatUid());
@@ -311,5 +339,31 @@ public class ChatServiceImpl implements ChatService {
         for (String s : set)
             arr[idx++] = s;
         return arr;
+    }
+
+    private void applyTokenUsageIfPresent(Room room, String provider, JsonNode usageNode) {
+        if (usageNode == null) return;
+
+        int prompt = usageNode.path("prompt_tokens").asInt(0);
+        int completion = usageNode.path("completion_tokens").asInt(0);
+        int total = prompt + completion;
+
+        if (total <= 0) {
+            log.debug("[USAGE] provider={}, totalTokens=0 → 누적 건너뜀", provider);
+            return;
+        }
+
+        ProviderCatalog providerCatalog = providerCatalogRepository
+                .findByCode(provider)
+                .orElseThrow(() -> new ApiException(ErrorCode.PROVIDER_NOT_FOUND));
+
+        Key key = keyRepository.findByMemberAndProvider(room.getOwner(), providerCatalog)
+                .orElseThrow(() -> new ApiException(ErrorCode.KEY_NOT_FOUND));
+
+        key.updateTokenUsage(total);
+        keyRepository.save(key);
+
+        log.info("[USAGE] member={}, provider={}, +{} tokens (prompt={}, completion={})",
+                room.getOwner().getMemberUid(), provider, total, prompt, completion);
     }
 }
