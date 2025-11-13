@@ -80,4 +80,18 @@ public class GroupController {
         return ResponseEntity.ok(JSend.success(response));
     }
 
+    @Operation(summary = "기존 그룹 요약/키워드를 현재 방에 스냅샷으로 붙이기")
+    @PostMapping("/{roomId}/attach-group")
+    public ResponseEntity<JSend> attachGroup(
+            @PathVariable Long roomId,
+            @Valid @RequestBody GroupAttachRequestDto request,
+            @AuthenticationPrincipal CustomMemberDetails member
+    ) {
+        GroupAttachResponseDto response =
+                groupService.attachGroup(roomId, member.getMemberUid(), request);
+
+        return ResponseEntity.ok(
+                JSend.success(response)
+        );
+    }
 }

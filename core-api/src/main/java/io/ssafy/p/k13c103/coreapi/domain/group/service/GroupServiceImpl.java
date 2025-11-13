@@ -12,6 +12,8 @@ import io.ssafy.p.k13c103.coreapi.domain.group.entity.Group;
 import io.ssafy.p.k13c103.coreapi.domain.group.repository.GroupRepository;
 import io.ssafy.p.k13c103.coreapi.domain.member.entity.Member;
 import io.ssafy.p.k13c103.coreapi.domain.member.repository.MemberRepository;
+import io.ssafy.p.k13c103.coreapi.domain.room.entity.Room;
+import io.ssafy.p.k13c103.coreapi.domain.room.repository.RoomRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -29,6 +31,7 @@ public class GroupServiceImpl implements GroupService {
     private final MemberRepository memberRepository;
     private final ChatRepository chatRepository;
     private final GroupRepository groupRepository;
+    private final RoomRepository roomRepository;
     private final GroupSummaryService groupSummaryService;
 
     @Override
@@ -227,6 +230,54 @@ public class GroupServiceImpl implements GroupService {
                                 .build())
                         .toList()
                 )
+                .build();
+    }
+
+    @Override
+    @Transactional
+    public GroupAttachResponseDto attachGroup(Long roomId, Long memberId, GroupAttachRequestDto request) {
+        Room room = roomRepository.findById(roomId)
+                .orElseThrow(() -> new ApiException(ErrorCode.ROOM_NOT_FOUND));
+
+        if (!room.getOwner().getMemberUid().equals(memberId)) {
+            throw new ApiException(ErrorCode.ROOM_FORBIDDEN);
+        }
+
+        Group group = groupRepository.findById(request.getGroupId())
+                .orElseThrow(() -> new ApiException(ErrorCode.GROUP_NOT_FOUND));
+
+        int maxRetry = 20;
+        int attempt = 0;
+
+        while (attempt < maxRetry) {
+            if (group.getSummary() != null && !group.getSummary().isBlank()
+                    && group.getKeywords() != null && !group.getKeywords().isBlank()) {
+                break;
+            }
+
+            try {
+                Thread.sleep(500); // 0.5초 대기
+            } catch (InterruptedException ignored) {}
+
+            group = groupRepository.findById(request.getGroupId())
+                    .orElseThrow(() -> new ApiException(ErrorCode.GROUP_NOT_FOUND));
+
+            attempt++;
+        }
+
+        if (group.getSummary() == null || group.getSummary().isBlank() || group.getKeywords() == null || group.getKeywords().isBlank()) {
+            throw new ApiException(ErrorCode.GROUP_SUMMARY_NOT_READY);
+        }
+
+        Chat snapshot = Chat.createGroupSnapshot(room, group);
+
+        chatRepository.save(snapshot);
+
+        return GroupAttachResponseDto.builder()
+                .roomId(room.getRoomUid())
+                .newChatId(snapshot.getChatUid())
+                .groupId(group.getGroupUid())
+                .createdAt(snapshot.getCreatedAt())
                 .build();
     }
 
