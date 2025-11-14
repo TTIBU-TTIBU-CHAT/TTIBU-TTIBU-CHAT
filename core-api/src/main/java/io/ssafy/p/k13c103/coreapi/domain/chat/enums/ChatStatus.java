@@ -4,7 +4,7 @@ public enum ChatStatus {
 
     QUESTION,
     ANSWER,
-    SHORT_SUMMARY,
+    PENDING,
     SUMMARY_KEYWORDS
 
 }
