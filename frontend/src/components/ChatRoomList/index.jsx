@@ -3,81 +3,104 @@ import ListItem from '@/components/common/ListItem';
 import { useNavigate } from '@tanstack/react-router';
 import { useRooms, useRenameRoom, useDeleteRoom } from '@/hooks/useChatRooms';
 import InputDialog from '@/components/common/Modal/InputDialog';
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
+
+// 날짜 포맷
+function formatDate(iso) {
+  if (!iso) return '';
+  try {
+    const d = new Date(iso);
+    return d.toLocaleDateString('ko-KR', { year: 'numeric', month: 'long', day: 'numeric' });
+  } catch {
+    return iso;
+  }
+}
+function normalizeRooms(raw) {
+  if (Array.isArray(raw)) return raw;
+  if (Array.isArray(raw?.data)) return raw.data;
+  if (Array.isArray(raw?.items)) return raw.items;
+  if (Array.isArray(raw?.rooms)) return raw.rooms;
+  return [];
+}
+function mapRoom(r) {
+  const id = r.id ?? r.room_id ?? r._id ?? r.roomUid;
+  const rawDate = r.updated_at ?? r.updatedAt ?? r.modifiedAt ?? r.created_at;
+  return {
+    id,
+    title: r.name ?? r.title ?? '이름 없는 채팅',
+    summary: r.latest_question ?? r.summary ?? r.lastMessage ?? '',
+    date: formatDate(rawDate),
+    tags: r.keywords ?? r.tags ?? [],
+    _raw: r,
+  };
+}
 
 export default function ChatRoomList() {
   const navigate = useNavigate();
+  const { data: roomsRaw, isLoading, isError, error } = useRooms();
 
-  // 목록
-  const { data: rooms, isLoading, isError, error } = useRooms();
-
-  // 액션 훅
   const renameMut = useRenameRoom();
   const deleteMut = useDeleteRoom();
 
-  // 모달 상태 (이름 수정)
   const [renameOpen, setRenameOpen] = useState(false);
   const [renameId, setRenameId] = useState(null);
   const [renameText, setRenameText] = useState('');
 
-  // 방 이동
-  const handleClickChat = (id) => {
-    // 경로 표기 통일: /chatrooms/:id
-    navigate({ to: `/chatrooms/${id}` });
-  };
+  // ✅ 케밥 메뉴 열림 상태 (아이템 id 저장)
+  const [menuOpenId, setMenuOpenId] = useState(null);
 
-  // 케밥 메뉴 → 이름 수정
+  const list = useMemo(() => {
+    const arr = normalizeRooms(roomsRaw).map(mapRoom);
+    return arr.sort((a, b) => {
+      const ta = new Date(a._raw?.updated_at ?? a._raw?.created_at ?? 0);
+      const tb = new Date(b._raw?.updated_at ?? b._raw?.created_at ?? 0);
+      return tb - ta;
+    });
+  }, [roomsRaw]);
+
+  const handleClickChat = (id) =>
+    navigate({ to: '/chatrooms/$nodeId', params: { nodeId: String(id) } });
+
   const handleRequestRename = (id) => {
-    const room = (rooms ?? []).find(
-      (r) => String(r.id ?? r.room_id ?? r._id) === String(id)
-    );
+    const found = list.find((r) => String(r.id) === String(id));
     setRenameId(id);
-    setRenameText(room?.name ?? '');
+    setRenameText(found?.title ?? '');
     setRenameOpen(true);
+    setMenuOpenId(null); // 메뉴 닫기
   };
 
-  // 케밥 메뉴 → 삭제
   const handleRequestDelete = (id) => {
-    if (!id) return;
-    const ok = window.confirm('이 채팅방을 삭제할까요?');
-    if (!ok) return;
-    deleteMut.mutate(id);
+    if (!id || deleteMut.isPending) return;
+    if (window.confirm('이 채팅방을 삭제할까요?')) {
+      deleteMut.mutate(id);
+      setMenuOpenId(null); // 메뉴 닫기
+    }
   };
 
-  // 모달 저장
   const confirmRename = () => {
     const name = renameText.trim();
-    if (!renameId || !name) return;
+    if (!renameId || !name || renameMut.isPending) return;
     renameMut.mutate({ roomId: renameId, name });
     setRenameOpen(false);
     setRenameId(null);
   };
 
-  const list = useMemo(() => {
-    const raw = Array.isArray(rooms) ? rooms : rooms?.rooms || [];
-    return (raw || []).map((r) => ({
-      id: r.id ?? r.room_id ?? r._id,
-      title: r.name,
-      summary: r.latest_question,
-      date: r.updated_at,
-      tags: r.keywords || r.tags || [],
-    })).filter((x) => x && x.id);
-  }, [rooms]);
+  // ✅ 바깥 클릭 시 메뉴 닫고 싶다면, 상위에서 useEffect로 document 클릭 리스너 추가해도 됨.
 
   return (
     <S.Container>
       <S.Title>채팅방</S.Title>
 
-      {/* 상태 */}
       {isLoading && <S.Hint>불러오는 중…</S.Hint>}
-      {isError && <S.Hint style={{ color: '#b91c1c' }}>
-        목록을 불러오지 못했습니다. {error?.message || ''}
-      </S.Hint>}
+      {isError && (
+        <S.Hint style={{ color: '#b91c1c' }}>
+          목록을 불러오지 못했습니다. {error?.message || ''}
+        </S.Hint>
+      )}
       {!isLoading && !isError && list.length === 0 && (
         <S.Hint>채팅방이 없습니다. 새 채팅을 시작해 보세요.</S.Hint>
       )}
 
-      {/* 목록 */}
       {list.map((chat) => (
         <ListItem
           key={chat.id}
@@ -87,12 +110,19 @@ export default function ChatRoomList() {
           tags={chat.tags}
           date={chat.date}
           onClick={() => handleClickChat(chat.id)}
-          onRename={handleRequestRename}
-          onDelete={handleRequestDelete}
+          /* ✅ 케밥 메뉴 전달 */
+          menu={{
+            open: menuOpenId === chat.id,
+            onRename: () => handleRequestRename(chat.id),
+            onDelete: () => handleRequestDelete(chat.id),
+          }}
+          onMenuToggle={(e) => {
+            e?.stopPropagation?.();
+            setMenuOpenId((prev) => (prev === chat.id ? null : chat.id));
+          }}
         />
       ))}
 
-      {/* 이름 수정 모달 */}
       <InputDialog
         open={renameOpen}
         title="채팅방 이름 수정"
@@ -100,6 +130,7 @@ export default function ChatRoomList() {
         value={renameText}
         setValue={setRenameText}
         onCancel={() => {
+          if (renameMut.isPending) return;
           setRenameOpen(false);
           setRenameId(null);
         }}

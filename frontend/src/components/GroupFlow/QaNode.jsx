@@ -16,7 +16,7 @@ export default function QaNode({ data = {}, sourcePosition, targetPosition }) {
   const { tier: baseTier } = useZoomTier();
 
   const { label = "제목 없음", summary, question, answer, date } = data;
-  console.log("QaNode data:", data, sourcePosition, targetPosition);
+  // console.log("QaNode data:", data, sourcePosition, targetPosition);
   // ✅ 그룹 노드는 2단계: <1.0 => label / >=1.0 => summary
   const isGroup = data?.type === "group";
   const tier = isGroup

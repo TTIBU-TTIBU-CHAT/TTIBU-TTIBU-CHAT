@@ -60,9 +60,9 @@ export const useSSEStore = create((set, get) => ({
     const bind = (type, fn) => {
       // 핸들러가 없어도 바인딩해서 로깅/상태는 항상 업데이트
       const wrapped = (evt) => {
+        console.log(`[SSE ${type}]`, evt);
         const payload = parse(evt.data);
         setLastMessage({ type, payload });
-        console.log(`[SSE ${type}]`, payload);
         fn && fn(payload);
       };
       es.addEventListener(type, wrapped);
@@ -71,6 +71,7 @@ export const useSSEStore = create((set, get) => ({
 
     // 서버 이벤트들
     bind("INIT", (data) => {
+      console.log("[SSE INIT???]", data);
       handlers.onRoomCreated?.(
         typeof data === "string" ? { message: data } : data
       );

@@ -41,8 +41,8 @@ function normalizeResult(raw) {
   const question = raw.question ?? `#${id}`;
   const answer = raw.answer ?? "";
   const date = raw.updatedAt ?? raw.answeredAt ?? raw.questionedAt ?? raw.created_at ?? null;
-  const tags = raw.keywords ?? raw.tags ?? [];
-  return { id, question, answer, date, tags, __raw: raw };
+  const keywords = raw.keywords ?? raw.keywords ?? [];
+  return { id, question, answer, date, keywords, __raw: raw };
 }
 
 export function SearchContent({ onPick }) {
@@ -95,7 +95,7 @@ export function SearchContent({ onPick }) {
       label: item.question,
       question: item.question,
       answer: item.answer,
-      tags: item.tags,
+      keywords: item.keywords,
       date: item.date,
       type: "chat",
     };
@@ -141,7 +141,7 @@ export function SearchContent({ onPick }) {
       question: item.question,
       answer: item.answer,
       date: item.date,
-      tags: item.tags,
+      keywords: item.keywords,
       type: "chat",
     });
   };
@@ -215,13 +215,7 @@ export function SearchContent({ onPick }) {
 
             {item.answer && <S.CardExcerpt>{item.answer}</S.CardExcerpt>}
 
-            {Array.isArray(item.tags) && item.tags.length > 0 && (
-              <S.TagRow>
-                {item.tags.map((t, idx) => (
-                  <S.TagPill key={`${String(t)}-${idx}`}>{String(t)}</S.TagPill>
-                ))}
-              </S.TagRow>
-            )}
+
           </S.ResultCard>
         ))}
       </S.SearchScroll>

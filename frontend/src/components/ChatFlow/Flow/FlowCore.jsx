@@ -1,4 +1,4 @@
-// src/components/Flow/FlowCore.jsx
+// src/components/ChatFlow/Flow/FlowCore.jsx
 import React, {
   forwardRef,
   useCallback,
@@ -57,6 +57,9 @@ const tempNodeStyle = {
   boxShadow: "inset 0 0 0 2px rgba(154,215,184,.25)",
 };
 
+/* 🔧 FlowCore 내부 디버그용 플래그 */
+const DEBUG_FLOW_CORE = false;
+
 const FlowCore = forwardRef(function FlowCore(
   {
     editMode = true,
@@ -73,28 +76,12 @@ const FlowCore = forwardRef(function FlowCore(
     roomData,
     roomLoading,
     roomError,
+    // ⬇️ ChatFlowPage에서 직접 주입되는 RF 포맷
+    nodes: propNodes = [],
+    edges: propEdges = [],
   },
   ref
 ) {
-  // ----- ★ 여기서 콘솔 로깅만 -----
-  useEffect(() => {
-    if (roomId) console.log("[FlowCore] roomId:", roomId);
-  }, [roomId]);
-
-  useEffect(() => {
-    if (roomLoading) console.log("[FlowCore] useRoom 로딩중…");
-  }, [roomLoading]);
-
-  useEffect(() => {
-    if (roomError) console.error("[FlowCore] useRoom 에러:", roomError);
-  }, [roomError]);
-
-  useEffect(() => {
-    if (roomData) {
-      // 필요하면 원하는 필드만 보자: roomData.room, roomData.chats 등
-      console.log("[FlowCore] useRoom 데이터 수신:", roomData);
-    }
-  }, [roomData]);
   const nodeTypes = useMemo(() => ({ qa: QaNode }), []);
   const edgeTypes = useMemo(() => ({ deletable: DeletableEdge }), []);
   const rf = useReactFlow();
@@ -109,6 +96,34 @@ const FlowCore = forwardRef(function FlowCore(
   const [edges, setEdges, onEdgesChange] = useEdgesState(
     initialEdges.map(stripRuntimeEdge)
   );
+
+  useEffect(() => {
+    setNodes((_) =>
+      withHandlesByRoot(
+        (propNodes ?? []).map((n) => ({
+          ...n,
+          type: n.type ?? "qa",
+          style: { ...(n.style || {}), ...nodeStyle },
+          sourcePosition: n.sourcePosition ?? Position.Right,
+          targetPosition: n.targetPosition ?? Position.Left,
+        })),
+        propEdges ?? []
+      )
+    );
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [JSON.stringify(propNodes), JSON.stringify(propEdges)]);
+
+  useEffect(() => {
+    setEdges(
+      (propEdges ?? []).map((e) => ({
+        ...e,
+        ...edgeStyle,
+        type: "deletable",
+        data: { ...(e.data || {}), onRemove: (id) => removeEdgeById(id) },
+      }))
+    );
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [JSON.stringify(propEdges)]);
 
   const [selectedNodes, setSelectedNodes] = useState([]);
   const [lastSelectedId, setLastSelectedId] = useState(null);
@@ -125,7 +140,6 @@ const FlowCore = forwardRef(function FlowCore(
     [onError]
   );
 
-  /* ----- 엣지 삭제 핸들러 & 초기 주입 ----- */
   const removeEdgeById = useCallback(
     (edgeId) => setEdges((eds) => eds.filter((e) => e.id !== edgeId)),
     [setEdges]
@@ -141,7 +155,6 @@ const FlowCore = forwardRef(function FlowCore(
     );
   }, [removeEdgeById, setEdges]);
 
-  /* 새로 연결되는 엣지도 deletable로 */
   const onConnect = useCallback(
     (params) =>
       setEdges((eds) =>
@@ -158,36 +171,33 @@ const FlowCore = forwardRef(function FlowCore(
     [setEdges, removeEdgeById]
   );
 
-  /* 보기 모드 전환 시 선택 상태 초기화 */
   useEffect(() => {
     if (!editMode) {
       setSelectedNodes([]);
       setLastSelectedId(null);
-      onSelectionCountChange?.(0, false);
+      onSelectionCountChange?.(0, false, []);
     }
   }, [editMode, onSelectionCountChange]);
 
-  /* 선택 변경: 개수 + (그룹 포함 여부) */
   const handleSelectionChange = useCallback(
     ({ nodes: selNodes }) => {
       if (!editMode) {
         setSelectedNodes([]);
         setLastSelectedId(null);
-        onSelectionCountChange?.(0, false);
+        onSelectionCountChange?.(0, false, []);
         return;
       }
       const list = selNodes || [];
       setSelectedNodes(list);
       const containsGroup = list.some(
-        (n) => n?.data?.type === "group" || !!n?.data?.group
+        (n) => n?.data?.type === "GROUP" || !!n?.data?.group
       );
-      onSelectionCountChange?.(list.length, containsGroup);
+      onSelectionCountChange?.(list.length, containsGroup, list);
       if (list.length === 0) setLastSelectedId(null);
     },
     [editMode, onSelectionCountChange]
   );
 
-  // 빈 노드 판별: 임시 노드거나(kind/QA 없음)
   const isEmptyNode = (n) =>
     !!n?.data?.__temp ||
     (!n?.data?.type && !n?.data?.question && !n?.data?.answer);
@@ -197,24 +207,20 @@ const FlowCore = forwardRef(function FlowCore(
       if (!editMode) {
         e?.preventDefault?.();
         e?.stopPropagation?.();
-        // 뷰 모드에서도 빈 노드 여부 넘겨주면 활용 가능
         onNodeClickInViewMode?.(node?.id, { empty: isEmptyNode(node) });
         return;
       }
       setLastSelectedId(node?.id || null);
-      // 편집 모드에서 노드 클릭 → 부모에 (id + empty 여부) 전달
       if (node?.id) onEditNodeClick?.(node.id, { empty: isEmptyNode(node) });
     },
     [editMode, onNodeClickInViewMode, onEditNodeClick]
   );
 
-  /* + 버튼: 임시 노드 추가 */
   const addSiblingNode = useCallback(async () => {
     if (!lastSelectedId) return;
     const base = nodes.find((n) => n.id === lastSelectedId);
     if (!base) return;
 
-    // 가드: 현재(기준) 노드가 비어 있으면 새 노드 생성 차단 + 오류 알림
     if (isEmptyNode(base)) {
       const msg =
         "현재 노드에 내용이 없습니다. 내용을 채운 뒤에 새 분기를 추가하세요.";
@@ -271,7 +277,6 @@ const FlowCore = forwardRef(function FlowCore(
     if (childIds.length >= 1 && typeof askBranchName === "function") {
       const name = await askBranchName(base.id, newId);
       if (!name || !name.trim()) {
-        // 롤백
         setNodes((nds) => nds.filter((n) => n.id !== newId));
         setEdges((eds) =>
           eds.filter((e) => !(e.source === base.id && e.target === newId))
@@ -301,7 +306,6 @@ const FlowCore = forwardRef(function FlowCore(
     onError,
   ]);
 
-  /* 노드 삭제 */
   const removeSelectedNode = useCallback(() => {
     if (!lastSelectedId) return;
 
@@ -344,7 +348,6 @@ const FlowCore = forwardRef(function FlowCore(
     removeEdgeById,
   ]);
 
-  /* 루트 핸들/오프셋 */
   const didInitialRootOffset = useRef(false);
 
   useEffect(() => {
@@ -375,7 +378,6 @@ const FlowCore = forwardRef(function FlowCore(
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  /* 리셋/라벨 업데이트 */
   const reset = useCallback(() => {
     setNodes(
       withHandlesByRoot(
@@ -399,7 +401,6 @@ const FlowCore = forwardRef(function FlowCore(
     [setNodes]
   );
 
-  /* ====== 외부용: 임시 노드 취소/채우기 ====== */
   const discardTempNode = useCallback(
     (nodeId) => {
       if (!nodeId) return;
@@ -423,15 +424,21 @@ const FlowCore = forwardRef(function FlowCore(
         nds.map((n) => {
           if (n.id !== nodeId) return n;
 
-          if (payload.type === "group") {
+          // GROUP 콘텐츠
+          if (payload.type === "group" || payload.type === "GROUP") {
             const g = payload.graph ?? { nodes: [], edges: [] };
+            const color = payload.color || null;
             return {
               ...n,
-              style: nodeStyle,
+              style: {
+                ...nodeStyle,
+                ...(color ? { background: color } : {}),
+              },
               data: {
                 ...n.data,
                 __temp: false,
-                type: "group",
+                // 🔥 GroupContent → GROUP
+                type: "GROUP",
                 label: payload.title || n.data?.label || "Group",
                 summary: payload.summary || "",
                 group: g,
@@ -439,18 +446,20 @@ const FlowCore = forwardRef(function FlowCore(
             };
           }
 
+          // CHAT 콘텐츠 (SearchContent)
           return {
             ...n,
             style: nodeStyle,
             data: {
               ...n.data,
               __temp: false,
-              type: "result",
+              // 🔥 SearchContent → CHAT
+              type: "CHAT",
               label: payload.label || payload.question || "질문",
               summary: (payload.answer || "").slice(0, 140),
               question: payload.question || payload.label || "",
               answer: payload.answer || "",
-              tags: payload.tags || [],
+              keywords: payload.keywords || [],
               date: payload.date,
             },
           };
@@ -460,7 +469,6 @@ const FlowCore = forwardRef(function FlowCore(
     [setNodes]
   );
 
-  /* === 저장 검증: 루트 1개 & 임시 노드 0개 === */
   const validateForSave = useCallback(() => {
     const errors = [];
     const incoming = computeIncomingMap(edges);
@@ -477,7 +485,34 @@ const FlowCore = forwardRef(function FlowCore(
     return { ok: errors.length === 0, errors };
   }, [nodes, edges]);
 
-  /* 메서드 외부 노출 */
+  const getSnapshot = useCallback(() => {
+    const snapNodes = (nodes ?? []).map((n) => ({
+      id: n.id,
+      // ReactFlow 쪽 좌표 → ChatFlowPage에서 쓰기 쉽도록 x/y/position 모두 넘겨줌
+      x: n.position?.x ?? 0,
+      y: n.position?.y ?? 0,
+      position: {
+        x: n.position?.x ?? 0,
+        y: n.position?.y ?? 0,
+      },
+      data: n.data ?? {},
+    }));
+
+    const snapEdges = (edges ?? []).map((e) => ({
+      id: e.id,
+      source: e.source,
+      target: e.target,
+    }));
+
+    const snap = { nodes: snapNodes, edges: snapEdges };
+
+    if (DEBUG_FLOW_CORE) {
+      // eslint-disable-next-line no-console
+      console.log("[FLOW_CORE_DEBUG] snapshot:", snap);
+    }
+    return snap;
+  }, [nodes, edges]);
+
   useImperativeHandle(
     ref,
     () => ({
@@ -486,7 +521,8 @@ const FlowCore = forwardRef(function FlowCore(
       updateNodeLabel,
       applyContentToNode,
       discardTempNode,
-      validateForSave, // ★ 저장 검증 노출
+      validateForSave,
+      getSnapshot, // ✅ 여기서 배열 기반 스냅샷을 넘겨줌
     }),
     [
       reset,
@@ -494,21 +530,29 @@ const FlowCore = forwardRef(function FlowCore(
       applyContentToNode,
       discardTempNode,
       validateForSave,
+      getSnapshot,
     ]
   );
 
-  /* 변경 감지 → Reset 가능 여부 */
   useEffect(() => {
-    const now = { nodes: serializeNodes(nodes), edges: serializeEdges(edges) };
+    const now = {
+      nodes: serializeNodes(nodes),
+      edges: serializeEdges(edges),
+    };
     const base = initialSnapshotRef.current;
     const changed = now.nodes !== base.nodes || now.edges !== base.edges;
     onCanResetChange?.(changed);
   }, [nodes, edges, onCanResetChange]);
 
-  /* 브랜치 필터링 */
   const visibleNodes = useMemo(() => {
     if (activeBranch === "전체") return nodes;
-    return nodes.filter((n) => n?.data?.branch === activeBranch);
+
+    const targetId = Number(activeBranch);
+    return nodes.filter((n) => {
+      const raw = n?.data?.branch_id ?? n?.data?.branchId ?? null;
+      if (raw == null) return false;
+      return Number(raw) === targetId;
+    });
   }, [nodes, activeBranch]);
 
   const visibleIdSet = useMemo(
@@ -523,7 +567,6 @@ const FlowCore = forwardRef(function FlowCore(
     );
   }, [edges, activeBranch, visibleIdSet]);
 
-  /* 상호작용 옵션 */
   const rfInteractivity = useMemo(
     () => ({
       nodesDraggable: editMode,
@@ -538,7 +581,6 @@ const FlowCore = forwardRef(function FlowCore(
     [editMode]
   );
 
-  /* DnD */
   const handleDragOver = useCallback((e) => {
     e.preventDefault();
     e.dataTransfer.dropEffect = "copy";
@@ -556,22 +598,28 @@ const FlowCore = forwardRef(function FlowCore(
       const pos = rf.screenToFlowPosition({ x: e.clientX, y: e.clientY });
       const { x, y } = findFreeSpot(nodes, pos.x, pos.y);
 
+      // GROUP 드롭
       if (payload.type === "group" && payload.title) {
         const id = `g-${payload.id}-${Date.now()}`;
         const graph = payload.graph ?? { nodes: [], edges: [] };
+        const color = payload.color || null;
         const summary = payload.summary || "";
         const newNode = {
           id,
           type: "qa",
           position: { x, y },
           data: {
-            type: "group",
+            // 🔥 GroupContent → GROUP
+            type: "GROUP",
             label: payload.title,
             summary,
             group: graph,
             branch: activeBranch !== "전체" ? activeBranch : undefined,
           },
-          style: nodeStyle,
+          style: {
+            ...nodeStyle,
+            ...(color ? { background: color } : {}),
+          },
           sourcePosition: Position.Right,
           targetPosition: Position.Left,
         };
@@ -580,6 +628,7 @@ const FlowCore = forwardRef(function FlowCore(
         return;
       }
 
+      // CHAT 드롭 (SearchContent)
       const id = `q-${payload.id ?? "adhoc"}-${Date.now()}`;
       const newNode = {
         id,
@@ -587,12 +636,13 @@ const FlowCore = forwardRef(function FlowCore(
         position: { x, y },
         data: {
           branch: activeBranch !== "전체" ? activeBranch : undefined,
-          type: "result",
+          // 🔥 SearchContent → CHAT
+          type: "CHAT",
           label: payload.label || payload.question || "질문",
           summary: (payload.answer || "").slice(0, 140),
           question: payload.question || "",
           answer: payload.answer || "",
-          tags: payload.tags || [],
+          keywords: payload.keywords || [],
         },
         style: nodeStyle,
         sourcePosition: Position.Right,

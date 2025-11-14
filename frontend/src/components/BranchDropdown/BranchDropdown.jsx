@@ -1,18 +1,28 @@
 import styled from "styled-components";
 
-export default function BranchDropdown({ label, items, open, setOpen, onSelect }) {
+export default function BranchDropdown({
+  label,
+  items,
+  open,
+  setOpen,
+  onSelect,
+}) {
   return (
     <Wrap>
-      <Title onClick={() => setOpen(v => !v)}>{label}</Title>
+      <Title onClick={() => setOpen((v) => !v)}>{label}</Title>
       {open && (
         <Menu onMouseLeave={() => setOpen(false)}>
           {items.map((b) => (
             <Item
               key={b.value}
               $active={b.active}
-              onClick={() => { onSelect(b.value); setOpen(false); }}
+              onClick={() => {
+                console.log("브랜치 선택:", b);
+                onSelect(b.value);
+                setOpen(false);
+              }}
             >
-              {b.value}
+              {b.label}
               {b.active && <Check>✓</Check>}
             </Item>
           ))}
@@ -39,8 +49,12 @@ const Title = styled.button`
   color: #2b3446;
   padding: 2px 4px;
   border-radius: 6px;
-  transition: background .15s ease, color .15s ease;
-  &:hover { background: rgba(0,0,0,0.04); }
+  transition:
+    background 0.15s ease,
+    color 0.15s ease;
+  &:hover {
+    background: rgba(0, 0, 0, 0.04);
+  }
 `;
 
 const Menu = styled.ul`
@@ -49,9 +63,9 @@ const Menu = styled.ul`
   left: 0;
   min-width: 140px;
   background: #fff;
-  border: 1px solid rgba(0,0,0,0.08);
+  border: 1px solid rgba(0, 0, 0, 0.08);
   border-radius: 10px;
-  box-shadow: 0 12px 20px rgba(0,0,0,0.12);
+  box-shadow: 0 12px 20px rgba(0, 0, 0, 0.12);
   overflow: hidden;
   padding: 4px 0;
   z-index: 10;
@@ -65,8 +79,13 @@ const Item = styled.li`
   font-size: 12.5px;
   font-weight: 600;
   color: ${({ $active }) => ($active ? "#111827" : "#374151")};
-  background: ${({ $active }) => ($active ? "rgba(0,0,0,0.04)" : "transparent")};
+  background: ${({ $active }) =>
+    $active ? "rgba(0,0,0,0.04)" : "transparent"};
   cursor: pointer;
-  &:hover { background: rgba(0,0,0,0.06); }
+  &:hover {
+    background: rgba(0, 0, 0, 0.06);
+  }
 `;
-const Check = styled.span` font-size: 12px; `;
+const Check = styled.span`
+  font-size: 12px;
+`;

@@ -5,7 +5,7 @@ import * as S from "../ModalShell.styles";
 import ReactFlow, { Background, useNodesState, useEdgesState } from "reactflow";
 import "reactflow/dist/style.css";
 import { useGroups } from "@/hooks/useGroups";
-
+import { useGroupStore } from "@/store/useGroupStore";
 /* ✅ FlowCanvas와 동일 MIME 키 */
 const DND_MIME = "application/x-ttibu-card";
 
@@ -40,18 +40,18 @@ function makePlaceholderGraph(title = "Group") {
 }
 
 /* ===== 서버 응답 → UI용 그룹 객체 정규화 ===== */
-function normalizeGroup(g) {
+function normalizeGroup(g, colorMap) {
   // ✅ 백엔드 필드 기준: group_id, name, summary, keyword, updated_at
-  const id = g?.group_id ?? g?.id ?? String(Math.random());
+  const id = g?.groupId ?? g?.id ?? String(Math.random());
   const title = g?.name ?? `Group ${id}`;
   const summary = g?.summary ?? "";
   const keywords = Array.isArray(g?.keyword) ? g.keyword : [];
   const updatedAt = g?.updated_at ?? null;
-
+  const color = colorMap?.[id] ?? null;
   // 그래프는 아직 서버에서 안 주므로 placeholder
   const graph = makePlaceholderGraph(title);
 
-  return { id, title, summary, keywords, updatedAt, graph, __raw: g };
+  return { id, title, summary, keywords, updatedAt, graph, color, __raw: g };
 }
 
 /* ===== 미니 그래프 프리뷰 카드 ===== */
@@ -90,12 +90,29 @@ export function GroupContent({ onPick }) {
 
   // ✅ 실제 그룹 목록 불러오기
   const { data: groupsData, isLoading, isError, error } = useGroups();
-
+  console.log("Fetched groups data:", groupsData);
   // useGroups() → response.data.data = 배열
   const rawGroups = Array.isArray(groupsData) ? groupsData : [];
+
+  // ✅ groupView 에서 color 맵 만들기: { [groupId]: color }
+  const groupView = useGroupStore((s) => s.groupView);
+  // console.log("[GroupContent] groupView from store:", groupView);
+  const colorMap = useMemo(() => {
+    const map = {};
+    const gs = groupView?.groups ?? [];
+    gs.forEach((g) => {
+      // store 구조: { group_id, color, ... }
+      if (g?.group_id != null && g?.color) {
+        map[g.group_id] = g.color;
+      }
+    });
+    console.log("[GroupContent] built colorMap:", map);
+    return map;
+  }, [groupView]);
+
   const groups = useMemo(
-    () => rawGroups.map(normalizeGroup),
-    [rawGroups]
+    () => rawGroups.map((g) => normalizeGroup(g, colorMap)),
+    [rawGroups, colorMap]
   );
 
   const makeDragPayload = (g) =>
@@ -107,6 +124,7 @@ export function GroupContent({ onPick }) {
       keywords: g.keywords,
       updatedAt: g.updatedAt,
       graph: g.graph,
+      color: g.color,
     });
 
   const makeDragImage = (cardEl) => {
@@ -188,7 +206,7 @@ export function GroupContent({ onPick }) {
               )}
             </CardTop>
 
-            <MiniGraph graph={g.graph} />
+            {/* <MiniGraph graph={g.graph} /> */}
 
             <CardSummary>{g.summary}</CardSummary>
 

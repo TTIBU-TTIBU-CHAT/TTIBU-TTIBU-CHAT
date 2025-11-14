@@ -1,3 +1,4 @@
+// src/components/ModalShell/contents/ChatContent.jsx
 import { useEffect, useRef } from "react";
 import * as S from "../ModalShell.styles";
 
@@ -20,9 +21,13 @@ export function ChatContent({ messages, input, onInputChange, onSend }) {
       <S.ChatScroll>
         {messages.map((msg) => (
           <div key={msg.id}>
-            <S.Bubble $me={msg.role === "user"}>{msg.content}</S.Bubble>
-            {/* 모델명(출처) 표시 */}
-            {msg.role === "assistant" && msg.model && (
+            <S.Bubble $me={msg.role === "user"}>
+              {msg.content}
+              {msg.streaming && (
+                <span style={{ opacity: 0.6, marginLeft: 4 }}>▋</span>
+              )}
+            </S.Bubble>
+            {msg.role === "assistant" && msg.model && !msg.streaming && (
               <S.ModelTag>모델 : {msg.model}</S.ModelTag>
             )}
           </div>

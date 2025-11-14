@@ -1,11 +1,13 @@
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { chatRoomService } from '@/services/chatRoomService';
+// src/hooks/useChatRooms.js
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { chatRoomService } from "@/services/chatRoomService";
+
 
 /* ---------------------- Query Keys ---------------------- */
 export const rk = {
-  all: ['rooms'],
-  list: (params) => ['rooms', 'list', params ?? {}],
-  detail: (id) => ['rooms', 'detail', id],
+  all: ["rooms"],
+  list: (params) => ["rooms", "list", params ?? {}],
+  detail: (id) => ["rooms", "detail", id],
 };
 
 /* ---------------------- 리스트 조회 ---------------------- */
@@ -14,8 +16,19 @@ export function useRooms(params) {
     queryKey: rk.list(params),
     queryFn: async () => {
       const res = await chatRoomService.listRooms(params);
-      console.log('Fetched rooms:', res.data.rooms);
-      return res.data.rooms; 
+      // 서버 응답 형태 어느 쪽이든 배열로 정규화
+      const raw = res?.data;
+      const list = Array.isArray(raw)
+        ? raw
+        : Array.isArray(raw?.data)
+          ? raw.data
+          : Array.isArray(raw?.items)
+            ? raw.items
+            : Array.isArray(raw?.rooms)
+              ? raw.rooms
+              : [];
+      // console.log("Fetched rooms (normalized):", list);
+      return list; // ✅ 항상 배열
     },
     staleTime: 30_000,
   });
@@ -27,7 +40,7 @@ export function useRoom(roomId) {
     queryKey: rk.detail(roomId),
     queryFn: async () => {
       const res = await chatRoomService.getRoom(roomId);
-      return res.data; // {room, chats, branches} (확실하지 않음)
+      return res.data; // {room, chats, branches} (서버 스펙에 따름)
     },
     enabled: !!roomId,
     staleTime: 30_000,
@@ -43,13 +56,17 @@ export function useCreateRoom() {
   });
 }
 
-/* ---------------------- 채팅 + 브랜치 정보 저장 ---------------------- */
+/* ---------------------- 채팅 + 브랜치 정보 저장 (multipart/form-data) ---------------------- */
 export function useSaveRoomData() {
   const qc = useQueryClient();
   return useMutation({
+    // vars: { roomId, chatInfo, branchView }  (둘 다 JSON string)
     mutationFn: (vars) => chatRoomService.saveRoomData(vars),
     onSuccess: (_res, vars) => {
-      qc.invalidateQueries({ queryKey: rk.detail(vars.roomId) });
+      // 상세 다시 불러오도록 무효화
+      if (vars?.roomId) {
+        qc.invalidateQueries({ queryKey: rk.detail(vars.roomId) });
+      }
     },
   });
 }

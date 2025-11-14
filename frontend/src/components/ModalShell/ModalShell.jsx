@@ -1,4 +1,3 @@
-// ModalShell.jsx
 import { useRouterState } from "@tanstack/react-router";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
@@ -6,6 +5,7 @@ import * as S from "./ModalShell.styles";
 import { ChatContent } from "./contents/ChatContent";
 import { SearchContent } from "./contents/SearchContent";
 import { GroupContent } from "./contents/GroupContent";
+import { useModels } from "@/hooks/useModels"; // ✅ 그대로 사용
 
 const TYPE_ORDER = { layers: 0, search: 1, chat: 2 };
 const ANIM_MS = 280;
@@ -16,7 +16,7 @@ export default function ModalShell({
   onClose,
   type = "chat",
   setType,
-  title = "브랜치-2",
+  title = "브랜치",
   messages = [],
   input = "",
   onInputChange,
@@ -25,6 +25,16 @@ export default function ModalShell({
   setPeek,
   showDock = true,
   onPick,
+
+  // ✅ 모델 제어용
+  modelCode,
+  onModelChange,
+  modelSource = "available",
+
+  // ✅ 브랜치 연동용 (ChatFlowPage와 싱크)
+  branchItems = [],           // [{ label, value, active }]
+  activeBranchKey = "전체",   // "전체" 또는 branch_id 문자열
+  onBranchSelect,             // (value: string) => void
 }) {
   const panelRef = useRef(null);
 
@@ -35,13 +45,36 @@ export default function ModalShell({
   const pathname = routerState.location.pathname;
   const hideChatDock = pathname.startsWith("/groups");
 
+  // ✅ 브랜치 드롭다운 open 상태만 내부에서 관리
   const [branchOpen, setBranchOpen] = useState(false);
-  const [modelOpen, setModelOpen] = useState(false);
-  const [selectedBranch, setSelectedBranch] = useState(title);
-  const [selectedModel, setSelectedModel] = useState("ChatGPT 4o");
 
-  const branches = ["브랜치-1", "브랜치-2", "브랜치-3"];
-  const models = ["ChatGPT 5", "ChatGPT 4o", "ChatGPT 3o"];
+  // ✅ 서버 모델 불러오기 (라벨=modelName / 값=modelCode)
+  const {
+    dropdownItems = [], // [{ label, value(modelCode), uid, isDefault }]
+    defaultModelCode = "",
+    modelsLoading = false,
+    modelsError = null,
+  } = useModels({ source: modelSource }) ?? {};
+
+  // ✅ 내부/외부 겸용 선택 상태 (외부에서 modelCode 주면 그걸 우선)
+  const [innerModelCode, setInnerModelCode] = useState("");
+
+  useEffect(() => {
+    if (modelCode && modelCode !== innerModelCode) {
+      setInnerModelCode(modelCode);
+    }
+  }, [modelCode, innerModelCode]);
+
+  useEffect(() => {
+    if (!innerModelCode && !modelCode) {
+      const fallback = dropdownItems[0]?.value ?? "";
+      const next = defaultModelCode || fallback;
+      if (next) setInnerModelCode(next);
+    }
+  }, [defaultModelCode, dropdownItems, innerModelCode, modelCode]);
+
+  // ✅ 모델 드롭다운 열림 상태
+  const [modelOpen, setModelOpen] = useState(false);
 
   useEffect(() => {
     if (open) panelRef.current?.focus();
@@ -66,7 +99,6 @@ export default function ModalShell({
   const [leavingType, setLeavingType] = useState(null);
   const [leavingHeader, setLeavingHeader] = useState(null);
 
-  // ✅ 전체 화면 상태
   const [fullscreen, setFullscreen] = useState(false);
 
   useEffect(() => {
@@ -89,11 +121,10 @@ export default function ModalShell({
   /* ===== Dock 공통 토글 ===== */
   const handleDockToggle = (nextType) => {
     if (open && type === nextType) {
-      // 같은 탭 다시 누르면: peek 해제 → 이미 풀오픈이면 닫기
       if (peekState) {
         setPeek?.(false);
         setPeekState(false);
-        setFullscreen(false); // ✅ dock으로 건드릴 땐 전체화면 해제
+        setFullscreen(false);
         onOpen?.();
         return;
       }
@@ -101,12 +132,38 @@ export default function ModalShell({
       return;
     }
     setType?.(nextType);
-    // 토글 시에는 펼친 상태로
     setPeek?.(false);
     setPeekState(false);
-    setFullscreen(false); // ✅ 탭 전환하면 기본 폭으로
+    setFullscreen(false);
     if (!open) onOpen?.();
   };
+
+  // ✅ 모델 드롭다운 라벨 계산
+  const selectedModelLabel = (() => {
+    const code = modelCode || innerModelCode || "";
+    const found = (dropdownItems || []).find((i) => i.value === code);
+    if (found) return found.label;
+    if (modelsLoading) return "모델 불러오는 중…";
+    if (modelsError) return "모델 로드 실패";
+    return "모델 선택";
+  })();
+
+  // ✅ 모델 선택 핸들러
+  const pickModel = (code) => {
+    if (!code) return;
+    onModelChange?.(code);
+    setInnerModelCode(code);
+    setModelOpen(false);
+  };
+
+  // ✅ 현재 브랜치 라벨 (ChatFlowPage에서 넘어온 branchItems 기준)
+  const branchLabel = useMemo(() => {
+    if (branchItems && branchItems.length > 0) {
+      const found = branchItems.find((b) => b.value === activeBranchKey);
+      if (found) return found.label;
+    }
+    return title; // fallback
+  }, [branchItems, activeBranchKey, title]);
 
   /* ===== Header 렌더 ===== */
   const renderHeaderSlots = (renderType) => {
@@ -114,14 +171,13 @@ export default function ModalShell({
       return (
         <>
           <S.HeaderLeft>
-            {/* ✅ '닫기'가 아니라 '전체 화면 토글' */}
             <S.IconButton
               onClick={(e) => {
                 e.stopPropagation();
                 if (!open) onOpen?.();
                 setPeek?.(false);
                 setPeekState(false);
-                setFullscreen((v) => !v); // ✅ 토글
+                setFullscreen((v) => !v);
               }}
               title={fullscreen ? "기본 너비로" : "전체 화면으로"}
               aria-label={fullscreen ? "기본 너비로" : "전체 화면으로"}
@@ -143,22 +199,22 @@ export default function ModalShell({
                   setModelOpen(false);
                 }}
               >
-                <S.TogglerText>{selectedBranch}</S.TogglerText>
+                <S.TogglerText>{branchLabel}</S.TogglerText>
               </S.DropdownToggler>
 
               {branchOpen && (
                 <S.DropdownList onClick={stop}>
-                  {branches.map((b) => (
+                  {(branchItems || []).map((b) => (
                     <S.DropdownItem
-                      key={b}
-                      $active={selectedBranch === b}
+                      key={b.value}
+                      $active={b.value === activeBranchKey}
                       onClick={(e) => {
                         e.stopPropagation();
-                        setSelectedBranch(b);
+                        onBranchSelect?.(b.value); // 🔥 ChatFlowPage 상태 변경
                         setBranchOpen(false);
                       }}
                     >
-                      {b} {selectedBranch === b && <span>✔</span>}
+                      {b.label} {b.value === activeBranchKey && <span>✔</span>}
                     </S.DropdownItem>
                   ))}
                 </S.DropdownList>
@@ -175,24 +231,38 @@ export default function ModalShell({
                   setBranchOpen(false);
                 }}
               >
-                <S.TogglerTextMuted>{selectedModel}</S.TogglerTextMuted>
+                <S.TogglerTextMuted>{selectedModelLabel}</S.TogglerTextMuted>
               </S.DropdownToggler>
 
               {modelOpen && (
                 <S.DropdownList $right onClick={stop}>
-                  {models.map((m) => (
-                    <S.DropdownItem
-                      key={m}
-                      $active={selectedModel === m}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setSelectedModel(m);
-                        setModelOpen(false);
-                      }}
-                    >
-                      {m} {selectedModel === m && <span>✔</span>}
+                  {modelsLoading && (
+                    <S.DropdownItem $active={false} disabled>
+                      불러오는 중…
                     </S.DropdownItem>
-                  ))}
+                  )}
+                  {!modelsLoading && modelsError && (
+                    <S.DropdownItem $active={false} disabled>
+                      모델 목록을 불러오지 못했습니다
+                    </S.DropdownItem>
+                  )}
+                  {!modelsLoading &&
+                    !modelsError &&
+                    (dropdownItems || []).map((m) => (
+                      <S.DropdownItem
+                        key={m.value}
+                        $active={(modelCode || innerModelCode) === m.value}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          pickModel(m.value);
+                        }}
+                      >
+                        {m.label}{" "}
+                        {(modelCode || innerModelCode) === m.value && (
+                          <span>✔</span>
+                        )}
+                      </S.DropdownItem>
+                    ))}
                 </S.DropdownList>
               )}
             </S.Dropdown>
@@ -246,10 +316,9 @@ export default function ModalShell({
         tabIndex={-1}
         $open={open}
         $peek={peekState}
-        $fullscreen={fullscreen} // ✅ 전달
+        $fullscreen={fullscreen}
         onClick={stop}
       >
-        {/* Dock */}
         {showDock && (
           <S.Dock $fullscreen={fullscreen}>
             {!hideChatDock && (
@@ -277,7 +346,6 @@ export default function ModalShell({
           </S.Dock>
         )}
 
-        {/* Header */}
         <S.Header>
           {leavingHeader && (
             <S.HeaderLayer
@@ -293,7 +361,6 @@ export default function ModalShell({
           </S.HeaderLayer>
         </S.Header>
 
-        {/* Body */}
         <S.Body>
           {leavingType && (
             <S.ContentLayer
