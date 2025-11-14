@@ -1,22 +1,59 @@
 model_list:
-  - model_name: gpt-4
+  ### GPT  
+  - model_name: GPT-4o
     litellm_params:
-      model: openai/gpt-4
-      api_key: os.environ/OPENAI_API_KEY
+      model: openai/gpt-4o
 
-  - model_name: gpt-3.5-turbo
+  - model_name: GPT-4o-Mini
     litellm_params:
-      model: openai/gpt-3.5-turbo
-      api_key: os.environ/OPENAI_API_KEY
+      model: openai/gpt-4o-mini
 
-  - model_name: claude-3-5-sonnet
+  - model_name: GPT-5-Mini
     litellm_params:
-      model: anthropic/claude-3-5-sonnet-20241022
-      api_key: os.environ/ANTHROPIC_API_KEY
+      model: openai/gpt-5-mini
+
+  - model_name: GPT-5
+    litellm_params:
+      model: openai/gpt-5
+
+  - model_name: GPT-5-Nano
+    litellm_params:
+      model: openai/gpt-5-nano
+
+  ### Claude  
+  - model_name: Claude-Sonnet-4
+    litellm_params:
+      model: anthropic/claude-sonnet-4-20250514
+
+  - model_name: Claude-Opus-4-1
+    litellm_params:
+      model: anthropic/claude-opus-4-1-20250805
+  
+  - model_name: Claude-3-7-Sonnet
+    litellm_params:
+      model: anthropic/claude-3-7-sonnet-latest
+  
+  - model_name: Claude-3-5-Haiku
+    litellm_params:
+      model: anthropic/claude-3-5-haiku-latest
+
+  ### Gemini
+  - model_name: Gemini-2.5-pro
+    litellm_params:
+      model: gemini/gemini-2.5-pro
+
+  - model_name: Gemini-2.5-Flash
+    litellm_params:
+      model: gemini/gemini-2.5-flash
+
+  - model_name: Gemini-2.5-Flash-Lite
+    litellm_params:
+      model: gemini/gemini-2.5-flash-lite
+
 
 general_settings:
   master_key: sk-1234
-  database_url: "sqlite:///litellm.db"
+#   database_url: "sqlite:///litellm.db"
 
 litellm_settings:
   drop_params: true
