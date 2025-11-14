@@ -1426,6 +1426,6 @@ export default function ChatFlowPage() {
     console.log(`\n======= [FLOW_DEBUG] ${reason} =======`);
     console.log("[FLOW_DEBUG] ReactFlow snapshot (nodes/edges):", graphSnap);
     console.log("[FLOW_DEBUG] room payload (fetchedRoom shape):", roomShape);
-    console.log("=====================================\n");
+    console.log("===================================\n");
   }
 }
