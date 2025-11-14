@@ -6,6 +6,7 @@ import RouteTransitionOverlay from "@/components/common/RouteTransitionOverlay/R
 import { useSidebarStore } from "@/store/useSidebarStore";
 import { useStartChat } from "@/hooks/useStartChat";
 import { useNavigate } from "@tanstack/react-router";
+import { useModels } from "@/hooks/useModels"; // 서버 모델 옵션 훅
 
 export default function NewChat() {
   const { isCollapsed } = useSidebarStore();
@@ -15,10 +16,19 @@ export default function NewChat() {
   const navigatedRef = useRef(null);
   const [redirecting, setRedirecting] = useState(false);
 
-  // 모델 드롭다운
-  const [selectedModel, setSelectedModel] = useState("gpt-4o-mini");
+  // ✅ 서버 모델 옵션 (항상 기본값이 내려오도록 훅에서 보장하지만, 여기서도 방어)
+  const {
+    dropdownItems = [],        // [{ label: modelName, value: modelCode, uid, isDefault }]
+    defaultModelCode = "",     // 기본 modelCode
+    modelsLoading = false,
+    modelsError = null,
+  } = useModels() ?? {};
+
+  // 내부 선택 값은 항상 modelCode 로 보관
+  const [selectedModel, setSelectedModel] = useState("");
+
+  // 드롭다운 열림
   const [modelOpen, setModelOpen] = useState(false);
-  const models = ["ChatGPT 5", "ChatGPT 4o", "ChatGPT 3o"];
 
   // 모달/선택/입력
   const [modalOpen, setModalOpen] = useState(false);
@@ -32,20 +42,15 @@ export default function NewChat() {
   const targetRoomIdRef = useRef(null);
   const hookRoomIdRef = useRef(null); // useStartChat에서 내려오는 roomId 보관
 
-  // 이벤트 페이로드에서 roomId 뽑기 (백엔드 포맷 다양성 대응)
-  const getTargetRoomId = (payload) => {
-    return (
-      payload?.chat_id ??
-      payload?.room_id ??
-      payload?.roomId ??
-      payload?.data?.chat_id ??
-      payload?.data?.roomId ??
-      hookRoomIdRef.current ?? // 훅이 반환하는 roomId로 폴백
-      null
-    );
-  };
+  const getTargetRoomId = (payload) =>
+    payload?.chat_id ??
+    payload?.room_id ??
+    payload?.roomId ??
+    payload?.data?.chat_id ??
+    payload?.data?.roomId ??
+    hookRoomIdRef.current ??
+    null;
 
-  // 두 이벤트가 모두 왔는지 확인하고, 한 번만 이동
   const maybeNavigate = () => {
     const { short, keywords } = flagsRef.current;
     if (!short || !keywords) return;
@@ -53,20 +58,19 @@ export default function NewChat() {
     if (!id) return;
     if (navigatedRef.current === id) return;
     navigatedRef.current = id;
-
     navigate({ to: `/chatrooms/${id}` });
   };
 
   const { start, roomId, submitting, connected, lastMessage } = useStartChat({
     onRoomCreated: (payload) => {
-      // 서버가 주는 형태가 { type, data: {...} } 일 수도, 바로 data일 수도 있으니 모두 대응
       const data = payload?.data ?? payload;
-      const rid = data?.room_id ?? data?.roomId ?? data?.chat_id; // 안전하게
+      const rid = data?.room_id ?? data?.roomId ?? data?.chat_id;
       if (!rid) return;
       if (navigatedRef.current === String(rid)) return;
       navigatedRef.current = String(rid);
+      data.model=selectedModel; // 선택된 모델 코드 추가
+      console.log("Room created data:", data);
       setRedirecting(true);
-      // ✅ /chatrooms/$roomId 로 이동하면서 초기 데이터(data)도 state로 넘김
       navigate({
         to: "/chatrooms/$roomId",
         params: { roomId: String(rid) },
@@ -98,12 +102,10 @@ export default function NewChat() {
     onChatError: (d) => console.error("[CHAT_ERROR]", d),
   });
 
-  // 훅이 주는 roomId 최신값 보관
   useEffect(() => {
     if (roomId) hookRoomIdRef.current = roomId;
   }, [roomId]);
 
-  // 입력창 등의 부수효과
   useEffect(() => {
     if (tagBoxRef.current) {
       tagBoxRef.current.scrollTo({
@@ -113,13 +115,21 @@ export default function NewChat() {
     }
   }, [selectedItems]);
 
-  // 바깥 클릭 시 드롭다운 닫기
   useEffect(() => {
     if (!modelOpen) return;
     const onDocClick = () => setModelOpen(false);
     document.addEventListener("click", onDocClick);
     return () => document.removeEventListener("click", onDocClick);
   }, [modelOpen]);
+
+  // ✅ 기본 선택: 서버 기본값 → 없으면 첫번째 항목
+  useEffect(() => {
+    if (!selectedModel) {
+      const fallback = dropdownItems[0]?.value ?? "";
+      const nextCode = defaultModelCode || fallback;
+      if (nextCode) setSelectedModel(nextCode);
+    }
+  }, [defaultModelCode, dropdownItems, selectedModel]);
 
   const stop = (e) => e.stopPropagation();
 
@@ -132,18 +142,17 @@ export default function NewChat() {
 
   const isEmpty = text.trim().length === 0;
 
-  // 전송
   const handleSend = async () => {
     if (submitting) return;
     const question = text.trim();
     if (!question) return;
     setRedirecting(true);
-    // 새 대화 시작 시 이전 플래그는 리셋해 두세요.
+
     flagsRef.current = { short: false, keywords: false };
     targetRoomIdRef.current = null;
     navigatedRef.current = null;
 
-    const branchId = 100; // TODO: 실제 값으로 교체
+    const branchId = 100; // TODO: 실제 값
     const useLlm = false;
 
     const nodes = selectedItems.length
@@ -154,6 +163,7 @@ export default function NewChat() {
         }))
       : undefined;
 
+    // ✅ model 에 modelCode 전송
     const payload = nodes
       ? { nodes, question, branchId, model: selectedModel, useLlm }
       : { question, branchId, model: selectedModel, useLlm };
@@ -164,7 +174,7 @@ export default function NewChat() {
     if (rid) {
       setText("");
     } else {
-      setRedirecting(false); // 실패 시 오버레이 닫기
+      setRedirecting(false);
     }
   };
 
@@ -192,6 +202,15 @@ export default function NewChat() {
     setSelectedItems((prev) => prev.filter((i) => i.id !== id));
   };
 
+  // ✅ 선택된 라벨 계산 (방어)
+  const selectedLabel = (() => {
+    const item = (dropdownItems || []).find((i) => i.value === selectedModel);
+    if (item) return item.label;
+    if (modelsLoading) return "모델 불러오는 중…";
+    if (modelsError) return "모델 로드 실패";
+    return "모델 선택";
+  })();
+
   return (
     <S.Container $collapsed={isCollapsed}>
       <S.TopLeftBar onClick={stop}>
@@ -204,24 +223,36 @@ export default function NewChat() {
             aria-label="모델 선택"
             title="모델 선택"
           >
-            <S.TogglerTextMuted>{selectedModel}</S.TogglerTextMuted>
+            <S.TogglerTextMuted>{selectedLabel}</S.TogglerTextMuted>
           </S.DropdownToggler>
 
           {modelOpen && (
             <S.DropdownList $right onClick={stop}>
-              {models.map((m) => (
-                <S.DropdownItem
-                  key={m}
-                  $active={selectedModel === m}
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setSelectedModel(m);
-                    setModelOpen(false);
-                  }}
-                >
-                  {m} {selectedModel === m && <span>✔</span>}
+              {modelsLoading && (
+                <S.DropdownItem $active={false} disabled>
+                  불러오는 중…
                 </S.DropdownItem>
-              ))}
+              )}
+              {!modelsLoading && modelsError && (
+                <S.DropdownItem $active={false} disabled>
+                  모델 목록을 불러오지 못했습니다
+                </S.DropdownItem>
+              )}
+              {!modelsLoading &&
+                !modelsError &&
+                (dropdownItems || []).map((it) => (
+                  <S.DropdownItem
+                    key={it.value}
+                    $active={selectedModel === it.value}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setSelectedModel(it.value); // modelCode
+                      setModelOpen(false);
+                    }}
+                  >
+                    {it.label} {selectedModel === it.value && <span>✔</span>}
+                  </S.DropdownItem>
+                ))}
             </S.DropdownList>
           )}
         </S.Dropdown>
@@ -233,7 +264,7 @@ export default function NewChat() {
             {selectedItems.map((item) => (
               <S.SelectedTag key={item.id} $type={item.type}>
                 {item.type === "group"
-                  ? (item.title ?? item.label)
+                  ? item.title ?? item.label
                   : item.label}
                 <button
                   style={{ padding: 5 }}
@@ -278,12 +309,6 @@ export default function NewChat() {
             기존 대화에서 선택
           </S.SelectButton>
         </S.ButtonRow>
-
-        {roomId && (
-          <div style={{ marginTop: 8, fontSize: 12, color: "#667085" }}>
-            roomId: <b>{roomId}</b> / SSE: {connected ? "연결됨" : "연결 대기"}
-          </div>
-        )}
       </S.CenterBox>
 
       {modalOpen && (

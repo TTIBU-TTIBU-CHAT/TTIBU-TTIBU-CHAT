@@ -16,7 +16,7 @@ export const useGroupStore = create(
         try {
           const res = await groupService.getGroupView()
           let data = res?.data?.data
-
+          console.log('[GROUP_VIEW] 서버 응답:', data)
           if (typeof data === 'string') {
             try {
               data = JSON.parse(data)

@@ -20,7 +20,7 @@ export default function SidebarMenu() {
   } = useGroups();
 
   const {
-    data: roomsData,
+    data: rooms = [], // ✅ 항상 배열로 받기
     isLoading: roomsLoading,
     isError: roomsError,
   } = useRooms();
@@ -29,19 +29,20 @@ export default function SidebarMenu() {
     ? groupsData
     : groupsData?.items || groupsData?.groups || [];
 
-  const chatsRaw = Array.isArray(roomsData)
-    ? roomsData
-    : roomsData?.items || roomsData?.rooms || [];
-
-  const chats = (chatsRaw || [])
+  // const chatsRaw = Array.isArray(roomsData.data)
+  //   ? roomsData.data
+  //   : roomsData?.items || roomsData?.rooms || [];
+  // console.log("Raw sidebar chats data:", chatsRaw);
+  const chats = rooms
     .map((r) => ({
-      id: r.id ?? r._id ?? r.room_id,
-      name: r.name,
-      lastMessage: r.latest_question,
-      updatedAt: r.updated_at,
+      id: r.roomUid ?? r._id ?? r.room_id ?? r.id,
+      name: r.name ?? r.title ?? "이름 없는 채팅",
+      lastMessage: r.summary ?? r.lastMessage ?? "",
+      updatedAt: r.updatedAt ?? r.updated_at ?? r.modifiedAt,
     }))
     .filter((x) => x && x.id);
 
+  // console.log("Sidebar chats:", chats);
   const handleNavigate = (path) => navigate({ to: path });
 
   const handleChatClick = (chatId) => {
@@ -100,7 +101,9 @@ export default function SidebarMenu() {
             <>
               {groups.length === 0 ? (
                 <S.SubList>
-                  <S.SubItem style={{ opacity: 0.65 }}>등록된 그룹이 없어요</S.SubItem>
+                  <S.SubItem style={{ opacity: 0.65 }}>
+                    등록된 그룹이 없어요
+                  </S.SubItem>
                 </S.SubList>
               ) : (
                 <>
@@ -159,7 +162,9 @@ export default function SidebarMenu() {
             <>
               {chats.length === 0 ? (
                 <S.SubList>
-                  <S.SubItem style={{ opacity: 0.65 }}>대화가 아직 없어요</S.SubItem>
+                  <S.SubItem style={{ opacity: 0.65 }}>
+                    대화가 아직 없어요
+                  </S.SubItem>
                 </S.SubList>
               ) : (
                 <>
