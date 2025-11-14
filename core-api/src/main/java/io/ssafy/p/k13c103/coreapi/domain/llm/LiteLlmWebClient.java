@@ -210,7 +210,6 @@ public class LiteLlmWebClient implements LiteLlmClient {
 
             case "gemini":
             case "google": {
-                // Gemini는 contents 스키마 필요
                 String systemText = messages.stream()
                         .filter(m -> "system".equalsIgnoreCase(m.getOrDefault("role", "")))
                         .map(m -> m.getOrDefault("content", ""))
@@ -222,10 +221,14 @@ public class LiteLlmWebClient implements LiteLlmClient {
                         .collect(Collectors.joining("\n")).trim();
 
                 Map<String, Object> body = new HashMap<>();
-                body.put("contents", List.of(Map.of("parts", List.of(Map.of("text", userText)))));
+                body.put("contents", List.of(Map.of(
+                        "parts", List.of(Map.of("text", userText))
+                )));
                 body.put("generationConfig", Map.of("temperature", temperature));
                 if (!systemText.isBlank()) {
-                    body.put("systemInstruction", Map.of("parts", List.of(Map.of("text", systemText))));
+                    body.put("systemInstruction", Map.of(
+                            "parts", List.of(Map.of("text", systemText))
+                    ));
                 }
 
                 String path = streamEnabled
@@ -237,16 +240,24 @@ public class LiteLlmWebClient implements LiteLlmClient {
                         .build();
 
                 var spec = client.post()
-                        .uri(uriBuilder -> uriBuilder.path(path)
+                        .uri(uriBuilder -> uriBuilder
+                                .path(path)
                                 .queryParam("key", apiKey)
                                 .build(model))
                         .bodyValue(body);
 
                 return addAcceptIfStream(spec, streamEnabled)
                         .retrieve()
-                        .onStatus(HttpStatusCode::is4xxClientError, r -> map4xxToApiEx(r, "gemini", model, streamEnabled))
-                        .onStatus(HttpStatusCode::is5xxServerError, r -> Mono.error(new ApiException(ErrorCode.UPSTREAM_ERROR)))
-                        .bodyToFlux(String.class);
+                        .onStatus(
+                                HttpStatusCode::is4xxClientError,
+                                r -> map4xxToApiEx(r, "gemini", model, streamEnabled)
+                        )
+                        .onStatus(
+                                HttpStatusCode::is5xxServerError,
+                                r -> Mono.error(new ApiException(ErrorCode.UPSTREAM_ERROR))
+                        )
+                        .bodyToFlux(String.class)
+                        .transform(this::assembleGeminiChunks);
             }
             case "anthropic":
             case "claude": {
@@ -315,12 +326,81 @@ public class LiteLlmWebClient implements LiteLlmClient {
         }).toList();
     }
 
-    private String mergeMessages(List<Map<String, String>> messages) {
-        StringBuilder sb = new StringBuilder();
-        for (Map<String, String> msg : messages) {
-            sb.append(msg.getOrDefault("content", "")).append("\n");
-        }
-        return sb.toString().trim();
+    // [수정] Gemini NDJSON 배열을 {…} 객체 단위로 재조립 (문자열/이스케이프 안전)
+    private Flux<String> assembleGeminiChunks(Flux<String> flux) {
+        final StringBuilder objBuf = new StringBuilder();
+
+        // 람다에서 변경 가능한 상태는 배열 래퍼로 보관
+        final boolean[] inObject = { false };   // 현재 {…} 안인지
+        final int[]     depth    = { 0 };       // 중괄호 깊이
+        final boolean[] inString = { false };   // JSON 문자열 내부인지
+        final boolean[] escaped  = { false };   // 직전 문자가 백슬래시(\)인지
+
+        return flux.handle((chunk, sink) -> {
+            if (chunk == null || chunk.isEmpty()) return;
+
+            // SSE나 로그에 "data: {...}" 처럼 섞여 오면 앞의 접두어 제거
+            String piece = chunk.startsWith("data:") ? chunk.substring(5).trim() : chunk;
+
+            for (int i = 0; i < piece.length(); i++) {
+                char ch = piece.charAt(i);
+
+                // 아직 객체 시작 전: 배열 기호/공백/콤마는 건너뛰고 첫 '{'에서 시작
+                if (!inObject[0]) {
+                    if (ch == '{') {
+                        inObject[0] = true;
+                        depth[0] = 1;
+                        inString[0] = false;
+                        escaped[0] = false;
+                        objBuf.setLength(0);
+                        objBuf.append('{');
+                    }
+                    // '[', ']', ',', 공백/개행 등은 무시
+                    continue;
+                }
+
+                // 객체 내부: 문자 추가
+                objBuf.append(ch);
+
+                // 문자열/이스케이프 상태 갱신
+                if (inString[0]) {
+                    if (escaped[0]) {
+                        // 방금 이스케이프 처리한 문자였음 → 플래그 해제
+                        escaped[0] = false;
+                    } else if (ch == '\\') {
+                        escaped[0] = true;         // 다음 문자는 이스케이프
+                    } else if (ch == '"') {
+                        inString[0] = false;       // 문자열 종료
+                    }
+                    // 문자열 안에서는 중괄호 깊이 계산하지 않음
+                    continue;
+                } else {
+                    if (ch == '"') {
+                        inString[0] = true;        // 문자열 시작
+                        escaped[0] = false;
+                        continue;
+                    }
+                    // 문자열 밖에서만 깊이 계산
+                    if (ch == '{') {
+                        depth[0]++;
+                    } else if (ch == '}') {
+                        depth[0]--;
+                        if (depth[0] == 0) {
+                            // 완전한 객체 1개 완성
+                            String jsonObject = objBuf.toString().trim();
+                            if (!jsonObject.isEmpty()) {
+                                sink.next(jsonObject);
+                            }
+                            // 상태 초기화 (다음 객체 대기)
+                            objBuf.setLength(0);
+                            inObject[0] = false;
+                            inString[0] = false;
+                            escaped[0]  = false;
+                        }
+                    }
+                }
+            }
+        });
     }
 
     private double resolveTemperature(String model, double defaultTemperature) {
