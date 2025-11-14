@@ -17,9 +17,8 @@ import { Route as SettingsIndexRouteImport } from './routes/settings/index'
 import { Route as LoginIndexRouteImport } from './routes/login/index'
 import { Route as GroupsIndexRouteImport } from './routes/groups/index'
 import { Route as ChatRoomsIndexRouteImport } from './routes/chatRooms/index'
-
+import { Route as GroupsNodeIdRouteImport } from './routes/groups/$nodeId'
 import { Route as GroupsGroupIdRouteImport } from './routes/groups/$groupId'
-
 import { Route as ChatRoomsNodeIdRouteImport } from './routes/chatRooms/$nodeId'
 
 const TestcopyRoute = TestcopyRouteImport.update({
@@ -62,10 +61,14 @@ const ChatRoomsIndexRoute = ChatRoomsIndexRouteImport.update({
   path: '/chatRooms/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const GroupsNodeIdRoute = GroupsNodeIdRouteImport.update({
+  id: '/groups/$nodeId',
+  path: '/groups/$nodeId',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const GroupsGroupIdRoute = GroupsGroupIdRouteImport.update({
   id: '/groups/$groupId',
   path: '/groups/$groupId',
-
   getParentRoute: () => rootRouteImport,
 } as any)
 const ChatRoomsNodeIdRoute = ChatRoomsNodeIdRouteImport.update({
@@ -80,6 +83,7 @@ export interface FileRoutesByFullPath {
   '/testcopy': typeof TestcopyRoute
   '/chatRooms/$nodeId': typeof ChatRoomsNodeIdRoute
   '/groups/$groupId': typeof GroupsGroupIdRoute
+  '/groups/$nodeId': typeof GroupsNodeIdRoute
   '/chatRooms': typeof ChatRoomsIndexRoute
   '/groups': typeof GroupsIndexRoute
   '/login': typeof LoginIndexRoute
@@ -92,6 +96,7 @@ export interface FileRoutesByTo {
   '/testcopy': typeof TestcopyRoute
   '/chatRooms/$nodeId': typeof ChatRoomsNodeIdRoute
   '/groups/$groupId': typeof GroupsGroupIdRoute
+  '/groups/$nodeId': typeof GroupsNodeIdRoute
   '/chatRooms': typeof ChatRoomsIndexRoute
   '/groups': typeof GroupsIndexRoute
   '/login': typeof LoginIndexRoute
@@ -105,6 +110,7 @@ export interface FileRoutesById {
   '/testcopy': typeof TestcopyRoute
   '/chatRooms/$nodeId': typeof ChatRoomsNodeIdRoute
   '/groups/$groupId': typeof GroupsGroupIdRoute
+  '/groups/$nodeId': typeof GroupsNodeIdRoute
   '/chatRooms/': typeof ChatRoomsIndexRoute
   '/groups/': typeof GroupsIndexRoute
   '/login/': typeof LoginIndexRoute
@@ -119,6 +125,7 @@ export interface FileRouteTypes {
     | '/testcopy'
     | '/chatRooms/$nodeId'
     | '/groups/$groupId'
+    | '/groups/$nodeId'
     | '/chatRooms'
     | '/groups'
     | '/login'
@@ -131,6 +138,7 @@ export interface FileRouteTypes {
     | '/testcopy'
     | '/chatRooms/$nodeId'
     | '/groups/$groupId'
+    | '/groups/$nodeId'
     | '/chatRooms'
     | '/groups'
     | '/login'
@@ -157,6 +165,7 @@ export interface RootRouteChildren {
   TestcopyRoute: typeof TestcopyRoute
   ChatRoomsNodeIdRoute: typeof ChatRoomsNodeIdRoute
   GroupsGroupIdRoute: typeof GroupsGroupIdRoute
+  GroupsNodeIdRoute: typeof GroupsNodeIdRoute
   ChatRoomsIndexRoute: typeof ChatRoomsIndexRoute
   GroupsIndexRoute: typeof GroupsIndexRoute
   LoginIndexRoute: typeof LoginIndexRoute
@@ -222,6 +231,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ChatRoomsIndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/groups/$nodeId': {
+      id: '/groups/$nodeId'
+      path: '/groups/$nodeId'
+      fullPath: '/groups/$nodeId'
+      preLoaderRoute: typeof GroupsNodeIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/groups/$groupId': {
       id: '/groups/$groupId'
       path: '/groups/$groupId'
@@ -245,6 +261,7 @@ const rootRouteChildren: RootRouteChildren = {
   TestcopyRoute: TestcopyRoute,
   ChatRoomsNodeIdRoute: ChatRoomsNodeIdRoute,
   GroupsGroupIdRoute: GroupsGroupIdRoute,
+  GroupsNodeIdRoute: GroupsNodeIdRoute,
   ChatRoomsIndexRoute: ChatRoomsIndexRoute,
   GroupsIndexRoute: GroupsIndexRoute,
   LoginIndexRoute: LoginIndexRoute,
