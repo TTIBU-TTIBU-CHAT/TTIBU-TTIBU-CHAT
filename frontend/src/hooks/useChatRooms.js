@@ -2,6 +2,7 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { chatRoomService } from "@/services/chatRoomService";
 
+
 /* ---------------------- Query Keys ---------------------- */
 export const rk = {
   all: ["rooms"],
@@ -39,7 +40,6 @@ export function useRoom(roomId) {
     queryKey: rk.detail(roomId),
     queryFn: async () => {
       const res = await chatRoomService.getRoom(roomId);
-      console.log("Fetched room detail:", res.data);
       return res.data; // {room, chats, branches} (서버 스펙에 따름)
     },
     enabled: !!roomId,

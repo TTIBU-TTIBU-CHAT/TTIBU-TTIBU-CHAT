@@ -16,6 +16,7 @@ export default function NewChat() {
   const navigatedRef = useRef(null);
   const [redirecting, setRedirecting] = useState(false);
 
+
   // ✅ 서버 모델 옵션 (항상 기본값이 내려오도록 훅에서 보장하지만, 여기서도 방어)
   const {
     dropdownItems = [],        // [{ label: modelName, value: modelCode, uid, isDefault }]
@@ -28,6 +29,7 @@ export default function NewChat() {
   const [selectedModel, setSelectedModel] = useState("");
 
   // 드롭다운 열림
+
   const [modelOpen, setModelOpen] = useState(false);
 
   // 모달/선택/입력
@@ -42,6 +44,7 @@ export default function NewChat() {
   const targetRoomIdRef = useRef(null);
   const hookRoomIdRef = useRef(null); // useStartChat에서 내려오는 roomId 보관
 
+
   const getTargetRoomId = (payload) =>
     payload?.chat_id ??
     payload?.room_id ??
@@ -51,6 +54,7 @@ export default function NewChat() {
     hookRoomIdRef.current ??
     null;
 
+
   const maybeNavigate = () => {
     const { short, keywords } = flagsRef.current;
     if (!short || !keywords) return;
@@ -58,6 +62,8 @@ export default function NewChat() {
     if (!id) return;
     if (navigatedRef.current === id) return;
     navigatedRef.current = id;
+
+
     navigate({ to: `/chatrooms/${id}` });
   };
 
@@ -71,6 +77,7 @@ export default function NewChat() {
       data.model=selectedModel; // 선택된 모델 코드 추가
       console.log("Room created data:", data);
       setRedirecting(true);
+
       navigate({
         to: "/chatrooms/$roomId",
         params: { roomId: String(rid) },
@@ -101,6 +108,7 @@ export default function NewChat() {
     },
     onChatError: (d) => console.error("[CHAT_ERROR]", d),
   });
+
 
   useEffect(() => {
     if (roomId) hookRoomIdRef.current = roomId;
@@ -210,6 +218,8 @@ export default function NewChat() {
     if (modelsError) return "모델 로드 실패";
     return "모델 선택";
   })();
+
+
 
   return (
     <S.Container $collapsed={isCollapsed}>
