@@ -24,6 +24,8 @@ public class LlmStreamParser {
             JsonNode root = safeParse(json);
             if (root == null) return null;
 
+            root = unwrapFirstIfArray(root);
+
             // 1) OpenAI / GPT / LiteLLM
             if (p.equals("openai") || p.equals("litellm")) {
                 JsonNode choices = root.path("choices");
@@ -96,8 +98,10 @@ public class LlmStreamParser {
                 JsonNode root = safeParse(json);
                 if (root == null) return false;
 
+                root = unwrapFirstIfArray(root);
+
                 JsonNode candidates = root.path("candidates");
-                if (candidates.isArray() && candidates.size() > 0) {
+                if (candidates.isArray() && !candidates.isEmpty()) {
 
                     // [수정] Gemini의 finishReason 기반 종료 처리
                     String reason = candidates.get(0).path("finishReason").asText("");
@@ -138,6 +142,8 @@ public class LlmStreamParser {
             JsonNode root = safeParse(json);
             if (root == null) return null;
 
+            root = unwrapFirstIfArray(root);
+
             // 1) OpenAI / LiteLLM
             if (root.has("usage")) {
                 return root.get("usage");
@@ -162,6 +168,14 @@ public class LlmStreamParser {
             log.debug("[Parser] safeParse 실패: {}", e.getMessage());
             return null;
         }
+    }
+
+    private JsonNode unwrapFirstIfArray(JsonNode root) {
+        if (root != null && root.isArray() && !root.isEmpty()) {
+            // 배열 전체를 다 도는 대신, delta 추출에는 "첫 번째 조각"만 사용한다.
+            return root.get(0);
+        }
+        return root;
     }
 
     private String normalizeProvider(String provider) {
