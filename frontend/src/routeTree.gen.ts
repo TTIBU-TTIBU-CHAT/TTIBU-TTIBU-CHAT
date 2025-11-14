@@ -17,7 +17,9 @@ import { Route as SettingsIndexRouteImport } from './routes/settings/index'
 import { Route as LoginIndexRouteImport } from './routes/login/index'
 import { Route as GroupsIndexRouteImport } from './routes/groups/index'
 import { Route as ChatRoomsIndexRouteImport } from './routes/chatRooms/index'
-import { Route as GroupsNodeIdRouteImport } from './routes/groups/$nodeId'
+
+import { Route as GroupsGroupIdRouteImport } from './routes/groups/$groupId'
+
 import { Route as ChatRoomsNodeIdRouteImport } from './routes/chatRooms/$nodeId'
 
 const TestcopyRoute = TestcopyRouteImport.update({
@@ -60,9 +62,10 @@ const ChatRoomsIndexRoute = ChatRoomsIndexRouteImport.update({
   path: '/chatRooms/',
   getParentRoute: () => rootRouteImport,
 } as any)
-const GroupsNodeIdRoute = GroupsNodeIdRouteImport.update({
-  id: '/groups/$nodeId',
-  path: '/groups/$nodeId',
+const GroupsGroupIdRoute = GroupsGroupIdRouteImport.update({
+  id: '/groups/$groupId',
+  path: '/groups/$groupId',
+
   getParentRoute: () => rootRouteImport,
 } as any)
 const ChatRoomsNodeIdRoute = ChatRoomsNodeIdRouteImport.update({
@@ -76,7 +79,7 @@ export interface FileRoutesByFullPath {
   '/test': typeof TestRoute
   '/testcopy': typeof TestcopyRoute
   '/chatRooms/$nodeId': typeof ChatRoomsNodeIdRoute
-  '/groups/$nodeId': typeof GroupsNodeIdRoute
+  '/groups/$groupId': typeof GroupsGroupIdRoute
   '/chatRooms': typeof ChatRoomsIndexRoute
   '/groups': typeof GroupsIndexRoute
   '/login': typeof LoginIndexRoute
@@ -88,7 +91,7 @@ export interface FileRoutesByTo {
   '/test': typeof TestRoute
   '/testcopy': typeof TestcopyRoute
   '/chatRooms/$nodeId': typeof ChatRoomsNodeIdRoute
-  '/groups/$nodeId': typeof GroupsNodeIdRoute
+  '/groups/$groupId': typeof GroupsGroupIdRoute
   '/chatRooms': typeof ChatRoomsIndexRoute
   '/groups': typeof GroupsIndexRoute
   '/login': typeof LoginIndexRoute
@@ -101,7 +104,7 @@ export interface FileRoutesById {
   '/test': typeof TestRoute
   '/testcopy': typeof TestcopyRoute
   '/chatRooms/$nodeId': typeof ChatRoomsNodeIdRoute
-  '/groups/$nodeId': typeof GroupsNodeIdRoute
+  '/groups/$groupId': typeof GroupsGroupIdRoute
   '/chatRooms/': typeof ChatRoomsIndexRoute
   '/groups/': typeof GroupsIndexRoute
   '/login/': typeof LoginIndexRoute
@@ -115,7 +118,7 @@ export interface FileRouteTypes {
     | '/test'
     | '/testcopy'
     | '/chatRooms/$nodeId'
-    | '/groups/$nodeId'
+    | '/groups/$groupId'
     | '/chatRooms'
     | '/groups'
     | '/login'
@@ -127,7 +130,7 @@ export interface FileRouteTypes {
     | '/test'
     | '/testcopy'
     | '/chatRooms/$nodeId'
-    | '/groups/$nodeId'
+    | '/groups/$groupId'
     | '/chatRooms'
     | '/groups'
     | '/login'
@@ -139,6 +142,7 @@ export interface FileRouteTypes {
     | '/test'
     | '/testcopy'
     | '/chatRooms/$nodeId'
+    | '/groups/$groupId'
     | '/groups/$nodeId'
     | '/chatRooms/'
     | '/groups/'
@@ -152,7 +156,7 @@ export interface RootRouteChildren {
   TestRoute: typeof TestRoute
   TestcopyRoute: typeof TestcopyRoute
   ChatRoomsNodeIdRoute: typeof ChatRoomsNodeIdRoute
-  GroupsNodeIdRoute: typeof GroupsNodeIdRoute
+  GroupsGroupIdRoute: typeof GroupsGroupIdRoute
   ChatRoomsIndexRoute: typeof ChatRoomsIndexRoute
   GroupsIndexRoute: typeof GroupsIndexRoute
   LoginIndexRoute: typeof LoginIndexRoute
@@ -218,11 +222,11 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ChatRoomsIndexRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/groups/$nodeId': {
-      id: '/groups/$nodeId'
-      path: '/groups/$nodeId'
-      fullPath: '/groups/$nodeId'
-      preLoaderRoute: typeof GroupsNodeIdRouteImport
+    '/groups/$groupId': {
+      id: '/groups/$groupId'
+      path: '/groups/$groupId'
+      fullPath: '/groups/$groupId'
+      preLoaderRoute: typeof GroupsGroupIdRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/chatRooms/$nodeId': {
@@ -240,7 +244,7 @@ const rootRouteChildren: RootRouteChildren = {
   TestRoute: TestRoute,
   TestcopyRoute: TestcopyRoute,
   ChatRoomsNodeIdRoute: ChatRoomsNodeIdRoute,
-  GroupsNodeIdRoute: GroupsNodeIdRoute,
+  GroupsGroupIdRoute: GroupsGroupIdRoute,
   ChatRoomsIndexRoute: ChatRoomsIndexRoute,
   GroupsIndexRoute: GroupsIndexRoute,
   LoginIndexRoute: LoginIndexRoute,

@@ -1,3 +1,6 @@
+
+// src/components/ModalShell/contents/ChatContent.jsx=======
+
 import { useEffect, useRef } from "react";
 import * as S from "../ModalShell.styles";
 
@@ -19,9 +22,17 @@ export function ChatContent({ messages, input, onInputChange, onSend }) {
     <>
       <S.ChatScroll>
         {messages.map((msg) => (
-          <S.Bubble key={msg.id} $me={msg.role === "user"}>
-            {msg.content}
-          </S.Bubble>
+          <div key={msg.id}>
+            <S.Bubble $me={msg.role === "user"}>
+              {msg.content}
+              {msg.streaming && (
+                <span style={{ opacity: 0.6, marginLeft: 4 }}>▋</span>
+              )}
+            </S.Bubble>
+            {msg.role === "assistant" && msg.model && !msg.streaming && (
+              <S.ModelTag>모델 : {msg.model}</S.ModelTag>
+            )}
+          </div>
         ))}
         <div ref={bottomRef} />
       </S.ChatScroll>

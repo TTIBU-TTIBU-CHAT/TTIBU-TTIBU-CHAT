@@ -1,15 +1,62 @@
-// GroupContent.jsx
+// src/components/ModalShell/contents/GroupContent.jsx
+
 import { useMemo, useRef } from "react";
 import styled from "styled-components";
 import * as S from "../ModalShell.styles";
 import ReactFlow, { Background, useNodesState, useEdgesState } from "reactflow";
 import "reactflow/dist/style.css";
-
+import { useGroups } from "@/hooks/useGroups";
+import { useGroupStore } from "@/store/useGroupStore";
 /* ✅ FlowCanvas와 동일 MIME 키 */
 const DND_MIME = "application/x-ttibu-card";
 
-/* 미니 그래프 프리뷰 카드 */
-function MiniGraph({ graph, onEdit, onDelete }) {
+/* ===== 플레이스홀더 미니 그래프 생성 ===== */
+function makePlaceholderGraph(title = "Group") {
+  const x = 80;
+  const y = 40;
+  const nodes = [
+    {
+      id: `n1`,
+      position: { x, y },
+      data: { label: `${title} 개요` },
+      style: bubbleNodeStyle,
+    },
+    {
+      id: `n2`,
+      position: { x: x + 230, y: y + 130 },
+      data: { label: `${title} 예시` },
+      style: bubbleNodeStyle,
+    },
+  ];
+  const edges = [
+    {
+      id: `e1`,
+      source: `n1`,
+      target: `n2`,
+      style: { stroke: "#8aa6ff" },
+      type: "smoothstep",
+    },
+  ];
+  return { nodes, edges };
+}
+
+/* ===== 서버 응답 → UI용 그룹 객체 정규화 ===== */
+function normalizeGroup(g, colorMap) {
+  // ✅ 백엔드 필드 기준: group_id, name, summary, keyword, updated_at
+  const id = g?.groupId ?? g?.id ?? String(Math.random());
+  const title = g?.name ?? `Group ${id}`;
+  const summary = g?.summary ?? "";
+  const keywords = Array.isArray(g?.keyword) ? g.keyword : [];
+  const updatedAt = g?.updated_at ?? null;
+  const color = colorMap?.[id] ?? null;
+  // 그래프는 아직 서버에서 안 주므로 placeholder
+  const graph = makePlaceholderGraph(title);
+
+  return { id, title, summary, keywords, updatedAt, graph, color, __raw: g };
+}
+
+/* ===== 미니 그래프 프리뷰 카드 ===== */
+function MiniGraph({ graph }) {
   const [nodes, , onNodesChange] = useNodesState(graph.nodes);
   const [edges, , onEdgesChange] = useEdgesState(graph.edges);
 
@@ -34,79 +81,64 @@ function MiniGraph({ graph, onEdit, onDelete }) {
         >
           <Background gap={16} size={1} />
         </ReactFlow>
-
-        <PreviewActions>
-          <ActionButton $tone="blue" onClick={onEdit}>
-            편집
-          </ActionButton>
-          <ActionButton $tone="red" onClick={onDelete}>
-            삭제
-          </ActionButton>
-        </PreviewActions>
       </PreviewWrap>
     </PreviewCardSurface>
   );
 }
 
-export function GroupContent({ onSelect }) {
+export function GroupContent({ onPick }) {
   const dragGhostRef = useRef(null);
 
-  /* 🗂 그룹 목록 — 실제에선 서버/상태값으로 교체 */
+  // ✅ 실제 그룹 목록 불러오기
+  const { data: groupsData, isLoading, isError, error } = useGroups();
+  console.log("Fetched groups data:", groupsData);
+  // useGroups() → response.data.data = 배열
+  const rawGroups = Array.isArray(groupsData) ? groupsData : [];
+
+  // ✅ groupView 에서 color 맵 만들기: { [groupId]: color }
+  const groupView = useGroupStore((s) => s.groupView);
+  // console.log("[GroupContent] groupView from store:", groupView);
+  const colorMap = useMemo(() => {
+    const map = {};
+    const gs = groupView?.groups ?? [];
+    gs.forEach((g) => {
+      // store 구조: { group_id, color, ... }
+      if (g?.group_id != null && g?.color) {
+        map[g.group_id] = g.color;
+      }
+    });
+    console.log("[GroupContent] built colorMap:", map);
+    return map;
+  }, [groupView]);
+
   const groups = useMemo(
-    () =>
-      Array.from({ length: 4 }).map((_, gi) => {
-        const x = 80;
-        const y = 40;
-        const nodes = [
-          {
-            id: `g${gi}-n1`,
-            position: { x, y },
-            data: { label: "다익스트라 알고리즘 설명" },
-            style: bubbleNodeStyle,
-          },
-          {
-            id: `g${gi}-n3`,
-            position: { x: x + 230, y: y + 130 },
-            data: { label: "다익스트라 알고리즘 예시" },
-            style: bubbleNodeStyle,
-          },
-        ];
-        const edges = [
-          {
-            id: `g${gi}-e1`,
-            source: `g${gi}-n1`,
-            target: `g${gi}-n3`,
-            style: { stroke: "#8aa6ff" },
-            type: "smoothstep",
-          },
-        ];
-        return {
-          id: `group-${gi + 1}`,
-          title: `Group ${gi + 1}`,
-          graph: { nodes, edges },
-        };
-      }),
-    []
+    () => rawGroups.map((g) => normalizeGroup(g, colorMap)),
+    [rawGroups, colorMap]
   );
 
-  /* ✅ g 그대로 담아서 전송 */
   const makeDragPayload = (g) =>
     JSON.stringify({
-      kind: "group",
+      type: "group",
       id: g.id,
       title: g.title,
-      graph: g.graph, // nodes/edges 그대로
+      summary: g.summary,
+      keywords: g.keywords,
+      updatedAt: g.updatedAt,
+      graph: g.graph,
+      color: g.color,
     });
 
-  /* 선명한 드래그 프리뷰 */
   const makeDragImage = (cardEl) => {
     if (!cardEl) return null;
     const clone = cardEl.cloneNode(true);
-    clone.style.position = "fixed";
-    clone.style.top = "-1000px";
-    clone.style.left = "-1000px";
-    clone.style.pointerEvents = "none";
-    clone.style.filter = "none";
+    Object.assign(clone.style, {
+      position: "fixed",
+      top: "-1000px",
+      left: "-1000px",
+      pointerEvents: "none",
+      filter: "none",
+      zIndex: 2147483647,
+    });
     document.body.appendChild(clone);
     dragGhostRef.current = clone;
     return clone;
@@ -118,10 +150,41 @@ export function GroupContent({ onSelect }) {
     }
   };
 
+  const handlePick = (g) => {
+    onPick?.({
+      type: "group",
+      id: g.id,
+      title: g.title,
+      summary: g.summary,
+      keywords: g.keywords,
+      updatedAt: g.updatedAt,
+      graph: g.graph,
+    });
+  };
+
   return (
     <>
-      <HeaderHint>그룹 카드를 드래그해 오른쪽 캔버스에 놓으세요</HeaderHint>
+      <HeaderHint>그룹 카드를 드래그하거나 클릭하여 추가하세요</HeaderHint>
+
       <S.SearchScroll>
+        {/* 상태 표시 */}
+        {isLoading && (
+          <div style={{ padding: 12, color: "#6b7280", fontSize: 13 }}>
+            그룹 불러오는 중…
+          </div>
+        )}
+        {isError && (
+          <div style={{ padding: 12, color: "#ef4444", fontSize: 13 }}>
+            그룹을 불러오지 못했어요. {error?.message || ""}
+          </div>
+        )}
+        {!isLoading && !isError && groups.length === 0 && (
+          <div style={{ padding: 12, color: "#6b7280", fontSize: 13 }}>
+            그룹이 없어요. 먼저 그룹을 만들어보세요.
+          </div>
+        )}
+
+        {/* 그룹 카드 렌더링 */}
         {groups.map((g) => (
           <GroupCard
             key={g.id}
@@ -132,23 +195,28 @@ export function GroupContent({ onSelect }) {
               e.dataTransfer.setData(DND_MIME, makeDragPayload(g));
             }}
             onDragEnd={cleanupDragImage}
-            onClick={() =>
-              onSelect?.({ id: g.id, label: g.title, type: "group" })
-            }
-            title="캔버스로 드래그해보세요"
+            onClick={() => handlePick(g)}
           >
             <CardTop>
               <CardTitleText>{g.title}</CardTitleText>
-              <MetaSmall>
-                노드 {g.graph.nodes.length} · 엣지 {g.graph.edges.length}
-              </MetaSmall>
+              {g.updatedAt && (
+                <CardDate>
+                  {new Date(g.updatedAt).toLocaleDateString("ko-KR")}
+                </CardDate>
+              )}
             </CardTop>
 
-            <MiniGraph
-              graph={g.graph}
-              onEdit={() => console.log("edit:", g.id)}
-              onDelete={() => console.log("delete:", g.id)}
-            />
+            {/* <MiniGraph graph={g.graph} /> */}
+
+            <CardSummary>{g.summary}</CardSummary>
+
+            {Array.isArray(g.keywords) && g.keywords.length > 0 && (
+              <S.TagRow>
+                {g.keywords.map((t, idx) => (
+                  <S.TagPill key={`${String(t)}-${idx}`}>{String(t)}</S.TagPill>
+                ))}
+              </S.TagRow>
+            )}
           </GroupCard>
         ))}
       </S.SearchScroll>
@@ -162,7 +230,7 @@ const bubbleNodeStyle = {
   border: "1px solid rgba(0,0,0,.10)",
   borderRadius: 12,
   padding: "8px 10px",
-  boxShadow: "0 6px 16px rgba(0,0,0,.10)",
+  boxShadow: 0 + " 6px 16px rgba(0,0,0,.10)",
   fontSize: 12,
 };
 
@@ -181,7 +249,9 @@ const GroupCard = styled(S.ResultCard)`
   border-radius: 18px;
   padding-top: 12px;
   cursor: grab;
-  &:active { cursor: grabbing; }
+  &:active {
+    cursor: grabbing;
+  }
 `;
 
 const CardTop = styled.div`
@@ -198,10 +268,17 @@ const CardTitleText = styled.span`
   color: #2a344a;
 `;
 
-const MetaSmall = styled.span`
+const CardDate = styled.span`
   font-size: 12px;
-  color: #5b6786;
-  opacity: 0.9;
+  color: #6b7280;
+`;
+
+const CardSummary = styled.div`
+  padding: 10px;
+  font-size: 13px;
+  color: #374151;
+  line-height: 1.4;
+
 `;
 
 const PreviewCardSurface = styled.div`
@@ -214,38 +291,15 @@ const PreviewCardSurface = styled.div`
 
 const PreviewWrap = styled.div`
   position: relative;
-  height: 220px;
+  height: 200px;
   border-radius: 12px;
   overflow: hidden;
-  & > div { height: 100%; }
+  & > div {
+    height: 100%;
+  }
   isolation: isolate;
-  & .react-flow { position: relative; z-index: 1; }
-`;
-
-const PreviewActions = styled.div`
-  position: absolute;
-  right: -14%;
-  bottom: -82%;
-  transform: translateX(-50%);
-  display: flex;
-  gap: 12px;
-  z-index: 20;
-  pointer-events: none;
-  & > * { pointer-events: auto; }
-`;
-
-const ActionButton = styled.button`
-  height: 36px;
-  padding: 0 14px;
-  border-radius: 9999px;
-  border: none;
-  color: #fff;
-  font-weight: 700;
-  font-size: 13px;
-  cursor: pointer;
-  background: ${({ $tone }) => ($tone === "blue" ? "#29466b" : "#cf3b35")};
-  box-shadow: 0 14px 26px rgba(0, 0, 0, 0.18);
-  transition: transform 0.15s ease, filter 0.15s ease;
-  &:hover { filter: brightness(1.06); transform: translateY(-1px); }
-  &:active { transform: translateY(0); }
+  & .react-flow {
+    position: relative;
+    z-index: 1;
+  }
 `;

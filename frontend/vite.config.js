@@ -21,4 +21,16 @@ export default defineConfig({
       '@integrations': resolve(__dirname, 'src/integrations'),
     },
   },
+
+  server: {
+    proxy: {
+      '/api': {
+        target: 'http://localhost:8080', 
+        changeOrigin: true,
+        secure: false,
+        cookieDomainRewrite: '',
+      },
+    },
+  },
+
 })

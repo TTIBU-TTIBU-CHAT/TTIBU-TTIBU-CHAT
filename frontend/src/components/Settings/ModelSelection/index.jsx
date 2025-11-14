@@ -1,48 +1,98 @@
-import { useState } from 'react'
+
+import { useState, useEffect } from 'react'
 import * as S from './ModelSelection.styles'
-import { mockModels } from '@/data/mockSettingsData'
+import Toast from '@/components/Settings/Toast'
+import { useModelStore } from '@/store/useModelStore'
+import { modelService } from '@services/modelService'
 
 export default function ModelSelection() {
-  const [activeTab, setActiveTab] = useState('OpenAI')
-  const [models, setModels] = useState(mockModels)
-  const [isDefaultMode, setIsDefaultMode] = useState(false) // false = 기본모드 (다중 선택), true = 디폴트모드 (단일 선택)
+  const { providers, selectedIds, defaultId, fetchModelsFromMe } = useModelStore()
 
-  const handleSelectModel = (tab, id) => {
-    setModels((prev) => {
-      const updated = { ...prev }
+  const [activeTab, setActiveTab] = useState('')
+  const [isDefaultMode, setIsDefaultMode] = useState(false)
+  const [toast, setToast] = useState(null)
 
-      updated[tab] = prev[tab].map((m) => {
-        if (isDefaultMode) {
-          // 디폴트 모드: 하나만 선택 가능
-          if (m.id === id) {
-            // 새 디폴트 지정
-            return { ...m, isDefault: true, selected: true }
-          }
-          // 디폴트 해제 시 기존 디폴트는 기본 모델로 유지
-          return { ...m, isDefault: false }
-        } else {
-          // 기본 모드: 여러 개 선택 가능
-          if (m.isDefault) {
-            // 디폴트 모델은 항상 기본 모델로 포함 (해제 불가)
-            return { ...m, selected: true }
-          }
-          if (m.id === id) {
-            return { ...m, selected: !m.selected }
-          }
-          return m
-        }
-      })
+  const [localSelected, setLocalSelected] = useState([])
+  const [localDefault, setLocalDefault] = useState(null)
 
-      return updated
-    })
+  useEffect(() => {
+    fetchModelsFromMe()
+  }, [])
+
+  useEffect(() => {
+    setLocalSelected(selectedIds)
+    setLocalDefault(defaultId)
+  }, [selectedIds, defaultId])
+
+  useEffect(() => {
+    if (providers.length > 0 && !activeTab) {
+      setActiveTab(providers[0].providerCode)
+    }
+  }, [providers])
+
+  const handleSelectModel = (providerCode, modelId) => {
+    if (isDefaultMode) {
+      // 디폴트 모드: 단일 선택
+      setLocalDefault((prev) => (prev === modelId ? null : modelId))
+    } else {
+      // 다중 선택 모드
+      setLocalSelected((prev) =>
+        prev.includes(modelId)
+          ? prev.filter((id) => id !== modelId)
+          : [...prev, modelId]
+      )
+    }
   }
+
+  const handleSave = async () => {
+    try {
+      setToast({ type: 'loading', message: '처리 중...' })
+
+      if (isDefaultMode) {
+        // --- 디폴트 모델 설정 ---
+        if (!localDefault) {
+          setToast({ type: 'warning', message: '디폴트로 지정할 모델을 선택해주세요.' })
+          return
+        }
+
+        const res = await modelService.setDefaultModel(localDefault)
+        if (res?.status === 200 || res?.data?.status === 'success') {
+          await fetchModelsFromMe()
+          setToast({ type: 'success', message: '디폴트 모델이 설정되었습니다.' })
+        } else {
+          setToast({ type: 'error', message: '디폴트 모델 설정 실패' })
+        }
+      } else {
+        // --- 다중 선택 저장 ---
+        if (!localSelected.length) {
+          setToast({ type: 'warning', message: '최소 하나 이상의 모델을 선택해주세요.' })
+          return
+        }
+
+        const res = await modelService.selectModels(localSelected)
+        if (res?.status === 201 || res?.data?.status === 'success') {
+          await fetchModelsFromMe()
+          setToast({ type: 'success', message: '모델 선택이 저장되었습니다.' })
+        } else {
+          setToast({ type: 'error', message: '모델 선택 실패' })
+        }
+      }
+    } catch (err) {
+      setToast({ type: 'error', message: err.message || '저장 중 오류 발생' })
+    }
+  }
+
+  if (!providers || providers.length === 0)
+    return <S.Card>사용 가능한 모델이 없습니다.</S.Card>
+
+  const activeProvider = providers.find((p) => p.providerCode === activeTab)
 
   return (
     <S.Card>
       <S.Header>
         <S.Title>모델 선택</S.Title>
         <S.ToggleWrapper>
-          <label>{isDefaultMode ? '디폴트 모델 선택' : '디폴트 모델 선택 해제'}</label>
+          <label>{isDefaultMode ? '디폴트 모델 설정' : '모델 다중 선택'}</label>
           <S.Toggle
             type="checkbox"
             checked={isDefaultMode}
@@ -51,36 +101,54 @@ export default function ModelSelection() {
         </S.ToggleWrapper>
       </S.Header>
 
+      {/* 탭 영역 */}
       <S.Tabs>
-        {['OpenAI', 'Gemini', 'Claude'].map((tab) => (
+        {providers.map((p) => (
           <S.Tab
-            key={tab}
-            onClick={() => setActiveTab(tab)}
-            $active={activeTab === tab}
+            key={p.providerCode}
+            $active={activeTab === p.providerCode}
+            onClick={() => setActiveTab(p.providerCode)}
           >
-            {tab}
+            {p.providerCode}
           </S.Tab>
         ))}
       </S.Tabs>
 
+      {/* 모델 카드 영역 */}
       <S.ModelGrid>
-        {models[activeTab].map((model) => (
-          <S.ModelCard
-            key={model.id}
-            $selected={!isDefaultMode && model.selected}
-            $isDefault={model.isDefault}
-            onClick={() => handleSelectModel(activeTab, model.id)}
-          >
-            <S.ModelTitle>
-              {model.name}
-              {model.isDefault && <S.DefaultBadge>디폴트</S.DefaultBadge>}
-            </S.ModelTitle>
-            <S.ModelDesc>{model.desc}</S.ModelDesc>
-          </S.ModelCard>
-        ))}
+        {activeProvider?.modelList?.map((model) => {
+          const isSelected = localSelected.includes(model.modelCatalogUid)
+          const isDefault = model.modelCatalogUid === localDefault
+
+          return (
+            <S.ModelCard
+              key={model.modelCatalogUid}
+              $selected={!isDefaultMode && isSelected}
+              $isDefault={isDefault}
+              onClick={() => handleSelectModel(activeProvider.providerCode, model.modelCatalogUid)}
+            >
+              <S.ModelTitle>
+                {model.modelName}
+                {isDefault && <S.DefaultBadge>디폴트</S.DefaultBadge>}
+              </S.ModelTitle>
+            </S.ModelCard>
+          )
+        })}
       </S.ModelGrid>
 
-      <S.SaveButton>저장</S.SaveButton>
+      {/* 저장 버튼 */}
+      <S.SaveButton onClick={handleSave}>
+        {isDefaultMode ? '디폴트 모델 저장' : '선택 모델 저장'}
+      </S.SaveButton>
+
+      {/* 토스트 표시 */}
+      {toast && (
+        <Toast
+          type={toast.type}
+          message={toast.message}
+          onClose={() => setToast(null)}
+        />
+      )}
     </S.Card>
   )
 }

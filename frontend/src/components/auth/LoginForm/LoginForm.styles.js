@@ -28,3 +28,9 @@ export const SecondaryButton = styled.button`
     background-color: #3d4d6b;
   }
 `
+
+export const ErrorMessage = styled.p`
+  color: #e74c3c;
+  font-size: 0.9rem;
+  margin: 4px 0 8px;
+`

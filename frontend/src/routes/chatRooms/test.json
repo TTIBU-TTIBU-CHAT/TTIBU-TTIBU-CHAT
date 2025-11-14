@@ -1,0 +1,17 @@
+{
+  "chat_room_id": 89,
+  "max_branch_number": 100,
+  "branches": {
+    "100": {
+      "branch_name": "정약용 대해 궁금하신 것",
+      "included_nodes": [235, 236, 233, 234, 237],
+      "included_edges": [
+        { "source": 235, "target": 236 },
+        { "source": 236, "target": 233 },
+        { "source": 233, "target": 234 },
+        { "source": 234, "target": 237 }
+      ]
+    }
+  },
+  "last_updated": "2025-11-13T07:23:44.569741"
+}

@@ -56,15 +56,15 @@ export const StatusLabel = styled.span`
   padding: 3px 10px;
   border-radius: 6px;
   background-color: ${({ $status }) =>
-    $status === '활성'
+    $status === true
       ? '#DCFCE7'
-      : $status === '비활성'
+      : $status === false
       ? '#F3F4F6'
       : '#F9FAFB'};
   color: ${({ $status }) =>
-    $status === '활성'
+    $status === true
       ? '#16A34A'
-      : $status === '비활성'
+      : $status === false
       ? '#9CA3AF'
       : '#D1D5DB'};
 `
