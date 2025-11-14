@@ -113,16 +113,25 @@ public class Chat extends BaseTimeEntity {
     }
 
     public static Chat createGroupSnapshot(Room room, Group group) {
-        return Chat.builder()
+        Chat c = Chat.builder()
                 .room(room)
                 .group(group)
                 .question("")
                 .answer("")
-                .summary(group.getSummary())
-                .keywords(group.getKeywords())
                 .chatType(ChatType.CHAT)
-                .status(ChatStatus.SUMMARY_KEYWORDS)
+                .status(ChatStatus.PENDING)
                 .build();
+
+        if (group.getSummary() != null && !group.getSummary().isBlank()) {
+            c.summary = group.getSummary();
+        }
+
+        if (group.getKeywords() != null && !group.getKeywords().isBlank()) {
+            c.keywords = group.getKeywords();
+            c.status = ChatStatus.SUMMARY_KEYWORDS;
+        }
+
+        return c;
     }
 
     /**
