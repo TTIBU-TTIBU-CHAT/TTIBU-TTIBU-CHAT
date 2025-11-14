@@ -86,6 +86,9 @@ services:
       - "8001:8001"
     networks:
       - ttibu-network
+    volumes:
+      - summary_cache:/app/.cache/huggingface
+
 
   # React Frontend
   frontend:
@@ -103,7 +106,8 @@ services:
 volumes:
   postgres_data:
   redis_data:
-
+  summary_cache:
+  
 networks:
   ttibu-network:
     driver: bridge

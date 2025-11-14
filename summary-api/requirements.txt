@@ -1,22 +1,21 @@
-# --- 1. FastAPI 서버 기본 ---
-fastapi==0.104.1
-uvicorn[standard]==0.24.0
-pydantic==2.5.0
-python-multipart==0.0.6
+# --- FastAPI & 서버 ---
+fastapi
+uvicorn[standard]
+pydantic>=2.0
 
-# --- 2. 요약 모델용 ---
-transformers==4.36.0
-torch==2.1.0
-sentencepiece==0.1.99
+# --- LLM (Qwen) ---
+transformers>=4.38
+torch>=2.1
+accelerate
+sentencepiece
 
-# --- 3. 키워드 추출용 ---
+# --- 키워드 추출 ---
 konlpy==0.6.0
-JPype1==1.5.0          # KoNLPy 구동 필수
+JPype1==1.5.0
 keybert
 sentence-transformers
-scikit-learn           # TF-IDF용
-
-# --- 4. NumPy 버전 고정 ---
-numpy<2.0
-
+scikit-learn
 krwordrank
+
+# --- 기타 ---
+numpy<2.0
