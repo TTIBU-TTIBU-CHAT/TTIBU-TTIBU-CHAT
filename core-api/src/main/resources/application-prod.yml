@@ -5,10 +5,6 @@ spring:
     password: ${DB_PASSWORD:postgres}
     driver-class-name: org.postgresql.Driver
   
-  data:
-    mongodb:
-      uri: ${MONGODB_URI:mongodb://localhost:27017/ttibu_mongo_prod}
-  
   jpa:
     hibernate:
       ddl-auto: validate
@@ -16,9 +12,24 @@ spring:
     properties:
       hibernate:
         dialect: org.hibernate.dialect.PostgreSQLDialect
+  task:
+    execution:
+      pool:
+        core-size: 10
+        max-size: 20
+        queue-capacity: 100
 
 server:
   port: ${SERVER_PORT:8080}
+  servlet:
+    session:
+      cookie:
+        secure: true
+        same-site: None
+
+app:
+  security:
+    csrf-mode: token
 
 logging:
   level:
@@ -27,3 +38,9 @@ logging:
     org.springframework.web: WARN
   pattern:
     console: "%d{yyyy-MM-dd HH:mm:ss} [%thread] %-5level %logger{36} - %msg%n"
+
+springdoc:
+  api-docs:
+    enabled: false
+  swagger-ui:
+    enabled: false

@@ -3,12 +3,16 @@ version: '3.8'
 services:
   # PostgreSQL Database
   postgres:
-    image: postgres:15
+    build:
+      context: .
+      dockerfile: Dockerfile.pg
     container_name: ttibu-postgres
     environment:
       POSTGRES_DB: ttibu_db
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
+      TZ: Asia/Seoul
+      LANG: C.UTF-8
     ports:
       - "5432:5432"
     volumes:
@@ -16,33 +20,46 @@ services:
     networks:
       - ttibu-network
 
-  # MongoDB Database
-  mongo:
-    image: mongo:7
-    container_name: ttibu-mongo
+  # Redis Cache
+  redis:
+    image: redis:7-alpine
+    container_name: ttibu-redis
     ports:
-      - "27017:27017"
+      - "6379:6379"
     volumes:
-      - mongo_data:/data/db
+      - redis_data:/data
     networks:
       - ttibu-network
+    command: redis-server --appendonly yes
 
   # Spring Boot Core API
   core-api:
     build:
-      context: ./core-api
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: ./core-api/Dockerfile
     container_name: ttibu-core-api
     environment:
       SPRING_PROFILES_ACTIVE: docker
+      GMS_BASE_URL: ${GMS_BASE_URL}
+      LITELLM_MASTER_KEY: ${LITELLM_MASTER_KEY}
+      LITELLM_BASE_URL: ${LITELLM_BASE_URL}
+      LITELLM_MODEL: ${LITELLM_MODEL}
+      TTIBU_CRYPTO_SECRET: ${TTIBU_CRYPTO_SECRET}
+      SUMMARY_API_BASE_URL: ${SUMMARY_API_BASE_URL}
+      SUMMARY_API_TIMEOUT_MS: ${SUMMARY_API_TIMEOUT_MS}
     ports:
       - "8080:8080"
+    volumes:
+      - ./litellm-config.yaml:/litellm-config.yaml
     depends_on:
       - postgres
-      - mongo
+      - redis
       - litellm
+      - summary-api
     networks:
       - ttibu-network
+    env_file:
+      - .env
 
   # LiteLLM Proxy
   litellm:
@@ -51,7 +68,7 @@ services:
     ports:
       - "4000:4000"
     environment:
-      - LITELLM_MASTER_KEY=sk-1234
+      - LITELLM_MASTER_KEY=${LITELLM_MASTER_KEY}
       - LITELLM_LOG=INFO
     volumes:
       - ./litellm-config.yaml:/app/config.yaml
@@ -66,7 +83,7 @@ services:
       dockerfile: Dockerfile
     container_name: ttibu-summary-api
     ports:
-      - "8000:8000"
+      - "8001:8001"
     networks:
       - ttibu-network
 
@@ -85,7 +102,7 @@ services:
 
 volumes:
   postgres_data:
-  mongo_data:
+  redis_data:
 
 networks:
   ttibu-network:
