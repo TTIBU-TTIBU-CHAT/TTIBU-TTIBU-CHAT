@@ -23,7 +23,6 @@ import {
   saveJSON,
 } from "./-chatFlow.storage";
 
-
 import {
   ensurePositions,
   mergeNodes,
@@ -33,7 +32,6 @@ import {
   toChatMessages,
   deriveViews,
 } from "./-chatFlow.utils";
-
 
 /* ======================================================================= */
 /* 🔧 디버그 플래그: 필요할 때만 true 로 바꿔서 사용 */
@@ -87,7 +85,6 @@ function attachParentChildren(graph) {
     ...graph,
     nodes: nextNodes,
   };
-
 }
 
 /* ======================================================================= */
@@ -254,49 +251,14 @@ function rebuildFromSnapshot(prevChatViews, prevBranchViews, snapshot, roomId) {
   return { chatInfo, branchView };
 }
 
-/* 작은 유틸: 노드 변경 헬퍼 (변경된 key만 수집해 로그용으로 반환) */
-function updateNodeByChatId(prevChatViews, chatId, updater) {
-  if (!prevChatViews) return { next: prevChatViews, changed: null };
-  const nextNodes = prevChatViews.nodes.map((n) => {
-    const nid = n?.chat_id ?? n?.id;
-    if (String(nid) === String(chatId)) {
-      const next = updater(n);
-      return next;
-    }
-    return n;
-  });
-
-  const prevNode = prevChatViews.nodes.find(
-    (n) => String(n?.chat_id ?? n?.id) === String(chatId)
-  );
-  const nextNode = nextNodes.find(
-    (n) => String(n?.chat_id ?? n?.id) === String(chatId)
-  );
-
-  let changed = null;
-  if (prevNode && nextNode) {
-    changed = {};
-    for (const k of Object.keys(nextNode)) {
-      if (prevNode[k] !== nextNode[k]) {
-        changed[k] = { before: prevNode[k], after: nextNode[k] };
-      }
-    }
-  }
-  return { next: { ...prevChatViews, nodes: nextNodes }, changed };
-}
-
-/* ======================================================================= */
-
 export default function ChatFlowPage() {
   /* ✅ URL 파라미터 (/chatrooms/$roomId) */
   const { nodeId } = useParams({ strict: false });
   const [roomId] = useState(nodeId);
 
-
   /* ✅ 라우터 state (NewChat → navigate 시 넘긴 roomInit) */
   const routeState = useRouterState();
   const roomInit = routeState?.location?.state?.roomInit;
-
 
   /* ✅ 서버 최신 데이터 */
   const {
@@ -304,7 +266,6 @@ export default function ChatFlowPage() {
     isLoading: roomLoading,
     error: roomError,
   } = useRoom(roomId);
-
 
   const apiRoomData = fetchedRoom?.data ?? fetchedRoom ?? null;
   const effectiveRoomData = roomInit ?? apiRoomData;
@@ -415,11 +376,9 @@ export default function ChatFlowPage() {
         chatInfo: JSON.stringify(normalized),
         branchView: JSON.stringify(latestBranchViewsRef.current),
       });
-
     },
     [roomId, saveRoomData]
   );
-
 
   const persistBoth = useCallback(
     (nextChatViews, nextBranchViews) => {
@@ -455,7 +414,6 @@ export default function ChatFlowPage() {
   const firstStreamOpenedRef = useRef(false);
 
   /* ----------------------------- 라우트 / 상태 ----------------------------- */
-
   const pathname = routeState.location.pathname;
   const isGroups = pathname.startsWith("/groups");
 
@@ -491,10 +449,8 @@ export default function ChatFlowPage() {
   const canvasRef = useRef(null);
   const createGroup = useCreateGroup();
 
-
   const attachChatFromExisting = useAttachChatFromExisting();
   const attachGroupToRoom = useAttachGroup();
-
 
   /* --------------------------- 에러 핸들러 --------------------------- */
   const handleCoreError = useCallback(({ message }) => {
@@ -891,8 +847,7 @@ export default function ChatFlowPage() {
     });
   }, []);
 
-  const showGroupButton =
-    editMode && selectedCount > 1 && !hasGroupInSelection;
+  const showGroupButton = editMode && selectedCount > 1 && !hasGroupInSelection;
 
   /* -------------------------- 브랜치 드롭다운 -------------------------- */
   const branchItems = useMemo(() => {
@@ -1220,7 +1175,7 @@ export default function ChatFlowPage() {
         setEditMode={setEditMode}
         onSave={handleSave}
         onInit={handleInit}
-        canReset={setCanReset}
+        canReset={canReset}
       />
 
       {/* 🔥 그래프 상단 브랜치 드롭다운 */}
@@ -1285,7 +1240,6 @@ export default function ChatFlowPage() {
         onClose={() => setErrorOpen(false)}
       />
 
-
       <FlowCanvas
         ref={canvasRef}
         editMode={editMode}
@@ -1329,7 +1283,6 @@ export default function ChatFlowPage() {
           ...(effectiveRoomData ?? {}),
           ...chatViews,
         }}
-
         roomLoading={roomLoading}
         roomError={roomError}
       />
@@ -1426,6 +1379,6 @@ export default function ChatFlowPage() {
     console.log(`\n======= [FLOW_DEBUG] ${reason} =======`);
     console.log("[FLOW_DEBUG] ReactFlow snapshot (nodes/edges):", graphSnap);
     console.log("[FLOW_DEBUG] room payload (fetchedRoom shape):", roomShape);
-    console.log("===================================\n");
+    console.log("=====================================\n");
   }
 }
