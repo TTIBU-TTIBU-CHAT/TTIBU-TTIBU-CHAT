@@ -254,36 +254,7 @@ function rebuildFromSnapshot(prevChatViews, prevBranchViews, snapshot, roomId) {
   return { chatInfo, branchView };
 }
 
-/* 작은 유틸: 노드 변경 헬퍼 (변경된 key만 수집해 로그용으로 반환) */
-function updateNodeByChatId(prevChatViews, chatId, updater) {
-  if (!prevChatViews) return { next: prevChatViews, changed: null };
-  const nextNodes = prevChatViews.nodes.map((n) => {
-    const nid = n?.chat_id ?? n?.id;
-    if (String(nid) === String(chatId)) {
-      const next = updater(n);
-      return next;
-    }
-    return n;
-  });
 
-  const prevNode = prevChatViews.nodes.find(
-    (n) => String(n?.chat_id ?? n?.id) === String(chatId)
-  );
-  const nextNode = nextNodes.find(
-    (n) => String(n?.chat_id ?? n?.id) === String(chatId)
-  );
-
-  let changed = null;
-  if (prevNode && nextNode) {
-    changed = {};
-    for (const k of Object.keys(nextNode)) {
-      if (prevNode[k] !== nextNode[k]) {
-        changed[k] = { before: prevNode[k], after: nextNode[k] };
-      }
-    }
-  }
-  return { next: { ...prevChatViews, nodes: nextNodes }, changed };
-}
 
 /* ======================================================================= */
 
