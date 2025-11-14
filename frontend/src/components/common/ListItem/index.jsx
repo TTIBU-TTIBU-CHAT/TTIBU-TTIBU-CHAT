@@ -1,4 +1,4 @@
-import * as S from './ListItem.styles';
+import * as S from "./ListItem.styles";
 
 export default function ListItem({
   id,

@@ -121,6 +121,7 @@ export const Header = styled.header`
   position: relative;
   height: 56px;
   z-index: 2;
+
 `;
 
 export const HeaderLayer = styled.div`
@@ -169,6 +170,7 @@ export const IconButton = styled.button`
   &:hover { background: rgba(0, 0, 0, 0.05); }
   &:focus,
   &:focus-visible { outline: none; box-shadow: none; }
+
 `;
 
 /* ===== Dropdowns ===== */
@@ -185,7 +187,6 @@ export const DropdownToggler = styled.button`
   cursor: pointer;
   padding: 4px 6px;
   border-radius: 8px;
-
   &:hover { background: rgba(0, 0, 0, 0.04); }
   &:focus,
   &:focus-visible { outline: none; box-shadow: none; }
@@ -269,6 +270,7 @@ export const Bubble = styled.div`
   margin-left: ${({ $me }) => ($me ? "auto" : "0")};
 `;
 
+
 /* 말풍선 하단 모델 태그 */
 export const ModelTag = styled.div`
   margin: 6px 0 2px;
@@ -277,6 +279,7 @@ export const ModelTag = styled.div`
   text-align: right;
   padding-right: 6px;
 `;
+
 
 /* ===== Footer & Input ===== */
 export const Footer = styled.footer`
@@ -363,6 +366,7 @@ export const SearchField = styled.input`
   outline: none;
 
   &::placeholder { color: #9ca3af; }
+
   &:focus,
   &:focus-visible {
     outline: none;
@@ -370,6 +374,7 @@ export const SearchField = styled.input`
     border-color: rgba(64, 105, 146, 0.45);
   }
 `;
+
 
 export const SearchIconBtn = styled.button`
   width: 40px;

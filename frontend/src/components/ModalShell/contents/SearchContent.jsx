@@ -7,6 +7,7 @@ import { useSearchChats } from "@/hooks/useRoomChats";
 const DND_MIME_RESULT = "application/x-ttibu-resultcard";
 const DND_MIME_GROUP = "application/x-ttibu-card";
 
+
 // 불투명한 drag image 복제본 생성
 function makeDragImage(node) {
   const rect = node.getBoundingClientRect();

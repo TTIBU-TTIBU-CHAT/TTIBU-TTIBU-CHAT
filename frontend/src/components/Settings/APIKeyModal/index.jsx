@@ -67,6 +67,7 @@ export default function APIKeyModal({ initialData, onClose, onSubmit, onDelete }
       await onDelete(form.keyUid)
       await fetchModelsFromMe()
       onClose()
+
     }
   }
 
@@ -143,6 +144,7 @@ export default function APIKeyModal({ initialData, onClose, onSubmit, onDelete }
               type="date"
               value={form.expirationAt}
               onChange={(e) => handleChange('expirationAt', e.target.value)}
+
               required
             />
           </S.Field>

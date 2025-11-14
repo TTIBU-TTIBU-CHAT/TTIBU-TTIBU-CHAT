@@ -57,7 +57,6 @@ export default function SidebarMenu() {
       params: { nodeId: String(groupId) },
     });
   };
-
   return (
     <>
       {/* 새 채팅 */}
@@ -73,6 +72,7 @@ export default function SidebarMenu() {
       </S.MenuItem>
 
       {/* 그룹 메뉴 */}
+
       <S.MenuItem
         $collapsed={isCollapsed}
         $active={currentPath.startsWith("/groups")}

@@ -17,7 +17,9 @@ import { Route as SettingsIndexRouteImport } from './routes/settings/index'
 import { Route as LoginIndexRouteImport } from './routes/login/index'
 import { Route as GroupsIndexRouteImport } from './routes/groups/index'
 import { Route as ChatRoomsIndexRouteImport } from './routes/chatRooms/index'
+
 import { Route as GroupsGroupIdRouteImport } from './routes/groups/$groupId'
+
 import { Route as ChatRoomsNodeIdRouteImport } from './routes/chatRooms/$nodeId'
 
 const TestcopyRoute = TestcopyRouteImport.update({
@@ -63,6 +65,7 @@ const ChatRoomsIndexRoute = ChatRoomsIndexRouteImport.update({
 const GroupsGroupIdRoute = GroupsGroupIdRouteImport.update({
   id: '/groups/$groupId',
   path: '/groups/$groupId',
+
   getParentRoute: () => rootRouteImport,
 } as any)
 const ChatRoomsNodeIdRoute = ChatRoomsNodeIdRouteImport.update({
@@ -140,6 +143,7 @@ export interface FileRouteTypes {
     | '/testcopy'
     | '/chatRooms/$nodeId'
     | '/groups/$groupId'
+    | '/groups/$nodeId'
     | '/chatRooms/'
     | '/groups/'
     | '/login/'

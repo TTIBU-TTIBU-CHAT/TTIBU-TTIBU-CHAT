@@ -35,7 +35,6 @@ export const initialNodes = [
     position: { x: 420, y: 140 },
     data: {
       branch: "브랜치-1",
-
       label: "우선순위큐",
       keyword: "최단 거리 노드 선택",
       question: "다익스트라에서 우선순위 큐는 왜 사용하나요?",
@@ -52,6 +51,7 @@ export const initialNodes = [
     position: { x: 420, y: 300 },
     data: {
       branch: "브랜치-2",
+
       label: "시간복잡도 O(E log V)",
       keyword: "성능 분석",
       question: "다익스트라 알고리즘의 시간 복잡도는 어떻게 되나요?",

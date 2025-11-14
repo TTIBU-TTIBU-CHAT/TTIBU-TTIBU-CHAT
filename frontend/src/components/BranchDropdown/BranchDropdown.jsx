@@ -10,12 +10,14 @@ export default function BranchDropdown({
   return (
     <Wrap>
       <Title onClick={() => setOpen((v) => !v)}>{label}</Title>
+
       {open && (
         <Menu onMouseLeave={() => setOpen(false)}>
           {items.map((b) => (
             <Item
               key={b.value}
               $active={b.active}
+
               onClick={() => {
                 console.log("브랜치 선택:", b);
                 onSelect(b.value);
