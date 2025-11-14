@@ -121,6 +121,7 @@ public class Chat extends BaseTimeEntity {
                 .summary(group.getSummary())
                 .keywords(group.getKeywords())
                 .chatType(ChatType.CHAT)
+                .status(ChatStatus.SUMMARY_KEYWORDS)
                 .build();
     }
 
