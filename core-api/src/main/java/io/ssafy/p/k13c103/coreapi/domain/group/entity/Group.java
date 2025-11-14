@@ -22,10 +22,10 @@ public class Group extends BaseTimeEntity {
     @JoinColumn(name = "owner_id", nullable = false)
     private Member owner;
 
-    @Column(nullable = false)
+    @Column(nullable = false, columnDefinition = "TEXT")
     private String name;
 
-    @Column
+    @Column(columnDefinition = "TEXT")
     private String summary;
 
     @Column(columnDefinition = "TEXT")
