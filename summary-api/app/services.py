@@ -7,6 +7,7 @@
 
 import re
 import torch
+from transformers import Qwen2Tokenizer
 from transformers import AutoTokenizer, AutoModelForCausalLM
 from krwordrank.word import KRWordRank
 from keybert import KeyBERT
@@ -14,7 +15,7 @@ from keybert import KeyBERT
 # ----------------------------------------------------
 # LLM 설정
 # ----------------------------------------------------
-MODEL_NAME = "Qwen/Qwen2.5-1.5B-Instruct"
+MODEL_NAME = "Qwen/Qwen2.5-Mini"
 DEVICE = "cpu"
 
 print(f"📌 Loading Qwen model: {MODEL_NAME} (CPU)")
@@ -23,6 +24,7 @@ tokenizer = AutoTokenizer.from_pretrained(MODEL_NAME)
 model = AutoModelForCausalLM.from_pretrained(
     MODEL_NAME,
     torch_dtype=torch.float32,
+    low_cpu_mem_usage=True,
     device_map=DEVICE,
 )
 model.eval()
