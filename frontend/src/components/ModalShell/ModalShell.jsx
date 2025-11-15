@@ -7,7 +7,6 @@ import { SearchContent } from "./contents/SearchContent";
 import { GroupContent } from "./contents/GroupContent";
 import { useModels } from "@/hooks/useModels"; // ✅ 그대로 사용
 
-
 const TYPE_ORDER = { layers: 0, search: 1, chat: 2 };
 const ANIM_MS = 280;
 
@@ -200,7 +199,6 @@ export default function ModalShell({
                   setModelOpen(false);
                 }}
               >
-
                 <S.TogglerText>{branchLabel}</S.TogglerText>
               </S.DropdownToggler>
 

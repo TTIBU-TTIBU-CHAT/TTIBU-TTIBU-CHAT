@@ -5,15 +5,13 @@ export const Item = styled.div`
   justify-content: space-between;
   align-items: flex-start;
   gap: 10px;
-  padding: 16px 14px; /* 살짝 더 컴팩트 */
+  padding: 16px 14px;          /* 살짝 더 컴팩트 */
   border-bottom: 1px solid #e5e7eb;
   cursor: pointer;
   transition: background 0.2s ease;
   min-width: 0;
 
-  &:hover {
-    background-color: #f8fafc;
-  }
+  &:hover { background-color: #f8fafc; }
 `;
 
 export const Content = styled.div`
@@ -67,8 +65,8 @@ export const Tag = styled.span`
 export const RightArea = styled.div`
   display: inline-flex;
   align-items: center;
-  gap: 6px; /* 더 타이트 */
-  margin-left: auto; /* 오른쪽 끝으로 밀착 */
+  gap: 6px;                   /* 더 타이트 */
+  margin-left: auto;          /* 오른쪽 끝으로 밀착 */
   min-width: 0;
 `;
 
@@ -86,27 +84,23 @@ export const MenuWrap = styled.div`
 `;
 
 export const KebabButton = styled.button`
-  width: 26px; /* 얇은 버튼 */
+  width: 26px;                /* 얇은 버튼 */
   height: 26px;
   padding: 0;
-  border: none; /* ✅ 보더 제거 */
-  background: transparent; /* 투명 배경 */
+  border: none;               /* ✅ 보더 제거 */
+  background: transparent;    /* 투명 배경 */
   display: grid;
   place-items: center;
   border-radius: 8px;
   cursor: pointer;
 
   /* hover 시 최소한의 피드백만 */
-  &:hover {
-    background: rgba(15, 23, 42, 0.06);
-  }
-  &:active {
-    background: rgba(15, 23, 42, 0.1);
-  }
+  &:hover { background: rgba(15, 23, 42, 0.06); }
+  &:active { background: rgba(15, 23, 42, 0.10); }
 
   /* 키보드 접근성 */
   &:focus-visible {
-    outline: 2px solid rgba(59, 130, 246, 0.5);
+    outline: 2px solid rgba(59,130,246,.5);
     outline-offset: 2px;
   }
 `;
@@ -115,7 +109,7 @@ export const KebabDots = styled.div`
   display: grid;
   gap: 3px;
   & > span {
-    width: 3px; /* 더 얇은 점 */
+    width: 3px;               /* 더 얇은 점 */
     height: 3px;
     background: #0f172a;
     border-radius: 9999px;
@@ -133,14 +127,14 @@ export const Menu = styled.div`
   border: none;
   border-radius: 10px;
   box-shadow: 0 8px 22px rgba(2, 6, 23, 0.14); /* 얇은 그림자 */
-  padding: 4px; /* 얇은 패딩 */
+  padding: 4px;                                 /* 얇은 패딩 */
   z-index: 20;
 `;
 
 export const MenuItem = styled.button`
   width: 100%;
   text-align: left;
-  height: 32px; /* 더 컴팩트 */
+  height: 32px;               /* 더 컴팩트 */
   padding: 0 10px;
   border: 0;
   border-radius: 8px;
@@ -149,16 +143,12 @@ export const MenuItem = styled.button`
   background: transparent;
   cursor: pointer;
 
-  &:hover {
-    background: #f3f4f6;
-  }
+  &:hover { background: #f3f4f6; }
 
   ${({ $danger }) =>
     $danger &&
     css`
       color: #b91c1c;
-      &:hover {
-        background: #fef2f2;
-      }
+      &:hover { background: #fef2f2; }
     `}
 `;

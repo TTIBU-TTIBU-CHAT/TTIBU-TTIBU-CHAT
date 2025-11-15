@@ -1,20 +1,16 @@
-import * as S from "./ChatRoomList.styles";
-import ListItem from "@/components/common/ListItem";
-import { useNavigate } from "@tanstack/react-router";
-import { useRooms, useRenameRoom, useDeleteRoom } from "@/hooks/useChatRooms";
-import InputDialog from "@/components/common/Modal/InputDialog";
-import { useMemo, useState } from "react";
+import * as S from './ChatRoomList.styles';
+import ListItem from '@/components/common/ListItem';
+import { useNavigate } from '@tanstack/react-router';
+import { useRooms, useRenameRoom, useDeleteRoom } from '@/hooks/useChatRooms';
+import InputDialog from '@/components/common/Modal/InputDialog';
+import { useMemo, useState } from 'react';
 
 // 날짜 포맷
 function formatDate(iso) {
-  if (!iso) return "";
+  if (!iso) return '';
   try {
     const d = new Date(iso);
-    return d.toLocaleDateString("ko-KR", {
-      year: "numeric",
-      month: "long",
-      day: "numeric",
-    });
+    return d.toLocaleDateString('ko-KR', { year: 'numeric', month: 'long', day: 'numeric' });
   } catch {
     return iso;
   }
@@ -31,8 +27,8 @@ function mapRoom(r) {
   const rawDate = r.updated_at ?? r.updatedAt ?? r.modifiedAt ?? r.created_at;
   return {
     id,
-    title: r.name ?? r.title ?? "이름 없는 채팅",
-    summary: r.latest_question ?? r.summary ?? r.lastMessage ?? "",
+    title: r.name ?? r.title ?? '이름 없는 채팅',
+    summary: r.latest_question ?? r.summary ?? r.lastMessage ?? '',
     date: formatDate(rawDate),
     tags: r.keywords ?? r.tags ?? [],
     _raw: r,
@@ -63,19 +59,19 @@ export default function ChatRoomList() {
   }, [roomsRaw]);
 
   const handleClickChat = (id) =>
-    navigate({ to: "/chatrooms/$nodeId", params: { nodeId: String(id) } });
+    navigate({ to: '/chatrooms/$nodeId', params: { nodeId: String(id) } });
 
   const handleRequestRename = (id) => {
     const found = list.find((r) => String(r.id) === String(id));
     setRenameId(id);
-    setRenameText(found?.title ?? "");
+    setRenameText(found?.title ?? '');
     setRenameOpen(true);
     setMenuOpenId(null); // 메뉴 닫기
   };
 
   const handleRequestDelete = (id) => {
     if (!id || deleteMut.isPending) return;
-    if (window.confirm("이 채팅방을 삭제할까요?")) {
+    if (window.confirm('이 채팅방을 삭제할까요?')) {
       deleteMut.mutate(id);
       setMenuOpenId(null); // 메뉴 닫기
     }
@@ -97,8 +93,8 @@ export default function ChatRoomList() {
 
       {isLoading && <S.Hint>불러오는 중…</S.Hint>}
       {isError && (
-        <S.Hint style={{ color: "#b91c1c" }}>
-          목록을 불러오지 못했습니다. {error?.message || ""}
+        <S.Hint style={{ color: '#b91c1c' }}>
+          목록을 불러오지 못했습니다. {error?.message || ''}
         </S.Hint>
       )}
       {!isLoading && !isError && list.length === 0 && (

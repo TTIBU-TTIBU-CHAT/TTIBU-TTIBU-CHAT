@@ -1,5 +1,4 @@
-
-// src/components/ModalShell/contents/ChatContent.jsx=======
+// src/components/ModalShell/contents/ChatContent.jsx
 
 import { useEffect, useRef } from "react";
 import * as S from "../ModalShell.styles";
