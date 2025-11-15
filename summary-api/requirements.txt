@@ -4,9 +4,9 @@ uvicorn[standard]
 pydantic>=2.0
 
 # --- LLM (Qwen) ---
-transformers>=4.38
+transformers==4.42.3
 torch>=2.1
-accelerate
+accelerate>=0.30
 sentencepiece
 
 # --- 키워드 추출 ---
