@@ -11,4 +11,5 @@ export default function InputField({ name, type, value, onChange, placeholder, r
       required={required}
     />
   )
+
 }

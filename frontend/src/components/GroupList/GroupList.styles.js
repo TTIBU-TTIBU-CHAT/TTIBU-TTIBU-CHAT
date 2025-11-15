@@ -1,4 +1,4 @@
-import styled from 'styled-components'
+import styled from "styled-components";
 
 export const Container = styled.div`
   padding: 36px 48px;
@@ -6,14 +6,14 @@ export const Container = styled.div`
   min-height: 100vh;
   display: flex;
   flex-direction: column;
-`
+`;
 
 export const Title = styled.h2`
   font-size: 20px;
   font-weight: 700;
   color: #0f172a;
   margin-bottom: 24px;
-`
+`;
 
 export const CreateButton = styled.button`
   padding: 10px 14px;
@@ -27,7 +27,7 @@ export const CreateButton = styled.button`
   &:hover {
     background: #218838;
   }
-`
+`;
 
 export const GroupItem = styled.div`
   margin-bottom: 8px;

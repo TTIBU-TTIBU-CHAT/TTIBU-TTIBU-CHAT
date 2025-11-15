@@ -287,6 +287,90 @@ function updateNodeByChatId(prevChatViews, chatId, updater) {
 
 /* ======================================================================= */
 
+/* ======================================================================= */
+/* 🧠 ReactFlow snapshot 기준으로 chatViews / branchViews 재구성            */
+/* ======================================================================= */
+function rebuildFromSnapshot(prevChatViews, prevBranchViews, snapshot, roomId) {
+  const prevNodes = prevChatViews?.nodes ?? [];
+  const prevEdges = prevChatViews?.edges ?? [];
+
+  const prevById = new Map(
+    prevNodes.map((n) => [Number(n.chat_id ?? n.id ?? n.node_id), n])
+  );
+
+  const snapNodes = Array.isArray(snapshot?.nodes) ? snapshot.nodes : [];
+  const snapEdges = Array.isArray(snapshot?.edges) ? snapshot.edges : [];
+
+  // snapshot에서 "도메인 노드(chat_id 기반)"로 볼 수 있는 id set 수집
+  const domainIdSet = new Set();
+
+  snapNodes.forEach((n) => {
+    const cid = Number(n.id);
+    if (!Number.isNaN(cid)) {
+      domainIdSet.add(cid);
+    }
+  });
+
+  snapEdges.forEach((e) => {
+    const s = Number(e.source);
+    const t = Number(e.target);
+    if (!Number.isNaN(s)) domainIdSet.add(s);
+    if (!Number.isNaN(t)) domainIdSet.add(t);
+  });
+
+  // 도메인 노드들만 재구성 (기존 도메인 데이터는 그대로 유지)
+  const rebuiltNodes = Array.from(domainIdSet).map((cid) => {
+    const prev = prevById.get(cid) || {};
+    const snapNode = snapNodes.find((n) => Number(n.id) === cid);
+
+    const pos = snapNode
+      ? {
+          x: snapNode.position?.x ?? snapNode.x ?? prev.position?.x ?? 0,
+          y: snapNode.position?.y ?? snapNode.y ?? prev.position?.y ?? 0,
+        }
+      : (prev.position ?? { x: 0, y: 0 });
+
+    return {
+      ...prev,
+      chat_id: cid,
+      position: pos,
+    };
+  });
+
+  // 도메인 엣지만 재구성 (source/target 둘 다 숫자인 것만)
+  const rebuiltEdges = snapEdges
+    .map((e) => {
+      const s = Number(e.source);
+      const t = Number(e.target);
+      if (Number.isNaN(s) || Number.isNaN(t)) return null;
+      return { source: s, target: t };
+    })
+    .filter(Boolean);
+
+  // parent / children 부착
+  const chatInfo = attachParentChildren({
+    chat_room_id: Number(roomId),
+    ...(prevChatViews ?? {}),
+    nodes: rebuiltNodes,
+    edges: rebuiltEdges,
+    last_updated: new Date().toISOString(),
+  });
+
+  // branchViews 재구성 (branch_name은 가능한 유지)
+  const branchView = rebuildBranchViewsFromNodes(
+    chatInfo.nodes ?? [],
+    chatInfo.edges ?? [],
+    roomId,
+    prevBranchViews
+  );
+
+  return { chatInfo, branchView };
+}
+
+
+
+/* ======================================================================= */
+
 export default function ChatFlowPage() {
   /* ✅ URL 파라미터 (/chatrooms/$roomId) */
   const { nodeId } = useParams({ strict: false });

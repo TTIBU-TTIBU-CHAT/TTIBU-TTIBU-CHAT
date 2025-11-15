@@ -81,6 +81,7 @@ const Shell = styled.div`
   position: relative;
   min-height: 100dvh;
   background: #f5f7fb;
+
 `
 const AsideWrap = styled.aside`
   position: fixed;

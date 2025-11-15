@@ -1,7 +1,7 @@
 # Build stage
 FROM gradle:8.5-jdk17 AS build
 WORKDIR /app
-COPY . .
+COPY core-api/ .
 RUN ./gradlew clean build -x test
 
 # Runtime stage

@@ -44,7 +44,7 @@ export default function ChatRoomList() {
 
   const [renameOpen, setRenameOpen] = useState(false);
   const [renameId, setRenameId] = useState(null);
-  const [renameText, setRenameText] = useState('');
+  const [renameText, setRenameText] = useState("");
 
   // ✅ 케밥 메뉴 열림 상태 (아이템 id 저장)
   const [menuOpenId, setMenuOpenId] = useState(null);
@@ -135,7 +135,7 @@ export default function ChatRoomList() {
           setRenameId(null);
         }}
         onConfirm={confirmRename}
-        confirmText={renameMut.isPending ? '저장 중…' : '저장'}
+        confirmText={renameMut.isPending ? "저장 중…" : "저장"}
         disabled={renameMut.isPending}
       />
     </S.Container>

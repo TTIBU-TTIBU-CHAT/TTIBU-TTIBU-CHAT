@@ -21,6 +21,7 @@ export default defineConfig({
       '@integrations': resolve(__dirname, 'src/integrations'),
     },
   },
+
   server: {
     proxy: {
       '/api': {
@@ -31,4 +32,5 @@ export default defineConfig({
       },
     },
   },
+
 })

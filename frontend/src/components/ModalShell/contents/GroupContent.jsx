@@ -1,4 +1,5 @@
 // src/components/ModalShell/contents/GroupContent.jsx
+
 import { useMemo, useRef } from "react";
 import styled from "styled-components";
 import * as S from "../ModalShell.styles";
@@ -142,7 +143,6 @@ export function GroupContent({ onPick }) {
     dragGhostRef.current = clone;
     return clone;
   };
-
   const cleanupDragImage = () => {
     if (dragGhostRef.current) {
       document.body.removeChild(dragGhostRef.current);
@@ -278,6 +278,7 @@ const CardSummary = styled.div`
   font-size: 13px;
   color: #374151;
   line-height: 1.4;
+
 `;
 
 const PreviewCardSurface = styled.div`

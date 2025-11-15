@@ -1,0 +1,72 @@
+package io.ssafy.p.k13c103.coreapi.common.error;
+
+import lombok.AllArgsConstructor;
+import lombok.Getter;
+import org.springframework.http.HttpStatus;
+
+@Getter
+@AllArgsConstructor
+public enum ErrorCode {
+
+    /* === 공통 === */
+    INTERNAL_ERROR(HttpStatus.INTERNAL_SERVER_ERROR, "서버 오류가 발생하였습니다."),
+    UNAUTHORIZED(HttpStatus.UNAUTHORIZED, "인증이 필요합니다."),
+    FORBIDDEN(HttpStatus.FORBIDDEN, "접근 권한이 없습니다."),
+    BAD_REQUEST(HttpStatus.BAD_REQUEST, "잘못된 요청입니다."),
+
+    /* === SSE / 인증 관련 === */
+    SSE_UNAUTHORIZED(HttpStatus.UNAUTHORIZED, "SSE 연결에는 인증이 필요합니다."),
+    SSE_FORBIDDEN(HttpStatus.FORBIDDEN, "해당 채팅방에 접근할 권한이 없습니다."),
+
+    /* === 채팅방 === */
+    ROOM_NOT_FOUND(HttpStatus.NOT_FOUND, "존재하지 않는 채팅방입니다."),
+    ROOM_FORBIDDEN(HttpStatus.FORBIDDEN, "해당 채팅방에 접근할 권한이 없습니다."),
+    INVALID_JSON(HttpStatus.BAD_REQUEST, "JSON 형식이 올바르지 않습니다."),
+
+    /* === 브랜치 === */
+    BRANCH_NOT_FOUND(HttpStatus.NOT_FOUND, "존재하지 않는 브랜치입니다."),
+
+    /* === 채팅 === */
+    CHAT_NOT_FOUND(HttpStatus.NOT_FOUND, "채팅을 찾을 수 없습니다."),
+    TOO_MANY_SEARCH_KEYWORD(HttpStatus.BAD_REQUEST, "검색할 키워드가 5개 초과입니다."),
+
+    /* === 그룹 === */
+    GROUP_NOT_FOUND(HttpStatus.NOT_FOUND, "존재하지 않는 그룹입니다."),
+    GROUP_FORBIDDEN(HttpStatus.FORBIDDEN, "해당 그룹에 대한 접근 권한이 없습니다."),
+    GROUP_SUMMARY_NOT_READY(HttpStatus.BAD_REQUEST, "그룹 요약/키워드가 아직 생성되지 않았습니다."),
+
+    /* === FastAPI === */
+    EXTERNAL_API_ERROR(HttpStatus.BAD_GATEWAY, "외부 API 호출 중 알 수 없는 오류가 발생했습니다."),
+    EXTERNAL_API_CONNECTION_FAILED(HttpStatus.SERVICE_UNAVAILABLE, "외부 API 서버에 연결할 수 없습니다."),
+
+    /* === 회원 === */
+    MEMBER_NOT_FOUND(HttpStatus.NOT_FOUND, "존재하지 않는 회원입니다."),
+    MEMBER_EMAIL_DUPLICATED(HttpStatus.CONFLICT, "이미 존재하는 이메일입니다."),
+
+    /* === LiteLLM === */
+    INVALID_KEY(HttpStatus.UNAUTHORIZED, "유효하지 않은 API 키입니다."),
+    DUPLICATED_KEY(HttpStatus.CONFLICT, "해당 제공사의 키가 이미 등록되어 있습니다."),
+
+    RATE_LIMITED(HttpStatus.TOO_MANY_REQUESTS, "외부 API 호출 한도를 초과했습니다."),
+    UPSTREAM_ERROR(HttpStatus.BAD_GATEWAY, "외부 모델 서버 오류가 발생했습니다."),
+
+    PROVIDER_NOT_FOUND(HttpStatus.NOT_FOUND, "제공사를 찾을 수 없습니다."),
+    MODEL_CATALOG_EMPTY(HttpStatus.BAD_REQUEST, "해당 제공사의 유효한 모델이 존재하지 않습니다."),
+    CATALOG_LOAD_FAILED(HttpStatus.INTERNAL_SERVER_ERROR, "카탈로그 로드에 실패했습니다."),
+
+    LLM_PROCESS_ERROR(HttpStatus.BAD_GATEWAY, "LLM 응답 처리 중 오류가 발생했습니다."),
+
+    /* === 키/모델 ===*/
+    KEY_NOT_FOUND(HttpStatus.NOT_FOUND, "존재하지 않는 키입니다."),
+    KEY_CRYPTO_ERROR(HttpStatus.INTERNAL_SERVER_ERROR, "키 암·복호화 처리에 실패했습니다."),
+    MODEL_NOT_FOUND(HttpStatus.NOT_FOUND, "존재하지 않는 모델입니다."),
+    INVALID_MODEL_PROVIDER(HttpStatus.FORBIDDEN, "허용되지 않는 제공사 또는 모델입니다."),
+    INVALID_EXPIRATION_DATE(HttpStatus.BAD_REQUEST, "잘못된 만료일입니다.");
+
+    private final HttpStatus status;
+    private final String message;
+
+    public boolean isClientError() {
+        return status.is4xxClientError();
+    }
+}

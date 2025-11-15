@@ -14,8 +14,10 @@ export const Title = styled.h2`
   color: #0f172a;
   margin-bottom: 24px;
 `
+
 export const Hint = styled.div`
   padding: 8px 12px;
   font-size: 14px;
   color: #64748b;
 `;
+

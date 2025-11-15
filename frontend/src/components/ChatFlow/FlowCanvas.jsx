@@ -6,6 +6,7 @@ import { GlobalRFStyles } from "./styles";
 import FlowCore from "./Flow/FlowCore";
 
 export default function FlowCanvas(props) {
+
   return (
     <>
       <GlobalRFStyles />
