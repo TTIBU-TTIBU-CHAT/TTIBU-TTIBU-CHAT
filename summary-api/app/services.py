@@ -1,5 +1,6 @@
 import re
 import torch
+from transformers import Qwen2Tokenizer
 from transformers import AutoTokenizer, AutoModelForCausalLM
 from krwordrank.word import KRWordRank
 from keybert import KeyBERT
