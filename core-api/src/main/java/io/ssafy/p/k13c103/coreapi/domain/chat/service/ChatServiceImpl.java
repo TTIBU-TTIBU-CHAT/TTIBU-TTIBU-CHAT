@@ -112,12 +112,19 @@ public class ChatServiceImpl implements ChatService {
         Room room = roomRepository.findById(roomId)
                 .orElseThrow(() -> new ApiException(ErrorCode.ROOM_NOT_FOUND));
 
-        log.info("[ASYNC] Chat {} -> 비동기 AI 처리 시작", chatId);
+        String safeContext = contextPrompt;
+        if (safeContext != null && safeContext.length() > 2000) {
+            safeContext = safeContext.substring(safeContext.length() - 2000);
+            log.debug("[ASYNC] contextPrompt 길이 초과 → 뒤에서 2000자만 사용");
+        }
+
+        log.info("[ASYNC] Chat {} -> 비동기 AI 처리 시작 (model={}, provider={}, useLlm={}, ctxLen={})",
+                chatId, model, provider, useLlm, safeContext == null ? 0 : safeContext.length());
 
         // 1. 답변 생성
         // message 구성: LLM API 규격에 맞춰 user 질문으로 변환
         List<Map<String, String>> messages = new ArrayList<>();
-        if (contextPrompt != null && !contextPrompt.isBlank()) {
+        if (safeContext != null && !safeContext.isBlank()) {
             messages.add(Map.of(
                     "role", "system",
                     "content",
@@ -126,7 +133,7 @@ public class ChatServiceImpl implements ChatService {
                             아래의 대화 내용을 참고해 맥락을 유지한 자연스러운 답변을 생성하세요.
                             
                             [이전 대화 요약 또는 내용]
-                            """ + contextPrompt
+                            """ + safeContext
             ));
         }
         messages.add(Map.of("role", "user", "content", chat.getQuestion()));
@@ -151,47 +158,51 @@ public class ChatServiceImpl implements ChatService {
                 // 스트림 구독: 청크 단위로 처리
                 stream
                         .doOnNext(chunk -> {
-                            JsonNode usageNode = llmStreamParser.extractUsage(provider, chunk);
-                            if (usageNode != null) {
-                                usageRef.set(usageNode);
-                            }
+                            try {
+                                JsonNode usageNode = llmStreamParser.extractUsage(provider, chunk);
+                                if (usageNode != null) {
+                                    usageRef.set(usageNode);
+                                }
 
-                            String delta = llmStreamParser.extractDeltaContent(provider, chunk);
-                            if (delta != null && !delta.isBlank()) {
-                                accumulatedAnswer.append(delta);
+                                String delta = llmStreamParser.extractDeltaContent(provider, chunk);
+                                if (delta != null && !delta.isBlank()) {
+                                    accumulatedAnswer.append(delta);
 
-                                Map<String, Object> payload = new LinkedHashMap<>();
-                                payload.put("chat_id", chat.getChatUid());
-                                payload.put("delta", delta);
+                                    Map<String, Object> payload = new LinkedHashMap<>();
+                                    payload.put("chat_id", chat.getChatUid());
+                                    payload.put("delta", delta);
 
-                                sseEmitterManager.sendEvent(
-                                        room.getRoomUid(),
-                                        new ChatSseEvent<>(ChatSseEventType.CHAT_STREAM, payload)
-                                );
-                            }
+                                    sseEmitterManager.sendEvent(
+                                            room.getRoomUid(),
+                                            new ChatSseEvent<>(ChatSseEventType.CHAT_STREAM, payload)
+                                    );
+                                }
 
-                            // [DONE] 감지 시 DB 업데이트 + SSE 완료 이벤트 전송
-                            if (!doneEmitted[0] && llmStreamParser.isDoneChunk(provider, chunk)) {
-                                doneEmitted[0] = true;
+                                // [DONE] 감지 시 DB 업데이트 + SSE 완료 이벤트 전송
+                                if (!doneEmitted[0] && llmStreamParser.isDoneChunk(provider, chunk)) {
+                                    doneEmitted[0] = true;
 
-                                chat.updateAnswer(accumulatedAnswer.toString());
+                                    chat.updateAnswer(accumulatedAnswer.toString());
 
-                                applyTokenUsageIfPresent(room, provider, usageRef.get());
+                                    applyTokenUsageIfPresent(room, provider, usageRef.get());
 
-                                chatRepository.save(chat);
+                                    chatRepository.save(chat);
 
-                                Map<String, Object> payload = new LinkedHashMap<>();
-                                payload.put("chat_id", chat.getChatUid());
-                                payload.put("answer", accumulatedAnswer.toString());
-                                payload.put("answered_at", chat.getAnsweredAt());
+                                    Map<String, Object> payload = new LinkedHashMap<>();
+                                    payload.put("chat_id", chat.getChatUid());
+                                    payload.put("answer", accumulatedAnswer.toString());
+                                    payload.put("answered_at", chat.getAnsweredAt());
 
-                                sseEmitterManager.sendEvent(
-                                        room.getRoomUid(),
-                                        new ChatSseEvent<>(ChatSseEventType.CHAT_DONE, payload)
-                                );
+                                    sseEmitterManager.sendEvent(
+                                            room.getRoomUid(),
+                                            new ChatSseEvent<>(ChatSseEventType.CHAT_DONE, payload)
+                                    );
 
-                                log.info("[STREAM] Chat {} 스트리밍 종료 (provider={}, model={})",
-                                        chat.getChatUid(), provider, model);
+                                    log.info("[STREAM] Chat {} 스트리밍 종료 (provider={}, model={})",
+                                            chat.getChatUid(), provider, model);
+                                }
+                            } catch (Exception e) {
+                                log.error("[STREAM] 청크 파싱 에러: {}", e.getMessage());
                             }
                         })
                         .doOnError(error -> {
@@ -240,6 +251,12 @@ public class ChatServiceImpl implements ChatService {
                         aiAsyncClient.shortSummaryAsync(aiAnswer)
                                 .thenAccept(result -> {
                                     try {
+                                        if (result == null) {
+                                            log.warn("[STEP 2] 짧은 요약 결과가 null 입니다. roomId={}, chatId={}",
+                                                    roomId, chat.getChatUid());
+                                            return;
+                                        }
+
                                         log.info("[STEP 2] 짧은 요약 생성 완료: {}", result.getTitle());
 
                                         // 방 이름 업데이트
@@ -273,6 +290,12 @@ public class ChatServiceImpl implements ChatService {
                         aiAsyncClient.summarizeAsync(aiAnswer)
                                 .thenAccept(aiResult -> {
                                     try {
+                                        if (aiResult == null) {
+                                            log.warn("[STEP 3] 긴 요약 결과가 null 입니다. roomId={}, chatId={}",
+                                                    roomId, chat.getChatUid());
+                                            return;
+                                        }
+
                                         log.info("[STEP 3] 긴 요약 + 키워드 처리 시작");
                                         chat.updateSummaryAndKeywords(aiResult.getSummary(), convertToJson(aiResult.getKeywords()));
                                         chatRepository.save(chat);
@@ -344,7 +367,7 @@ public class ChatServiceImpl implements ChatService {
     private void applyTokenUsageIfPresent(Room room, String provider, JsonNode usageNode) {
         if (usageNode == null) return;
 
-        // ✅ OpenAI / LiteLLM 스타일 (usage.prompt_tokens / completion_tokens)
+        // OpenAI / LiteLLM 스타일 (usage.prompt_tokens / completion_tokens)
         int prompt = 0;
         int completion = 0;
         int total = 0;
@@ -356,7 +379,7 @@ public class ChatServiceImpl implements ChatService {
             total = prompt + completion;
         }
 
-        // ✅ Gemini 스타일 (usageMetadata.*TokenCount)
+        // Gemini 스타일 (usageMetadata.*TokenCount)
         if (usageNode.has("promptTokenCount") || usageNode.has("candidatesTokenCount")) {
             int gPrompt = usageNode.path("promptTokenCount").asInt(0);
             int gCompletion = usageNode.path("candidatesTokenCount").asInt(0);
