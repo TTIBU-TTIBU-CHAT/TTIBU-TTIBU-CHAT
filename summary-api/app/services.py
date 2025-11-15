@@ -1,13 +1,5 @@
-# app/services.py
-# ----------------------------------------------------
-# 요약: Qwen2.5-1.5B-Instruct (CPU 최적화 버전)
-# 키워드: KRWordRank + KeyBERT
-# 제목: Qwen + 후처리
-# ----------------------------------------------------
-
 import re
 import torch
-from transformers import Qwen2Tokenizer
 from transformers import AutoTokenizer, AutoModelForCausalLM
 from krwordrank.word import KRWordRank
 from keybert import KeyBERT

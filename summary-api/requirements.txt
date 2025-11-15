@@ -4,7 +4,7 @@ uvicorn[standard]
 pydantic>=2.0
 
 # --- LLM (Qwen) ---
-transformers==4.42.3
+transformers>=4.45.0
 torch>=2.1
 accelerate>=0.30
 sentencepiece
