@@ -1,6 +1,5 @@
 package io.ssafy.p.k13c103.coreapi.domain.room.service;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.ssafy.p.k13c103.coreapi.common.error.ApiException;
@@ -106,7 +105,7 @@ public class RoomServiceImpl implements RoomService {
                             createdChats.add(cloned);
 
                             String a = Optional.ofNullable(origin.getAnswer()).orElse("").trim();
-                            if (!a.isBlank()) contextParts.add(a);
+                            if (!a.isBlank()) contextParts.add(trimForContext(a));
 
                         } else if (node.getType() == ChatType.GROUP) {
                             log.info("[ROOM] 그룹 요약 노드 생성 요청 - groupId={}", node.getId());
@@ -121,7 +120,7 @@ public class RoomServiceImpl implements RoomService {
                             createdChats.add(snapshot);
 
                             String groupText = bestAvailableGroupText(originGroup.getGroupUid());
-                            if (!groupText.isBlank()) contextParts.add(groupText);
+                            if (!groupText.isBlank()) contextParts.add(trimForContext(groupText));
 
                             final Long snapshotId = snapshot.getChatUid();
                             final Long groupId = originGroup.getGroupUid();
@@ -172,18 +171,28 @@ public class RoomServiceImpl implements RoomService {
         TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
             @Override
             public void afterCommit() {
-                // sessionUuid → roomId로 emitter 이전
-                if (request.getSessionUuid() != null && !request.getSessionUuid().isBlank()) {
-                    sseEmitterManager.migrateSessionEmitterToRoom(request.getSessionUuid(), room.getRoomUid());
-                    log.info("[SSE] Session {} → Room {} emitter migration 완료",
-                            request.getSessionUuid(), room.getRoomUid());
+                try {
+                    if (request.getSessionUuid() != null && !request.getSessionUuid().isBlank()) {
+                        sseEmitterManager.migrateSessionEmitterToRoom(request.getSessionUuid(), room.getRoomUid());
+                    }
+
+                    sendRoomCreatedEvent(room, nodePayloads, request.getBranchId());
+
+                } catch (Exception e) {
+                    log.error("[ROOM_CREATE] afterCommit SSE 처리 실패: {}", e.getMessage());
                 }
 
-                // 1. 커밋 이후 ROOM_CREATED 이벤트 전송
-                sendRoomCreatedEvent(room, nodePayloads, request.getBranchId());
-
-                // 2. 커밋 이후 비동기 처리 시작
-                asyncChatProcessor.processAsync(newChat.getChatUid(), request, decryptedKey, providerCode, contextPrompt);
+                try {
+                    asyncChatProcessor.processAsync(
+                            newChat.getChatUid(),
+                            request,
+                            decryptedKey,
+                            providerCode,
+                            contextPrompt
+                    );
+                } catch (Exception e) {
+                    log.error("[ROOM_CREATE] afterCommit Async 처리 실패: {}", e.getMessage());
+                }
             }
         });
 
@@ -417,7 +426,7 @@ public class RoomServiceImpl implements RoomService {
     private void fillSnapshotFromGroupAsync(Long groupId, Long snapshotChatId, Long roomId, Long branchId) {
         // "그룹 요약/키워드가 준비될 때까지" 기다렸다가 스냅샷을 채움
         CompletableFuture.runAsync(() -> {
-            final int maxRetry = 40;   // 총 20초 (40 * 500ms) 등, 필요에 맞게 조정
+            final int maxRetry = 100;   // 총 50초 (100 * 500ms), 필요에 맞게 조정
             final long sleepMs = 500L;
             int attempt = 0;
 
@@ -498,19 +507,14 @@ public class RoomServiceImpl implements RoomService {
         }
     }
 
-    /**
-     * 키워드 직렬화
-     */
-    private String convertToJson(List<String> keywords) {
-        try {
-            return objectMapper.writeValueAsString(keywords);
-        } catch (JsonProcessingException e) {
-            log.warn("[ChatService] 키워드 직렬화 실패: {}", e.getMessage());
-            return "[]";
-        }
-    }
-
     private boolean isBlank(String s) {
         return s == null || s.isBlank();
+    }
+
+    private String trimForContext(String text) {
+        if (text == null) return "";
+        text = text.trim();
+        if (text.length() <= 100) return text;
+        return text.substring(0, 100) + "...";
     }
 }
