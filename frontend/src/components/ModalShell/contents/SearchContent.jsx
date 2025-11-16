@@ -1,9 +1,12 @@
-// SearchContent.jsx
-import { useMemo, useRef, useState } from "react";
+// src/components/ModalShell/contents/SearchContent.jsx
+import { useEffect, useMemo, useRef, useState } from "react";
 import * as S from "../ModalShell.styles";
+import { useSearchChats } from "@/hooks/useRoomChats";
 
-// FlowCanvas와 동일한 MIME 키
-const DND_MIME = "application/x-ttibu-resultcard";
+/* ✅ 두 MIME 모두로 setData (호환성↑) */
+const DND_MIME_RESULT = "application/x-ttibu-resultcard";
+const DND_MIME_GROUP = "application/x-ttibu-card";
+
 
 // 불투명한 drag image 복제본 생성
 function makeDragImage(node) {
@@ -23,7 +26,6 @@ function makeDragImage(node) {
     imageRendering: "auto",
     willChange: "auto",
     zIndex: "2147483647",
-    // 카드 스타일을 최대한 동일하게 (hover 그림자 등)
     background: "#fff",
     border: "1px solid rgba(0,0,0,0.08)",
     borderRadius: "16px",
@@ -34,81 +36,92 @@ function makeDragImage(node) {
   return clone;
 }
 
-export function SearchContent({ onSelect }) {
+// 서버 응답 → UI 표준 아이템으로 정규화 (백엔드 스펙에 맞춤)
+function normalizeResult(raw) {
+  const id = raw.chatUid ?? raw.id ?? raw.chat_id ?? raw.room_id ?? String(Math.random());
+  const question = raw.question ?? `#${id}`;
+  const answer = raw.answer ?? "";
+  const date = raw.updatedAt ?? raw.answeredAt ?? raw.questionedAt ?? raw.created_at ?? null;
+  const keywords = raw.keywords ?? raw.keywords ?? [];
+  return { id, question, answer, date, keywords, __raw: raw };
+}
+
+export function SearchContent({ onPick }) {
+  // 검색 입력 + 태그 칩
   const [query, setQuery] = useState("");
   const [chips, setChips] = useState(["알고리즘"]);
-  const dragImgRef = useRef(null);
-  const dragOriginRef = useRef(null);
 
-  const data = useMemo(
-    () =>
-      Array.from({ length: 8 }).map((_, i) => ({
-        id: `q${i}`,
-        question: "다익스트라 알고리즘이 뭐냐?",
-        answer: "시간 복잡도가 O(E log V)이며 우선순위 큐를 사용...",
-        date: "2025. 10. 24",
-        tags: ["알고리즘", "다익스트라", "BFS", "DFS"],
-      })),
-    []
-  );
+  // 페이지네이션
+  const [page, setPage] = useState(0);
+  const size = 20;
 
-  const filtered = data.filter((item) => {
-    const q = query.trim().toLowerCase();
-    const inText =
-      !q ||
-      item.question.toLowerCase().includes(q) ||
-      item.answer.toLowerCase().includes(q);
-    const hasAllChips = chips.every((c) => item.tags.includes(c));
-    return inText && hasAllChips;
-  });
-
-  const removeChip = (label) =>
-    setChips((prev) => prev.filter((c) => c !== label));
-
+  // query를 칩으로 확정하는 UX (Enter/돋보기 클릭)
   const addChipFromQuery = () => {
     const t = query.trim();
     if (!t) return;
     if (!chips.includes(t)) setChips((prev) => [...prev, t]);
     setQuery("");
+    setPage(0); // 새 검색이면 첫 페이지로
   };
 
-  /** ✅ 드래그 시작: 원본 숨김 + 불투명 drag image */
+  const removeChip = (label) => {
+    setChips((prev) => {
+      const next = prev.filter((c) => c !== label);
+      // 칩이 하나도 없으면 검색 비활성 → 페이지/리스트 초기화
+      if (next.length === 0) setPage(0);
+      return next;
+    });
+  };
+
+  // ✅ 훅은 [키워드 배열, page, size] 를 받음
+  const keywords = useMemo(() => chips, [chips]);
+  console.log("Searching chats with keywords:", keywords, "page:", page, "size:", size);
+  const { data, isLoading, isFetching, isError, error } = useSearchChats(keywords, page, size);
+
+  // 훅은 Page<SearchedResultInfo>를 data로 반환하도록 구성됨
+  const pageData = data ?? {};
+  const content = Array.isArray(pageData.content) ? pageData.content : [];
+  const list = content.map(normalizeResult);
+  const totalPages = pageData.totalPages ?? 0;
+  const number = pageData.pageable?.pageNumber ?? pageData.number ?? page;
+
+  // 드래그 비주얼 관리
+  const dragImgRef = useRef(null);
+  const dragOriginRef = useRef(null);
+
+  /* ✅ 드래그 시작: 두 MIME 키 모두 setData */
   const handleDragStart = (e, item) => {
-    // FlowCanvas로 전달할 페이로드
     const payload = {
       id: item.id,
       label: item.question,
       question: item.question,
       answer: item.answer,
-      tags: item.tags,
+      keywords: item.keywords,
       date: item.date,
       type: "chat",
     };
-    e.dataTransfer.setData(DND_MIME, JSON.stringify(payload));
+
+    const json = JSON.stringify(payload);
+    e.dataTransfer.setData(DND_MIME_RESULT, json);
+    e.dataTransfer.setData(DND_MIME_GROUP, json);
     e.dataTransfer.effectAllowed = "copy";
 
     const cardEl = e.currentTarget;
     dragOriginRef.current = cardEl;
-
-    // 1) 원본을 숨겨 "그 카드가 움직이는 느낌" 강화
-    cardEl.style.opacity = "0";      // visibility:hidden 대신 공간 보존용
+    cardEl.style.opacity = "0";
     cardEl.style.cursor = "grabbing";
 
-    // 2) 불투명 클론을 drag image로 지정
     const img = makeDragImage(cardEl);
     dragImgRef.current = img;
 
-    // 포인터 상대 좌표로 자연스러운 오프셋
     const native = e.nativeEvent;
     const offsetX =
       typeof native.offsetX === "number" ? native.offsetX : Math.min(24, img.offsetWidth / 2);
     const offsetY =
       typeof native.offsetY === "number" ? native.offsetY : Math.min(24, img.offsetHeight / 2);
-
     e.dataTransfer.setDragImage(img, offsetX, offsetY);
   };
 
-  /** ✅ 드래그 종료: 원본 복구 + 클론 제거 */
   const handleDragEnd = () => {
     if (dragOriginRef.current) {
       dragOriginRef.current.style.opacity = "";
@@ -120,6 +133,23 @@ export function SearchContent({ onSelect }) {
       dragImgRef.current = null;
     }
   };
+
+  /* ✅ 클릭(선택) 시: 임시 노드에 꽂을 ‘풀 페이로드’를 onPick으로 전달 */
+  const handlePick = (item) => {
+    onPick?.({
+      id: item.id,
+      label: item.question,
+      question: item.question,
+      answer: item.answer,
+      date: item.date,
+      keywords: item.keywords,
+      type: "chat",
+    });
+  };
+
+  // 페이지 이동
+  const canPrev = number > 0;
+  const canNext = totalPages > 0 && number < totalPages - 1;
 
   return (
     <>
@@ -147,14 +177,24 @@ export function SearchContent({ onSelect }) {
       )}
 
       <S.SearchScroll>
-        {filtered.map((item) => (
+        {/* 상태 안내 */}
+        {(isLoading || isFetching) && (
+          <div style={{ padding: 12, color: "#6b7280", fontSize: 13 }}>검색 중…</div>
+        )}
+        {isError && (
+          <div style={{ padding: 12, color: "#ef4444", fontSize: 13 }}>
+            검색 중 오류가 발생했어요. {error?.message || ""}
+          </div>
+        )}
+        {!isLoading && !isFetching && !isError && keywords.length > 0 && list.length === 0 && (
+          <div style={{ padding: 12, color: "#6b7280", fontSize: 13 }}>검색 결과가 없어요.</div>
+        )}
+
+        {/* 결과 카드 */}
+        {list.map((item) => (
           <S.ResultCard
             key={item.id}
-            // 클릭 선택도 유지
-            onClick={() =>
-              onSelect?.({ id: item.id, label: item.question, type: "chat" })
-            }
-            // ✅ HTML5 DnD
+            onClick={() => handlePick(item)}
             draggable
             onDragStart={(e) => handleDragStart(e, item)}
             onDragEnd={handleDragEnd}
@@ -162,23 +202,39 @@ export function SearchContent({ onSelect }) {
           >
             <S.CardHeader>
               <S.Badge tone="blue">QUESTION</S.Badge>
-              <S.MetaDate>{item.date}</S.MetaDate>
+              {item.date && <S.MetaDate>{new Date(item.date).toLocaleString()}</S.MetaDate>}
             </S.CardHeader>
+
             <S.CardTitle>{item.question}</S.CardTitle>
+
             <S.CardDivider />
+
             <S.CardHeader style={{ marginTop: 10 }}>
               <S.Badge tone="gray">ANSWER</S.Badge>
-              <S.MetaDate>{item.date}</S.MetaDate>
+              {item.date && <S.MetaDate>{new Date(item.date).toLocaleString()}</S.MetaDate>}
             </S.CardHeader>
-            <S.CardExcerpt>{item.answer}</S.CardExcerpt>
-            <S.TagRow>
-              {item.tags.map((t) => (
-                <S.TagPill key={t}>{t}</S.TagPill>
-              ))}
-            </S.TagRow>
+
+            {item.answer && <S.CardExcerpt>{item.answer}</S.CardExcerpt>}
+
+
           </S.ResultCard>
         ))}
       </S.SearchScroll>
+
+      {/* 페이지네이션 (간단 버전) */}
+      {totalPages > 1 && (
+        <div style={{ display: "flex", gap: 8, justifyContent: "center", padding: 10 }}>
+          <button disabled={!canPrev} onClick={() => canPrev && setPage((p) => p - 1)}>
+            이전
+          </button>
+          <span style={{ fontSize: 12, color: "#6b7280" }}>
+            {number + 1} / {totalPages}
+          </span>
+          <button disabled={!canNext} onClick={() => canNext && setPage((p) => p + 1)}>
+            다음
+          </button>
+        </div>
+      )}
     </>
   );
 }

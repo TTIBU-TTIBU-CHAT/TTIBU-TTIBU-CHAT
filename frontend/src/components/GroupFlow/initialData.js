@@ -5,8 +5,8 @@ import { edge } from "./utils";
 export const LAYOUT = "LR";
 const isHorizontal = LAYOUT === "LR";
 
-const SOURCE_POS = isHorizontal ? "right" : "bottom";
-const TARGET_POS = isHorizontal ? "left" : "top";
+const SOURCE_POS = "right" ;
+const TARGET_POS = "left";
 
 /* ===================== 🧩 노드 정의 ===================== */
 export const initialNodes = [

@@ -1,3 +1,5 @@
+// src/components/Flow/initialData.js
+
 import { nodeStyle } from "./styles";
 import { edge } from "./utils";
 
@@ -5,8 +7,8 @@ import { edge } from "./utils";
 export const LAYOUT = "LR";
 const isHorizontal = LAYOUT === "LR";
 
-const SOURCE_POS = isHorizontal ? "right" : "bottom";
-const TARGET_POS = isHorizontal ? "left" : "top";
+const SOURCE_POS =  "right" ;
+const TARGET_POS =  "left";
 
 /* ===================== 🧩 노드 정의 ===================== */
 export const initialNodes = [
@@ -14,6 +16,8 @@ export const initialNodes = [
     id: "n1",
     position: { x: 120, y: 140 },
     data: {
+      branch: "브랜치-1", // ✅ 브랜치
+
       label: "다익스트라 개념",
       keyword: "최단 경로 탐색 기본 원리",
       question: "다익스트라 알고리즘이란 무엇인가요?",
@@ -23,12 +27,14 @@ export const initialNodes = [
     },
     style: nodeStyle,
     sourcePosition: SOURCE_POS,
+
     targetPosition: TARGET_POS,
   },
   {
     id: "n2",
     position: { x: 420, y: 140 },
     data: {
+      branch: "브랜치-1",
       label: "우선순위큐",
       keyword: "최단 거리 노드 선택",
       question: "다익스트라에서 우선순위 큐는 왜 사용하나요?",
@@ -44,6 +50,8 @@ export const initialNodes = [
     id: "n3",
     position: { x: 420, y: 300 },
     data: {
+      branch: "브랜치-2",
+
       label: "시간복잡도 O(E log V)",
       keyword: "성능 분석",
       question: "다익스트라 알고리즘의 시간 복잡도는 어떻게 되나요?",
@@ -59,12 +67,14 @@ export const initialNodes = [
     id: "n4",
     position: { x: 120, y: 300 },
     data: {
+      branch: "브랜치-3",
       label: "BFS/DFS 비교",
       keyword: "탐색 방식 비교",
       question: "BFS/DFS와 다익스트라의 차이점은 무엇인가요?",
       answer:
         "BFS는 간선 가중치가 모두 같을 때 최단 경로 탐색에 사용되고, 다익스트라는 서로 다른 가중치를 가진 그래프에서도 사용 가능합니다. DFS는 깊이 우선 탐색으로, 최단 경로를 보장하지 않습니다.",
-      summary: "BFS는 균등 가중치 그래프용, 다익스트라는 가중치 다양한 그래프용.",
+      summary:
+        "BFS는 균등 가중치 그래프용, 다익스트라는 가중치 다양한 그래프용.",
     },
     style: nodeStyle,
     sourcePosition: SOURCE_POS,

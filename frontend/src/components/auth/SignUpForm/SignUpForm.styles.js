@@ -16,7 +16,7 @@ export const Title = styled.h2`
   text-align: center;
 `
 
-export const BackLink = styled.a`
+export const BackLink = styled.span`
   display: block;
   margin-top: 16px;
   text-align: right;
@@ -28,4 +28,10 @@ export const BackLink = styled.a`
     color: #4a5b7a;
     text-decoration: underline;
   }
+`
+
+export const ErrorMessage = styled.p`
+  color: #e74c3c;
+  font-size: 0.9rem;
+  margin: 4px 0 8px;
 `

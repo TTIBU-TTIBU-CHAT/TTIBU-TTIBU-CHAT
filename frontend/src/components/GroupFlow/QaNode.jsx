@@ -2,8 +2,8 @@ import React from "react";
 import { Handle, Position, useStore } from "reactflow";
 import styled from "styled-components";
 
-const CARD_W = 250; // 고정 너비(px) — 필요시 360~480 사이로 조절
-const CARD_H = 130; // 고정 높이(px) — 디자인에 맞게 조절
+const CARD_W = 250; // 고정 너비(px)
+const CARD_H = 130; // 고정 높이(px)
 
 function useZoomTier() {
   const zoom = useStore((s) => s.transform[2]);
@@ -13,27 +13,28 @@ function useZoomTier() {
 }
 
 export default function QaNode({ data = {}, sourcePosition, targetPosition }) {
-  const { tier } = useZoomTier();
-  const {
-    label = "제목 없음",
-    keyword,
-    summary,
-    question,
-    answer,
-    date,
-    tags,
-  } = data;
+  const { tier: baseTier } = useZoomTier();
+
+  const { label = "제목 없음", summary, question, answer, date } = data;
+  // console.log("QaNode data:", data, sourcePosition, targetPosition);
+  // ✅ 그룹 노드는 2단계: <1.0 => label / >=1.0 => summary
+  const isGroup = data?.type === "group";
+  const tier = isGroup
+    ? baseTier === "label"
+      ? "label"
+      : "summary"
+    : baseTier;
+
+  const showFull = !isGroup && tier === "full";
 
   return (
     <NodeShell>
-      {tier !== "full" ? (
-        <LiteCard>
+      {!showFull ? (
+        <LiteCard $group={isGroup}>
           {tier === "label" ? (
-            <LiteTitle title={keyword || label}>{keyword || label}</LiteTitle>
+            <LiteTitle title={label}>{label}</LiteTitle>
           ) : (
-            <>
-              {summary && <LiteSummary title={summary}>{summary}</LiteSummary>}
-            </>
+            summary && <LiteSummary title={summary}>{summary}</LiteSummary>
           )}
         </LiteCard>
       ) : (
@@ -43,7 +44,6 @@ export default function QaNode({ data = {}, sourcePosition, targetPosition }) {
             {date && <MetaDate>{date}</MetaDate>}
           </HeadRow>
 
-          {/* 질문 한 줄 고정 + ellipsis */}
           <OneLine title={question || label}>{question || label}</OneLine>
 
           <Divider />
@@ -53,28 +53,16 @@ export default function QaNode({ data = {}, sourcePosition, targetPosition }) {
             {date && <MetaDate>{date}</MetaDate>}
           </HeadRow>
 
-          {/* 답변 한 줄 고정 + ellipsis */}
           <OneLineMuted title={answer}>{answer}</OneLineMuted>
-
-          {/* 태그는 공간이 남을 때만 한 줄로 표시(넘치면 숨김) */}
-          {Array.isArray(tags) && tags.length > 0 && (
-            <TagRow title={tags.join(", ")}>
-              {tags.map((t) => (
-                <TagPill key={t}>{t}</TagPill>
-              ))}
-            </TagRow>
-          )}
         </FullCard>
       )}
 
       {/* 좌/우 작은 핸들 */}
-      {typeof targetPosition !== "undefined" && (
-        <Handle
-          type="target"
-          position={targetPosition ?? Position.Left}
-          className="mini-handle"
-        />
-      )}
+      <Handle
+        type="target"
+        position={targetPosition ?? Position.Left}
+        className="mini-handle"
+      />
       {typeof sourcePosition !== "undefined" && (
         <Handle
           type="source"
@@ -105,8 +93,9 @@ const LiteCard = styled.div`
   width: ${CARD_W}px;
   padding: 16px 18px;
   border-radius: 14px;
-  background: #ffffff;
-  border: 1px solid rgba(0, 0, 0, 0.08);
+  background: ${({ $group }) =>
+    $group ? "#F4FAF7" : "#ffffff"}; /* 그룹은 연녹색 */
+  border: 1px solid ${({ $group }) => ($group ? "#BFEAD0" : "rgba(0,0,0,0.08)")};
   box-shadow: 0 6px 12px rgba(31, 41, 55, 0.06);
 `;
 const LiteTitle = styled.div`
@@ -130,21 +119,20 @@ const LiteSummary = styled.div`
   overflow: hidden;
 `;
 
-/* full (ResultCard 스타일 + 고정 크기) */
+/* full (일반 QA 카드 전용) */
 const FullCard = styled.article`
   width: ${CARD_W}px;
-  height: ${CARD_H}px; /* ✅ 높이 고정 */
+  height: ${CARD_H}px;
   padding: 14px 14px 10px;
   border-radius: 16px;
   background: #fff;
   border: 1px solid rgba(0, 0, 0, 0.08);
   box-shadow: 0 10px 24px rgba(0, 0, 0, 0.06);
 
-  display: grid; /* ✅ 내부 영역을 그리드로 고정 배치 */
+  display: grid;
   grid-template-rows: auto auto auto auto 1fr;
   row-gap: 6px;
 
-  /* hover 인터랙션 */
   transition:
     transform 0.45s cubic-bezier(0.22, 1, 0.36, 1),
     border 0.3s ease,
@@ -190,8 +178,6 @@ const OneLine = styled.div`
   font-weight: 800;
   color: #2a344a;
   line-height: 1.25;
-
-  /* ✅ 한 줄 + ellipsis */
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -208,31 +194,6 @@ const OneLineMuted = styled.div`
   font-size: 12px;
   color: #111827;
   line-height: 1.4;
-
-  /* ✅ 한 줄 + ellipsis */
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-`;
-
-const TagRow = styled.div`
-  display: flex;
-  gap: 6px;
-  align-items: center;
-  overflow: hidden; /* ✅ 넘치면 숨김 */
-  white-space: nowrap;
-
-  /* 한 줄만, 말줄임은 개별 TagPill에서 처리 */
-`;
-const TagPill = styled.span`
-  padding: 4px 8px;
-  border-radius: 9999px;
-  font-size: 11px;
-  color: #2b3b52;
-  background: #eef2f7;
-
-  /* 개별 태그가 너무 길 때도 잘림 */
-  max-width: 140px;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;

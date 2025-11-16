@@ -1,4 +1,4 @@
-import styled from "styled-components";
+import styled, { css } from "styled-components";
 
 export const Container = styled.div`
   flex: 1;
@@ -12,7 +12,6 @@ export const Container = styled.div`
   overflow: hidden;
   min-width: 600px;
 `;
-
 
 export const CenterBox = styled.div`
   position: relative;
@@ -110,7 +109,10 @@ export const Input = styled.input`
     border-color: #6b5dd3;
   }
 `;
-
+export const InputWrap = styled.div`
+  position: relative;
+  display: inline-block;
+`;
 export const ButtonRow = styled.div`
   display: flex;
   justify-content: center;
@@ -137,5 +139,109 @@ export const SelectButton = styled.button`
   &:focus {
     outline: none;
     box-shadow: none;
+  }
+`;
+export const SendButton = styled.button`
+  position: absolute;
+  right: 6px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  border: none;
+  background: #406992;
+  color: #ffffff;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  cursor: pointer;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.12);
+  transition:
+    filter 120ms ease,
+    transform 80ms ease;
+
+  &:hover {
+    filter: brightness(1.05);
+  }
+  &:active {
+    transform: translateY(calc(-50% + 1px));
+  }
+
+  ${({ $disabled }) =>
+    $disabled &&
+    css`
+      opacity: 0.45;
+      cursor: not-allowed;
+      box-shadow: none;
+      &:hover {
+        filter: none;
+      }
+      &:active {
+        transform: translateY(-50%);
+      }
+    `}
+`;
+export const TopLeftBar = styled.div`
+  position: absolute;
+  top: 16px;
+  left: 24px;
+  z-index: 10;
+`;
+/* 드롭다운 위치 및 스타일 추가 */
+export const Dropdown = styled.div`
+  position: relative;
+`;
+
+export const DropdownToggler = styled.button`
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  padding: 4px 6px;
+  border-radius: 8px;
+
+  &:hover {
+    background: rgba(0, 0, 0, 0.04);
+  }
+  &:focus,
+  &:focus-visible {
+    outline: none;
+    box-shadow: none;
+  }
+`;
+
+export const TogglerTextMuted = styled.span`
+  font-size: 14px;
+  color: #6b7280;
+`;
+
+export const DropdownList = styled.ul`
+  position: absolute;
+  top: calc(100% + 8px);
+
+  width: 160px;
+  background: #fff;
+  border-radius: 12px;
+  box-shadow: 0 18px 36px rgba(0, 0, 0, 0.12);
+  overflow: hidden;
+  z-index: 2000;
+`;
+
+export const DropdownItem = styled.li`
+  padding: 8px 12px;
+  font-size: 14px;
+  color: ${({ $active }) => ($active ? "#111827" : "#374151")};
+  background: ${({ $active }) =>
+    $active ? "rgba(0,0,0,0.04)" : "transparent"};
+  cursor: pointer;
+  display: flex;
+  justify-content: space-between;
+  font-weight: 600;
+  &:hover {
+    background: rgba(0, 0, 0, 0.06);
   }
 `;
