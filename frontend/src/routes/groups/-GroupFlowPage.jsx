@@ -12,7 +12,7 @@ import {
 import { useChatList } from "@/hooks/useChatList";
 import TopleftCard from "@/components/topleftCard/TopleftCard";
 import ModalShell from "@/components/ModalShell/ModalShell";
-import FlowCanvas from "@/components/Groupflow/FlowCanvas";
+import FlowCanvas from "@/components/GroupFlow/FlowCanvas";
 import ErrorDialog from "@/components/common/Modal/ErrorDialog";
 
 export default function GroupFlowPage() {
