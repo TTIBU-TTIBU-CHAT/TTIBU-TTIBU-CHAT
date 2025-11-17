@@ -77,9 +77,8 @@ export const Dock = styled.div`
   position: absolute;
   top: 5rem;
   left: -56px;
-  
-  display: ${({ $fullscreen }) =>
-    $fullscreen ? "none" : "flex"};
+
+  display: ${({ $fullscreen }) => ($fullscreen ? "none" : "flex")};
   flex-direction: column;
   align-items: center;
   gap: 12px;
@@ -121,7 +120,6 @@ export const Header = styled.header`
   position: relative;
   height: 56px;
   z-index: 2;
-
 `;
 
 export const HeaderLayer = styled.div`
@@ -167,10 +165,14 @@ export const IconButton = styled.button`
   align-items: center;
   justify-content: center;
 
-  &:hover { background: rgba(0, 0, 0, 0.05); }
+  &:hover {
+    background: rgba(0, 0, 0, 0.05);
+  }
   &:focus,
-  &:focus-visible { outline: none; box-shadow: none; }
-
+  &:focus-visible {
+    outline: none;
+    box-shadow: none;
+  }
 `;
 
 /* ===== Dropdowns ===== */
@@ -187,9 +189,14 @@ export const DropdownToggler = styled.button`
   cursor: pointer;
   padding: 4px 6px;
   border-radius: 8px;
-  &:hover { background: rgba(0, 0, 0, 0.04); }
+  &:hover {
+    background: rgba(0, 0, 0, 0.04);
+  }
   &:focus,
-  &:focus-visible { outline: none; box-shadow: none; }
+  &:focus-visible {
+    outline: none;
+    box-shadow: none;
+  }
 `;
 
 export const TogglerText = styled.span`
@@ -206,7 +213,14 @@ export const TogglerTextMuted = styled.span`
 export const DropdownList = styled.ul`
   position: absolute;
   top: calc(100% + 8px);
-  ${({ $right }) => ($right ? css`right: 0;` : css`left: 0;`)}
+  ${({ $right }) =>
+    $right
+      ? css`
+          right: 0;
+        `
+      : css`
+          left: 0;
+        `}
   width: 160px;
   background: #fff;
   border-radius: 12px;
@@ -219,12 +233,15 @@ export const DropdownItem = styled.li`
   padding: 8px 12px;
   font-size: 14px;
   color: ${({ $active }) => ($active ? "#111827" : "#374151")};
-  background: ${({ $active }) => ($active ? "rgba(0,0,0,0.04)" : "transparent")};
+  background: ${({ $active }) =>
+    $active ? "rgba(0,0,0,0.04)" : "transparent"};
   cursor: pointer;
   display: flex;
   justify-content: space-between;
   font-weight: 600;
-  &:hover { background: rgba(0, 0, 0, 0.06); }
+  &:hover {
+    background: rgba(0, 0, 0, 0.06);
+  }
 `;
 
 /* ===== Body & Content 전환 컨테이너 ===== */
@@ -270,7 +287,6 @@ export const Bubble = styled.div`
   margin-left: ${({ $me }) => ($me ? "auto" : "0")};
 `;
 
-
 /* 말풍선 하단 모델 태그 */
 export const ModelTag = styled.div`
   margin: 6px 0 2px;
@@ -279,7 +295,6 @@ export const ModelTag = styled.div`
   text-align: right;
   padding-right: 6px;
 `;
-
 
 /* ===== Footer & Input ===== */
 export const Footer = styled.footer`
@@ -303,7 +318,10 @@ export const Input = styled.input`
   font-size: 14px;
   min-width: 0;
   &:focus,
-  &:focus-visible { outline: none; box-shadow: none; }
+  &:focus-visible {
+    outline: none;
+    box-shadow: none;
+  }
 `;
 export const SendButton = styled.button`
   position: absolute;
@@ -322,16 +340,24 @@ export const SendButton = styled.button`
   font-size: 14px;
   cursor: pointer;
   box-shadow: 0 2px 6px rgba(0, 0, 0, 0.12);
-  &:hover { filter: brightness(1.05); }
-  &:active { transform: translateY(calc(-50% + 1px)); }
+  &:hover {
+    filter: brightness(1.05);
+  }
+  &:active {
+    transform: translateY(calc(-50% + 1px));
+  }
   ${({ $disabled }) =>
     $disabled &&
     css`
       opacity: 0.45;
       cursor: not-allowed;
       box-shadow: none;
-      &:hover { filter: none; }
-      &:active { transform: translateY(-50%); }
+      &:hover {
+        filter: none;
+      }
+      &:active {
+        transform: translateY(-50%);
+      }
     `}
 `;
 
@@ -365,7 +391,9 @@ export const SearchField = styled.input`
   font-size: 14px;
   outline: none;
 
-  &::placeholder { color: #9ca3af; }
+  &::placeholder {
+    color: #9ca3af;
+  }
 
   &:focus,
   &:focus-visible {
@@ -374,7 +402,6 @@ export const SearchField = styled.input`
     border-color: rgba(64, 105, 146, 0.45);
   }
 `;
-
 
 export const SearchIconBtn = styled.button`
   width: 40px;
@@ -388,11 +415,20 @@ export const SearchIconBtn = styled.button`
   justify-content: center;
   cursor: pointer;
 
-  i { font-size: 16px; }
-  &:hover { filter: brightness(1.05); }
-  &:active { transform: translateY(1px); }
+  i {
+    font-size: 16px;
+  }
+  &:hover {
+    filter: brightness(1.05);
+  }
+  &:active {
+    transform: translateY(1px);
+  }
   &:focus,
-  &:focus-visible { outline: none; box-shadow: none; }
+  &:focus-visible {
+    outline: none;
+    box-shadow: none;
+  }
 `;
 
 export const ChipRow = styled.div`
@@ -421,7 +457,9 @@ export const Chip = styled.span`
     line-height: 1;
     color: #6b7280;
     padding: 0;
-    &:hover { color: #111827; }
+    &:hover {
+      color: #111827;
+    }
   }
 `;
 
@@ -433,13 +471,21 @@ export const SearchScroll = styled.div`
   flex-direction: column;
   gap: 12px;
 
-  &::-webkit-scrollbar { width: 8px; }
-  &::-webkit-scrollbar-track { background: transparent; }
+  &::-webkit-scrollbar {
+    width: 8px;
+  }
+  &::-webkit-scrollbar-track {
+    background: transparent;
+  }
   &::-webkit-scrollbar-thumb {
     background-color: rgba(0, 0, 0, 0.15);
     border-radius: 9999px;
   }
-  &::-webkit-scrollbar-button { display: none; height: 0; width: 0; }
+  &::-webkit-scrollbar-button {
+    display: none;
+    height: 0;
+    width: 0;
+  }
 `;
 
 export const ResultCard = styled.article`
@@ -524,4 +570,21 @@ export const TagPill = styled.span`
   display: inline-flex;
   align-items: center;
   justify-content: center;
+`;
+export const GroupTagRow = styled.div`
+  display: flex;
+  flex-wrap: wrap;
+  justify-content:right;
+  gap: 6px;
+  padding: 4px 2px 8px;
+  font-size: 12px;
+`;
+
+export const GroupTag = styled.span`
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: rgba(148, 163, 184, 0.16);
+  color: #64748b;
+  font-weight: 500;
+  line-height: 1.4;
 `;

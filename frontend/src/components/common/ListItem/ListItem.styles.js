@@ -4,13 +4,14 @@ export const Item = styled.div`
   display: flex;
   justify-content: space-between;
   align-items: flex-start;
+  width: 100%;
   gap: 10px;
   padding: 16px 14px;          /* 살짝 더 컴팩트 */
   border-bottom: 1px solid #e5e7eb;
   cursor: pointer;
   transition: background 0.2s ease;
   min-width: 0;
-
+  
   &:hover { background-color: #f8fafc; }
 `;
 

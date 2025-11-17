@@ -18,7 +18,11 @@ export default function QaNode({ data = {}, sourcePosition, targetPosition }) {
   const { label = "제목 없음", summary, question, answer, date } = data;
   // console.log("QaNode data:", data, sourcePosition, targetPosition);
   // ✅ 그룹 노드는 2단계: <1.0 => label / >=1.0 => summary
-  const isGroup = data?.type === "group";
+  
+  const rawType = data?.type || data?.raw?.type;
+  const isGroup =
+    typeof rawType === "string" && rawType.toUpperCase() === "GROUP";
+  const bgColor = data?.color||data?.raw?.color || (isGroup ? "#F4FAF7" : "#ffffff");
   const tier = isGroup
     ? baseTier === "label"
       ? "label"
@@ -30,7 +34,7 @@ export default function QaNode({ data = {}, sourcePosition, targetPosition }) {
   return (
     <NodeShell>
       {!showFull ? (
-        <LiteCard $group={isGroup}>
+        <LiteCard $group={isGroup} $bg={bgColor}>
           {tier === "label" ? (
             <LiteTitle title={label}>{label}</LiteTitle>
           ) : (
@@ -38,7 +42,7 @@ export default function QaNode({ data = {}, sourcePosition, targetPosition }) {
           )}
         </LiteCard>
       ) : (
-        <FullCard>
+        <FullCard $bg={bgColor}>
           <HeadRow>
             <Badge tone="blue">QUESTION</Badge>
             {date && <MetaDate>{date}</MetaDate>}
@@ -93,8 +97,7 @@ const LiteCard = styled.div`
   width: ${CARD_W}px;
   padding: 16px 18px;
   border-radius: 14px;
-  background: ${({ $group }) =>
-    $group ? "#F4FAF7" : "#ffffff"}; /* 그룹은 연녹색 */
+  background: ${({ $bg, $group }) => $bg || ($group ? "#F4FAF7" : "#ffffff")};
   border: 1px solid ${({ $group }) => ($group ? "#BFEAD0" : "rgba(0,0,0,0.08)")};
   box-shadow: 0 6px 12px rgba(31, 41, 55, 0.06);
 `;
@@ -125,7 +128,7 @@ const FullCard = styled.article`
   height: ${CARD_H}px;
   padding: 14px 14px 10px;
   border-radius: 16px;
-  background: #fff;
+  background: ${({ $bg }) => $bg || "#fff"};
   border: 1px solid rgba(0, 0, 0, 0.08);
   box-shadow: 0 10px 24px rgba(0, 0, 0, 0.06);
 
