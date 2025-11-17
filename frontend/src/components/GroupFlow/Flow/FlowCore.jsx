@@ -36,8 +36,8 @@ import {
 } from "./graphUtils";
 import { DND_MIME_GROUP, DND_MIME_RESULT, getPayloadFromDT } from "./dnd";
 import { initialNodes, initialEdges } from "../initialData";
-import DeletableEdge from "../edges/DeletableEdge";
-import SelectionOverlay from "../overlays/SelectionOverlay";
+import DeletableEdge from "../Edges/DeletableEdge";
+import SelectionOverlay from "../Overlays/SelectionOverlay";
 import QaNode from "../QaNode";
 import {
   edge as makeEdge,
