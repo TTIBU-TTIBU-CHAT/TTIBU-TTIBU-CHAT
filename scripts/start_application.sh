@@ -25,18 +25,18 @@ fi
 
 # ECR 이미지 pull
 echo "Pulling latest images from ECR..."
-docker-compose -f docker-compose.prod.yml pull
+docker-compose -f docker-compose.prod.yml --env-file .env pull
 echo "✓ Images pulled successfully"
 
 # 컨테이너 시작
 echo "Starting containers..."
-docker-compose -f docker-compose.prod.yml up -d
+docker-compose -f docker-compose.prod.yml --env-file .env up -d
 echo "✓ Containers started successfully"
 
 # 컨테이너 상태 확인
 echo ""
 echo "Container Status:"
-docker-compose -f docker-compose.prod.yml ps
+docker-compose -f docker-compose.prod.yml --env-file .env ps
 
 echo ""
 echo "=========================================="
