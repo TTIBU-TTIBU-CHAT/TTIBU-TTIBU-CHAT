@@ -47,6 +47,8 @@ services:
       TTIBU_CRYPTO_SECRET: ${TTIBU_CRYPTO_SECRET}
       SUMMARY_API_BASE_URL: ${SUMMARY_API_BASE_URL}
       SUMMARY_API_TIMEOUT_MS: ${SUMMARY_API_TIMEOUT_MS}
+      TZ: Asia/Seoul
+      JAVA_TOOL_OPTIONS: -Duser.timezone=Asia/Seoul 
     ports:
       - "8080:8080"
     volumes:

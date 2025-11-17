@@ -9,6 +9,7 @@ import io.ssafy.p.k13c103.coreapi.common.sse.SseEmitterManager;
 import io.ssafy.p.k13c103.coreapi.config.properties.AiProcessingProperties;
 import io.ssafy.p.k13c103.coreapi.domain.catalog.entity.ProviderCatalog;
 import io.ssafy.p.k13c103.coreapi.domain.catalog.repository.ProviderCatalogRepository;
+import io.ssafy.p.k13c103.coreapi.domain.chat.dto.CachedPageDto;
 import io.ssafy.p.k13c103.coreapi.domain.chat.dto.ChatRequestDto;
 import io.ssafy.p.k13c103.coreapi.domain.chat.dto.ChatResponseDto;
 import io.ssafy.p.k13c103.coreapi.domain.chat.dto.ChatSseEvent;
@@ -26,13 +27,17 @@ import io.ssafy.p.k13c103.coreapi.domain.room.repository.RoomRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.scheduling.annotation.Async;
+import org.springframework.security.core.parameters.P;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 import reactor.core.publisher.Flux;
 
+import java.time.Duration;
 import java.util.*;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
@@ -55,6 +60,7 @@ public class ChatServiceImpl implements ChatService {
     private final ObjectMapper objectMapper;
     private final Executor aiTaskExecutor;  // 동일 스레드풀 명시적으로 주입
     private final AiProcessingProperties aiProcessingProperties;
+    private final RedisTemplate<String, String> redisTemplate;
 
     @Override
     @Transactional(readOnly = true)
@@ -62,17 +68,39 @@ public class ChatServiceImpl implements ChatService {
         if (!memberRepository.existsById(memberUid))
             throw new ApiException(ErrorCode.MEMBER_NOT_FOUND);
 
+        // 키워드가 없는 경우 전체 조회, 5개 초과인 경우 error
         if (keywords == null || keywords.isEmpty()) {
             Page<Chat> page = chatRepository.findAllChats(memberUid, pageable);
             return page.map(chat -> new ChatResponseDto.SearchedResultInfo(chat));
         } else if (keywords.size() > 5)
             throw new ApiException(ErrorCode.TOO_MANY_SEARCH_KEYWORD);
 
+        // 캐시 조회 후 hit이면 읽어오기
+        String key = chatKey(memberUid, keywords);
+        String cached = redisTemplate.opsForValue().get(key);
+        if (cached != null) {
+            try {
+                CachedPageDto cachedPage = objectMapper.readValue(cached, CachedPageDto.class);
+                List<ChatResponseDto.SearchedResultInfo> content = cachedPage.getContent();
+                return new PageImpl<>(content, pageable, cachedPage.getTotal());
+            } catch (Exception e) { // ignored
+            }
+        }
+
+        // DB에서 조회
         String[] array = convertToArray(keywords);
-
         Page<Chat> page = chatRepository.searchByAllKeywords(memberUid, array, pageable);
+        Page<ChatResponseDto.SearchedResultInfo> result = page.map(ChatResponseDto.SearchedResultInfo::new);
 
-        return page.map(chat -> new ChatResponseDto.SearchedResultInfo(chat));
+        // 캐시에 저장
+        try {
+            CachedPageDto cacheObj = new CachedPageDto(result.getContent(), result.getTotalElements());
+            String json = objectMapper.writeValueAsString(cacheObj);
+            redisTemplate.opsForValue().set(key, json, Duration.ofSeconds(30));
+        } catch (Exception e) { // ignored
+        }
+
+        return result;
     }
 
     @Override
@@ -419,6 +447,13 @@ public class ChatServiceImpl implements ChatService {
                 room.getOwner().getMemberUid(), provider, total, prompt, completion);
     }
 
+    private String chatKey(Long memberUid, List<String> keywords) {
+        keywords.sort(String.CASE_INSENSITIVE_ORDER);
+        String joined = String.join("|", keywords);
+        int hash = joined.hashCode();
+        return "chat-search:" + memberUid + ":" + hash;
+    }
+
     private String buildFallbackSummary(List<String> keywords, String originalText) {
         if (keywords != null && !keywords.isEmpty()) {
             List<String> top = keywords.stream()
@@ -437,6 +472,4 @@ public class ChatServiceImpl implements ChatService {
 
         return originalText != null ? originalText : "요약 생성이 어려운 내용입니다.";
     }
-
-
 }

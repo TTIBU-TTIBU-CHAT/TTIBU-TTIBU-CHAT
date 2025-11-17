@@ -3,6 +3,13 @@ spring:
     name: core-api
   profiles:
     active: local
+  jackson:
+    time-zone: Asia/Seoul
+  jpa:
+    properties:
+      hibernate:
+        jdbc:
+          time-zone: Asia/Seoul
 
 app:
   index-initializer:
