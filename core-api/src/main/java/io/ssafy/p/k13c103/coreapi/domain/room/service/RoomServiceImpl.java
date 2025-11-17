@@ -27,6 +27,7 @@ import io.ssafy.p.k13c103.coreapi.domain.room.entity.Room;
 import io.ssafy.p.k13c103.coreapi.domain.room.repository.RoomRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
@@ -57,6 +58,7 @@ public class RoomServiceImpl implements RoomService {
     private final TransactionTemplate txTemplate;
     private final Executor aiTaskExecutor;
     private final ObjectMapper objectMapper;
+    private final RedisTemplate<String, String> redisTemplate;
 
     /**
      * 새로운 채팅방 생성 및 첫 질문 등록
@@ -226,10 +228,18 @@ public class RoomServiceImpl implements RoomService {
 
         roomRepository.updateViews(roomUid, chatInfo, branchView);
 
-        return RoomResponseDto.ChatBranchUpdatedInfo.builder()
+        RoomResponseDto.ChatBranchUpdatedInfo response = RoomResponseDto.ChatBranchUpdatedInfo.builder()
                 .roomUid(roomUid)
                 .updatedAt(roomRepository.getUpdatedAtByRoomUid(roomUid))
                 .build();
+
+        String key = roomViewKey(roomUid);
+        try {
+            redisTemplate.delete(key);
+        } catch (Exception e) { // ignore
+        }
+
+        return response;
     }
 
     @Override
@@ -241,15 +251,33 @@ public class RoomServiceImpl implements RoomService {
         if (!roomRepository.existsByRoomUidAndOwner_MemberUid(roomUid, memberUid))
             throw new ApiException(ErrorCode.ROOM_NOT_FOUND);
 
+        // 캐시 조회 후 hit이면 읽어오기
+        String key = roomViewKey(roomUid);
+        String cached = redisTemplate.opsForValue().get(key);
+        if (cached != null) {
+            try {
+                return objectMapper.readValue(cached, RoomResponseDto.ChatBranchInfo.class);
+            } catch (Exception e) { // ignore
+            }
+        }
+
+        // 캐시 miss이면 DB 조회
         RoomRepository.RoomViewsRow info = roomRepository.findViewsByRoomUid(roomUid);
 
-        return RoomResponseDto.ChatBranchInfo.builder()
+        RoomResponseDto.ChatBranchInfo response = RoomResponseDto.ChatBranchInfo.builder()
                 .roomUid(roomUid)
                 .chatInfo(info.getChatInfo())
                 .branchView(info.getBranchView())
                 .build();
-    }
 
+        try {
+            String json = objectMapper.writeValueAsString(response);
+            redisTemplate.opsForValue().set(key, json);
+        } catch (Exception e) { // ignore
+        }
+
+        return response;
+    }
 
     @Override
     @Transactional
@@ -264,6 +292,10 @@ public class RoomServiceImpl implements RoomService {
         chatRepository.deleteChatsByRoom(roomUid);
 
         roomRepository.deleteByRoomUidAndOwner_MemberUid(roomUid, memberUid);
+        try {
+            redisTemplate.delete(roomViewKey(roomUid));
+        } catch (Exception e) { // ignore
+        }
     }
 
     @Override
@@ -505,6 +537,10 @@ public class RoomServiceImpl implements RoomService {
             log.warn("[ROOM] keyword parse fail: groupKeywords={}", keywordsJson);
             return Collections.emptyList();
         }
+    }
+
+    private String roomViewKey(Long roomUid) {
+        return "room:view" + roomUid;
     }
 
     private boolean isBlank(String s) {
