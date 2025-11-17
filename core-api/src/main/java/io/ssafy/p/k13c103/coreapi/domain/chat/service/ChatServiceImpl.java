@@ -447,7 +447,7 @@ public class ChatServiceImpl implements ChatService {
                 room.getOwner().getMemberUid(), provider, total, prompt, completion);
     }
 
-    String chatKey(Long memberUid, List<String> keywords) {
+    private String chatKey(Long memberUid, List<String> keywords) {
         keywords.sort(String.CASE_INSENSITIVE_ORDER);
         String joined = String.join("|", keywords);
         int hash = joined.hashCode();
