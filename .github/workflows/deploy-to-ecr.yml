@@ -13,6 +13,14 @@ on:
           - core-api
           - summary-api
         default: 'all'
+      deploy:
+        description: 'Deploy to EC2 via CodeDeploy?'
+        required: true
+        type: choice
+        options:
+          - 'no'
+          - 'yes'
+        default: 'no'
 
 env:
   AWS_REGION: us-east-1  # ECR Public은 us-east-1만 지원
@@ -172,13 +180,59 @@ jobs:
           echo "- **Tags:** latest, ${{ github.sha }}" >> $GITHUB_STEP_SUMMARY
           docker images summary-api:latest --format "- **Size:** {{.Size}}" >> $GITHUB_STEP_SUMMARY
 
-  deployment-summary:
+  trigger-codedeploy:
     needs: [build-frontend, build-core-api, build-summary-api]
     runs-on: ubuntu-latest
-    if: always()
+    if: |
+      github.event.inputs.deploy == 'yes' &&
+      always() &&
+      (needs.build-frontend.result == 'success' ||
+       needs.build-core-api.result == 'success' ||
+       needs.build-summary-api.result == 'success')
 
     steps:
-      - name: Overall Deployment Summary
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ secrets.AWS_REGION }}
+
+      - name: Create deployment package
+        run: |
+          echo "📦 Creating deployment package..."
+          zip -r deployment-${{ github.sha }}.zip \
+            docker-compose.prod.yml \
+            appspec.yml \
+            scripts/ \
+            litellm-config.yaml
+          echo "✅ Deployment package created"
+
+      - name: Upload to S3
+        run: |
+          echo "⬆️  Uploading deployment package to S3..."
+          aws s3 cp deployment-${{ github.sha }}.zip \
+            s3://${{ secrets.CODEDEPLOY_S3_BUCKET }}/deployments/deployment-${{ github.sha }}.zip
+          echo "✅ Upload complete"
+
+      - name: Trigger CodeDeploy
+        run: |
+          echo "🚀 Triggering CodeDeploy deployment..."
+          DEPLOYMENT_ID=$(aws deploy create-deployment \
+            --application-name ${{ secrets.CODEDEPLOY_APP_NAME }} \
+            --deployment-group-name ${{ secrets.CODEDEPLOY_GROUP_NAME }} \
+            --s3-location bucket=${{ secrets.CODEDEPLOY_S3_BUCKET }},key=deployments/deployment-${{ github.sha }}.zip,bundleType=zip \
+            --description "Deployment triggered by GitHub Actions - ${{ github.sha }}" \
+            --query 'deploymentId' \
+            --output text)
+
+          echo "✅ Deployment triggered: $DEPLOYMENT_ID"
+          echo "DEPLOYMENT_ID=$DEPLOYMENT_ID" >> $GITHUB_ENV
+
+      - name: Deployment Summary
         run: |
           echo "# 🎉 Deployment Complete!" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
@@ -193,7 +247,10 @@ jobs:
           echo "- Core API: \`${{ env.ECR_REGISTRY }}/ttibu/core-api:latest\`" >> $GITHUB_STEP_SUMMARY
           echo "- Summary API: \`${{ env.ECR_REGISTRY }}/ttibu/summary-api:latest\`" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "## 🚀 Next Steps" >> $GITHUB_STEP_SUMMARY
-          echo "1. Update ECS Task Definitions with new image URIs" >> $GITHUB_STEP_SUMMARY
-          echo "2. Deploy to ECS services" >> $GITHUB_STEP_SUMMARY
-          echo "3. Monitor CloudWatch logs for any issues" >> $GITHUB_STEP_SUMMARY
+          echo "## 🚀 CodeDeploy Status" >> $GITHUB_STEP_SUMMARY
+          echo "- **Deployment ID:** ${{ env.DEPLOYMENT_ID }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Application:** ${{ secrets.CODEDEPLOY_APP_NAME }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Deployment Group:** ${{ secrets.CODEDEPLOY_GROUP_NAME }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "Monitor deployment status in AWS Console:" >> $GITHUB_STEP_SUMMARY
+          echo "https://console.aws.amazon.com/codesuite/codedeploy/deployments/${{ env.DEPLOYMENT_ID }}" >> $GITHUB_STEP_SUMMARY
