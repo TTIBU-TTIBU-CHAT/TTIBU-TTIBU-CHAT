@@ -4,11 +4,15 @@ import styled from "styled-components";
 
 import { useParams } from "@tanstack/react-router";
 import { groupService } from "@/services/groupService";
-
+import {
+  useCreateGroup,
+  useUpdateGroup,
+  useRenameGroup,
+} from "@/hooks/useGroups";
 import { useChatList } from "@/hooks/useChatList";
 import TopleftCard from "@/components/topleftCard/TopleftCard";
 import ModalShell from "@/components/ModalShell/ModalShell";
-import FlowCanvas from "@/components/Groupflow/FlowCanvas";
+import FlowCanvas from "@/components/GroupFlow/FlowCanvas";
 import ErrorDialog from "@/components/common/Modal/ErrorDialog";
 
 export default function GroupFlowPage() {
@@ -19,21 +23,24 @@ export default function GroupFlowPage() {
   const [groupData, setGroupData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-
+  const updateGroup =useUpdateGroup();
   /* ===== 그룹 상세 불러오기 ===== */
   useEffect(() => {
     const fetchGroupDetail = async () => {
-      if (!groupId){
-        console.log(groupId)
+      if (!groupId) {
+        console.log(groupId);
         return;
-      } 
-        
+      }
+
       try {
         setLoading(true);
         const res = await groupService.detail(groupId);
         if (res?.data?.status === "success") {
           setGroupData(res.data.data);
-          console.log("[GROUP_FLOW_PAGE] 그룹 상세 불러오기 성공:", res.data.data);
+          console.log(
+            "[GROUP_FLOW_PAGE] 그룹 상세 불러오기 성공:",
+            res.data.data
+          );
         } else {
           throw new Error("그룹 정보를 불러오지 못했습니다.");
         }
@@ -46,7 +53,7 @@ export default function GroupFlowPage() {
     };
     fetchGroupDetail();
   }, [groupId]);
-  
+
   /* ===== 채팅 데이터 ===== */
   const { messages, addUser, addAssistant } = useChatList([
     {
@@ -142,7 +149,7 @@ export default function GroupFlowPage() {
   }, [pendingNodeId]);
 
   // 저장 버튼: 선형 검증(루트 1개 등) 통과해야만 저장
-  const handleSave = useCallback(() => {
+  const handleSave = useCallback(async () => {
     const result = canvasRef.current?.validateForSave?.();
     if (!result) return;
     if (!result.ok) {
@@ -154,7 +161,25 @@ export default function GroupFlowPage() {
       setErrorOpen(true);
       return;
     }
-    console.log("✅ 검증 통과! 저장 진행");
+    // ✅ 검증 통과 후, ReactFlow에서 연결 순서대로 nodeId 배열을 가져옴
+    const orderedNodeIds = canvasRef.current?.getOrderedNodeIds?.() ?? [];
+
+    console.log(
+      "[GROUP_FLOW_PAGE] 저장 직전 nodeId 배열:",
+      { groupId, orderedNodeIds },
+      groupData?.name,
+      groupData
+    );
+
+    // 여기서 그룹 내용 수정 API 호출하면 됨 (예시는 추측입니다)
+    await updateGroup.mutateAsync({
+      groupId: Number(groupId),
+      name: groupData?.name,
+      nodes: orderedNodeIds,
+      summary_regen: true,
+    });
+
+    console.log("✅ 검증 통과! (API 호출은 위 부분에서 연결)");
   }, []);
 
   // 편집 모드 + 2개 이상 선택 시만 그룹 버튼 (옵션)

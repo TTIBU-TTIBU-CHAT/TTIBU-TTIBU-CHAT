@@ -11,7 +11,7 @@ export default function GroupList() {
   const deleteGroup = useDeleteGroup();
   const [modalMode, setModalMode] = useState(null);
   const [selectedGroup, setSelectedGroup] = useState(null);
-
+  const [openMenuId, setOpenMenuId] = useState(null);
   const handleOpenModal = (mode, group) => {
     setModalMode(mode);
     setSelectedGroup(group);
@@ -40,9 +40,9 @@ export default function GroupList() {
     <S.Container>
       <S.Title>그룹 목록</S.Title>
 
-      <S.CreateButton onClick={() => handleOpenModal("create")}>
+      {/* <S.CreateButton onClick={() => handleOpenModal("create")}>
         + 새 그룹 만들기
-      </S.CreateButton>
+      </S.CreateButton> */}
 
       {groups.length === 0 ? (
         <div>생성된 그룹이 없습니다.</div>
@@ -55,8 +55,18 @@ export default function GroupList() {
               tags={group.keyword}
               date={group.updated_at}
               onClick={() => handleClickGroup(group.groupId)}
+              menu={{
+                open: openMenuId === group.groupId,
+                onRename: () => handleOpenModal("rename", group),
+                onDelete: () => handleDelete(group.groupId),
+              }}
+              onMenuToggle={() => {
+                setOpenMenuId((prev) =>
+                  prev === group.groupId ? null : group.groupId
+                );
+              }}
             />
-            <S.ActionButtons>
+            {/* <S.ActionButtons>
               <button onClick={() => handleOpenModal("rename", group)}>
                 이름 수정
               </button>
@@ -64,7 +74,7 @@ export default function GroupList() {
                 그룹 수정
               </button>
               <button onClick={() => handleDelete(group.groupId)}>삭제</button>
-            </S.ActionButtons>
+            </S.ActionButtons> */}
           </S.GroupItem>
         ))
       )}
