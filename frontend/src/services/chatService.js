@@ -62,8 +62,10 @@ export const chatService = {
    *  Response: { room_id, node_id, branch_id, created_at }
    *  (LLM 답변/요약/키워드는 SSE 이벤트로 전달)
    */
-  createChat: ({ roomId, ...payload }) =>
-    api.post(`/rooms/${roomId}/chats`, payload),
+  createChat: ({ roomId, ...payload }) =>{
+    console.log("createChat payload", roomId, payload);
+    api.post(`/rooms/${roomId}/chats`, payload)
+  },
 
   /** ✅ GET /api/v1/chats?k=&k=&page=&size= (JSESSIONID 쿠키 필요) */
   async searchChats({ keywords, page = 0, size = 20 }) {

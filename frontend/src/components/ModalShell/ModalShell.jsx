@@ -32,9 +32,12 @@ export default function ModalShell({
   modelSource = "available",
 
   // ✅ 브랜치 연동용 (ChatFlowPage와 싱크)
-  branchItems = [],           // [{ label, value, active }]
-  activeBranchKey = "전체",   // "전체" 또는 branch_id 문자열
-  onBranchSelect,             // (value: string) => void
+  branchItems = [], // [{ label, value, active }]
+  activeBranchKey = "전체", // "전체" 또는 branch_id 문자열
+  onBranchSelect, // (value: string) => void
+
+    // 🔥 추가: 어떤 chat_id를 중앙에 스크롤할지
+  focusChatId,
 }) {
   const panelRef = useRef(null);
 
@@ -299,6 +302,8 @@ export default function ModalShell({
           input={input}
           onInputChange={onInputChange}
           onSend={onSend}
+
+          focusChatId={focusChatId}
         />
       );
     }

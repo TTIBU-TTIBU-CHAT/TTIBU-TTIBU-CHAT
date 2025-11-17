@@ -92,6 +92,7 @@ const FlowCore = forwardRef(function FlowCore(
       type: "qa",
       position: { x: idx * 300, y: 0 }, // 간단한 좌표 배치
       data: {
+        nodeId: n.nodeId,
         label: n.question || `노드 ${n.nodeId}`,
         summary: n.summary || "",
         question: n.question,
@@ -478,6 +479,7 @@ const FlowCore = forwardRef(function FlowCore(
               data: {
                 ...n.data,
                 __temp: false,
+                nodeId: payload.id ?? n.data?.nodeId,
                 type: "group",
                 label: payload.title || n.data?.label || "Group",
                 summary: payload.summary || "",
@@ -491,6 +493,7 @@ const FlowCore = forwardRef(function FlowCore(
             data: {
               ...n.data,
               __temp: false,
+              nodeId: payload.id ?? n.data?.nodeId,
               label: payload.label || payload.question || "질문",
               summary: (payload.answer || "").slice(0, 140),
               question: payload.question || payload.label || "",
@@ -532,7 +535,45 @@ const FlowCore = forwardRef(function FlowCore(
     }
     return { ok: errors.length === 0, errors };
   }, [nodes, edges]);
+  // 🔹 연결된 순서대로 백엔드 nodeId 배열 추출
+  const getOrderedNodeIds = useCallback(() => {
+    // 1) 루트 찾기 (incoming edge 없는 노드)
+    const incoming = computeIncomingMap(edges);
+    const nodeMap = new Map(nodes.map((n) => [n.id, n]));
+    const roots = nodes.filter((n) => !incoming.has(n.id));
 
+    if (roots.length !== 1) {
+      console.warn("[FLOW_CORE] getOrderedNodeIds: 루트가 1개가 아닙니다.", {
+        roots,
+      });
+    }
+
+    const ordered = [];
+    const visited = new Set();
+    let current = roots[0] || null;
+
+    while (current && !visited.has(current.id)) {
+      visited.add(current.id);
+
+      const backendId = current.data?.nodeId ?? current.data?.id ?? null;
+
+      if (backendId != null) {
+        ordered.push(backendId);
+      } else {
+        console.warn("[FLOW_CORE] nodeId가 없는 노드가 있습니다:", current);
+      }
+
+      const nextEdge = edges.find((e) => e.source === current.id);
+      if (!nextEdge) break;
+      current = nodeMap.get(nextEdge.target);
+    }
+
+    console.log("[FLOW_CORE] 현재 nodes:", nodes);
+    console.log("[FLOW_CORE] 현재 edges:", edges);
+    console.log("[FLOW_CORE] 순서대로 추출된 nodeId 배열:", ordered);
+
+    return ordered;
+  }, [nodes, edges]);
   // 저장 검증/조작 메서드 노출
   useImperativeHandle(
     ref,
@@ -542,6 +583,7 @@ const FlowCore = forwardRef(function FlowCore(
       validateForSave: validateForSaveNow,
       applyContentToNode,
       discardTempNode,
+      getOrderedNodeIds,
     }),
     [
       reset,
@@ -549,6 +591,7 @@ const FlowCore = forwardRef(function FlowCore(
       validateForSaveNow,
       applyContentToNode,
       discardTempNode,
+      getOrderedNodeIds,
     ]
   );
   /* 변경 감지 */
@@ -615,7 +658,13 @@ const FlowCore = forwardRef(function FlowCore(
           id,
           type: "qa",
           position: { x, y },
-          data: { type: "group", label, summary, group: g },
+          data: {
+            type: "group",
+            label,
+            summary,
+            group: g,
+            nodeId: payload.id, // ★ 그룹 카드의 원본 id 저장(있다면)
+          },
           style: nodeStyle,
           sourcePosition: Position.Right,
           targetPosition: Position.Left,
@@ -632,6 +681,7 @@ const FlowCore = forwardRef(function FlowCore(
         type: "qa",
         position: { x, y },
         data: {
+          nodeId: payload.id,
           label: payload.label || payload.question || "질문",
           summary: (payload.answer || "").slice(0, 140),
           question: payload.question || payload.label || "",

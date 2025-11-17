@@ -12,6 +12,7 @@ import ErrorDialog from "@/components/common/Modal/ErrorDialog";
 import { useRoom, useSaveRoomData } from "@/hooks/useChatRooms";
 import { useSSEStore } from "@/store/useSSEStore";
 import { useCreateGroup } from "@/hooks/useGroups";
+import { useCreateChat } from "@/hooks/useRoomChats";
 import {
   useAttachChatFromExisting,
   useAttachGroup,
@@ -23,364 +24,37 @@ import {
   saveJSON,
 } from "./-chatFlow.storage";
 
-
 import {
   ensurePositions,
   mergeNodes,
   uniqEdges,
   updateNodeByChatId,
   toRF,
-  toChatMessages,
   deriveViews,
 } from "./-chatFlow.utils";
-
-
+import {
+  collectAncestorChatIds,
+  orderedNodesByGraph,
+  attachParentChildren,
+  rebuildBranchViewsFromNodes,
+  rebuildFromSnapshot,
+  applyLocalBranchNames,
+} from "./-chatFlow.graph";
 /* ======================================================================= */
 /* 🔧 디버그 플래그: 필요할 때만 true 로 바꿔서 사용 */
 const DEBUG_FLOW = true;
-
-/* ======================================================================= */
-/* 🧠 parent / children 필드 채우는 헬퍼                                   */
-/* ======================================================================= */
-function attachParentChildren(graph) {
-  if (!graph) return graph;
-
-  const nodes = graph.nodes ?? [];
-  const edges = graph.edges ?? [];
-
-  const parentMap = new Map(); // childChatId -> parentChatId
-  const childrenMap = new Map(); // parentChatId -> [childChatId]
-
-  edges.forEach((e) => {
-    if (!e) return;
-    const s = Number(e.source);
-    const t = Number(e.target);
-    if (Number.isNaN(s) || Number.isNaN(t)) return;
-
-    parentMap.set(t, s);
-
-    const arr = childrenMap.get(s) ?? [];
-    arr.push(t);
-    childrenMap.set(s, arr);
-  });
-
-  const nextNodes = nodes.map((n) => {
-    const cidRaw = n?.chat_id ?? n?.id ?? n?.node_id;
-    const cid = cidRaw !== undefined && cidRaw !== null ? Number(cidRaw) : null;
-
-    if (cid === null || Number.isNaN(cid)) {
-      return {
-        ...n,
-        parent: null,
-        children: [],
-      };
-    }
-
-    return {
-      ...n,
-      parent: parentMap.get(cid) ?? null,
-      children: childrenMap.get(cid) ?? [],
-    };
-  });
-
-  return {
-    ...graph,
-    nodes: nextNodes,
-  };
-
-}
-
-/* ======================================================================= */
-/* 🧠 branchViews를 nodes/edges 기준으로 재구성하는 헬퍼                    */
-/* ======================================================================= */
-function rebuildBranchViewsFromNodes(nodes, edges, roomId, prevBranchViews) {
-  const prevBranches = prevBranchViews?.branches ?? {};
-  const branches = {};
-  let maxBranchNumber = prevBranchViews?.max_branch_number ?? 0;
-
-  const nodeById = new Map(
-    (nodes ?? []).map((n) => [Number(n.chat_id ?? n.id ?? n.node_id), n])
-  );
-
-  // 노드 기준으로 included_nodes 구성
-  (nodes ?? []).forEach((n) => {
-    const cidRaw = n?.chat_id ?? n?.id ?? n?.node_id;
-    const cid = cidRaw !== undefined && cidRaw !== null ? Number(cidRaw) : null;
-    const bIdRaw = n?.branch_id ?? n?.branchId ?? null;
-    const bId = bIdRaw !== undefined && bIdRaw !== null ? Number(bIdRaw) : null;
-
-    if (cid === null || Number.isNaN(cid)) return;
-    if (bId === null || Number.isNaN(bId)) return;
-
-    const key = String(bId);
-    if (!branches[key]) {
-      const prev = prevBranches[key];
-      branches[key] = {
-        branch_name: prev?.branch_name ?? "",
-        included_nodes: [],
-        included_edges: [],
-      };
-    }
-    branches[key].included_nodes.push(cid);
-    maxBranchNumber = Math.max(maxBranchNumber, bId);
-  });
-
-  // 엣지 기준으로 included_edges 구성 (source/target이 같은 branch에 속하는 경우)
-  (edges ?? []).forEach((e) => {
-    const s = Number(e.source);
-    const t = Number(e.target);
-    if (Number.isNaN(s) || Number.isNaN(t)) return;
-
-    const sn = nodeById.get(s);
-    const tn = nodeById.get(t);
-    if (!sn || !tn) return;
-
-    const sb = sn?.branch_id ?? sn?.branchId ?? null;
-    const tb = tn?.branch_id ?? tn?.branchId ?? null;
-    const sbNum = sb !== undefined && sb !== null ? Number(sb) : null;
-    const tbNum = tb !== undefined && tb !== null ? Number(tb) : null;
-
-    if (
-      sbNum === null ||
-      tbNum === null ||
-      Number.isNaN(sbNum) ||
-      Number.isNaN(tbNum) ||
-      sbNum !== tbNum
-    ) {
-      return;
-    }
-
-    const key = String(sbNum);
-    if (!branches[key]) {
-      const prev = prevBranches[key];
-      branches[key] = {
-        branch_name: prev?.branch_name ?? "",
-        included_nodes: [],
-        included_edges: [],
-      };
-    }
-
-    branches[key].included_edges.push({
-      source: s,
-      target: t,
-    });
-  });
-
-  return {
-    chat_room_id: Number(roomId),
-    max_branch_number: maxBranchNumber,
-    branches,
-    last_updated: new Date().toISOString(),
-  };
-}
-
-/* ======================================================================= */
-/* 🧠 ReactFlow snapshot 기준으로 chatViews / branchViews 재구성            */
-/* ======================================================================= */
-function rebuildFromSnapshot(prevChatViews, prevBranchViews, snapshot, roomId) {
-  const prevNodes = prevChatViews?.nodes ?? [];
-  const prevEdges = prevChatViews?.edges ?? [];
-
-  const prevById = new Map(
-    prevNodes.map((n) => [Number(n.chat_id ?? n.id ?? n.node_id), n])
-  );
-
-  const snapNodes = Array.isArray(snapshot?.nodes) ? snapshot.nodes : [];
-  const snapEdges = Array.isArray(snapshot?.edges) ? snapshot.edges : [];
-
-  // snapshot에서 "도메인 노드(chat_id 기반)"로 볼 수 있는 id set 수집
-  const domainIdSet = new Set();
-
-  snapNodes.forEach((n) => {
-    const cid = Number(n.id);
-    if (!Number.isNaN(cid)) {
-      domainIdSet.add(cid);
-    }
-  });
-
-  snapEdges.forEach((e) => {
-    const s = Number(e.source);
-    const t = Number(e.target);
-    if (!Number.isNaN(s)) domainIdSet.add(s);
-    if (!Number.isNaN(t)) domainIdSet.add(t);
-  });
-
-  // 도메인 노드들만 재구성 (기존 도메인 데이터는 그대로 유지)
-  const rebuiltNodes = Array.from(domainIdSet).map((cid) => {
-    const prev = prevById.get(cid) || {};
-    const snapNode = snapNodes.find((n) => Number(n.id) === cid);
-
-    const pos = snapNode
-      ? {
-          x: snapNode.position?.x ?? snapNode.x ?? prev.position?.x ?? 0,
-          y: snapNode.position?.y ?? snapNode.y ?? prev.position?.y ?? 0,
-        }
-      : (prev.position ?? { x: 0, y: 0 });
-
-    return {
-      ...prev,
-      chat_id: cid,
-      position: pos,
-    };
-  });
-
-  // 도메인 엣지만 재구성 (source/target 둘 다 숫자인 것만)
-  const rebuiltEdges = snapEdges
-    .map((e) => {
-      const s = Number(e.source);
-      const t = Number(e.target);
-      if (Number.isNaN(s) || Number.isNaN(t)) return null;
-      return { source: s, target: t };
-    })
-    .filter(Boolean);
-
-  // parent / children 부착
-  const chatInfo = attachParentChildren({
-    chat_room_id: Number(roomId),
-    ...(prevChatViews ?? {}),
-    nodes: rebuiltNodes,
-    edges: rebuiltEdges,
-    last_updated: new Date().toISOString(),
-  });
-
-  // branchViews 재구성 (branch_name은 가능한 유지)
-  const branchView = rebuildBranchViewsFromNodes(
-    chatInfo.nodes ?? [],
-    chatInfo.edges ?? [],
-    roomId,
-    prevBranchViews
-  );
-
-  return { chatInfo, branchView };
-}
-
-/* 작은 유틸: 노드 변경 헬퍼 (변경된 key만 수집해 로그용으로 반환) */
-function updateNodeByChatId(prevChatViews, chatId, updater) {
-  if (!prevChatViews) return { next: prevChatViews, changed: null };
-  const nextNodes = prevChatViews.nodes.map((n) => {
-    const nid = n?.chat_id ?? n?.id;
-    if (String(nid) === String(chatId)) {
-      const next = updater(n);
-      return next;
-    }
-    return n;
-  });
-
-  const prevNode = prevChatViews.nodes.find(
-    (n) => String(n?.chat_id ?? n?.id) === String(chatId)
-  );
-  const nextNode = nextNodes.find(
-    (n) => String(n?.chat_id ?? n?.id) === String(chatId)
-  );
-
-  let changed = null;
-  if (prevNode && nextNode) {
-    changed = {};
-    for (const k of Object.keys(nextNode)) {
-      if (prevNode[k] !== nextNode[k]) {
-        changed[k] = { before: prevNode[k], after: nextNode[k] };
-      }
-    }
-  }
-  return { next: { ...prevChatViews, nodes: nextNodes }, changed };
-}
-
-/* ======================================================================= */
-
-/* ======================================================================= */
-/* 🧠 ReactFlow snapshot 기준으로 chatViews / branchViews 재구성            */
-/* ======================================================================= */
-function rebuildFromSnapshot(prevChatViews, prevBranchViews, snapshot, roomId) {
-  const prevNodes = prevChatViews?.nodes ?? [];
-  const prevEdges = prevChatViews?.edges ?? [];
-
-  const prevById = new Map(
-    prevNodes.map((n) => [Number(n.chat_id ?? n.id ?? n.node_id), n])
-  );
-
-  const snapNodes = Array.isArray(snapshot?.nodes) ? snapshot.nodes : [];
-  const snapEdges = Array.isArray(snapshot?.edges) ? snapshot.edges : [];
-
-  // snapshot에서 "도메인 노드(chat_id 기반)"로 볼 수 있는 id set 수집
-  const domainIdSet = new Set();
-
-  snapNodes.forEach((n) => {
-    const cid = Number(n.id);
-    if (!Number.isNaN(cid)) {
-      domainIdSet.add(cid);
-    }
-  });
-
-  snapEdges.forEach((e) => {
-    const s = Number(e.source);
-    const t = Number(e.target);
-    if (!Number.isNaN(s)) domainIdSet.add(s);
-    if (!Number.isNaN(t)) domainIdSet.add(t);
-  });
-
-  // 도메인 노드들만 재구성 (기존 도메인 데이터는 그대로 유지)
-  const rebuiltNodes = Array.from(domainIdSet).map((cid) => {
-    const prev = prevById.get(cid) || {};
-    const snapNode = snapNodes.find((n) => Number(n.id) === cid);
-
-    const pos = snapNode
-      ? {
-          x: snapNode.position?.x ?? snapNode.x ?? prev.position?.x ?? 0,
-          y: snapNode.position?.y ?? snapNode.y ?? prev.position?.y ?? 0,
-        }
-      : (prev.position ?? { x: 0, y: 0 });
-
-    return {
-      ...prev,
-      chat_id: cid,
-      position: pos,
-    };
-  });
-
-  // 도메인 엣지만 재구성 (source/target 둘 다 숫자인 것만)
-  const rebuiltEdges = snapEdges
-    .map((e) => {
-      const s = Number(e.source);
-      const t = Number(e.target);
-      if (Number.isNaN(s) || Number.isNaN(t)) return null;
-      return { source: s, target: t };
-    })
-    .filter(Boolean);
-
-  // parent / children 부착
-  const chatInfo = attachParentChildren({
-    chat_room_id: Number(roomId),
-    ...(prevChatViews ?? {}),
-    nodes: rebuiltNodes,
-    edges: rebuiltEdges,
-    last_updated: new Date().toISOString(),
-  });
-
-  // branchViews 재구성 (branch_name은 가능한 유지)
-  const branchView = rebuildBranchViewsFromNodes(
-    chatInfo.nodes ?? [],
-    chatInfo.edges ?? [],
-    roomId,
-    prevBranchViews
-  );
-
-  return { chatInfo, branchView };
-}
-
-
-
-/* ======================================================================= */
 
 export default function ChatFlowPage() {
   /* ✅ URL 파라미터 (/chatrooms/$roomId) */
   const { nodeId } = useParams({ strict: false });
   const [roomId] = useState(nodeId);
 
-
   /* ✅ 라우터 state (NewChat → navigate 시 넘긴 roomInit) */
   const routeState = useRouterState();
   const roomInit = routeState?.location?.state?.roomInit;
 
+  // 선택된 노드의 chat_id (뷰 모드 포커싱용)
+  const [focusedChatId, setFocusedChatId] = useState(null);
 
   /* ✅ 서버 최신 데이터 */
   const {
@@ -388,8 +62,7 @@ export default function ChatFlowPage() {
     isLoading: roomLoading,
     error: roomError,
   } = useRoom(roomId);
-
-
+  const createChat = useCreateChat();
   const apiRoomData = fetchedRoom?.data ?? fetchedRoom ?? null;
   const effectiveRoomData = roomInit ?? apiRoomData;
 
@@ -404,6 +77,17 @@ export default function ChatFlowPage() {
   );
   const [branchViews, setBranchViews] = useState(initialViews.branchViews);
 
+  const [baseline, setBaseline] = useState(() => ({
+    chatViews: attachParentChildren(initialViews.chatViews),
+    branchViews: initialViews.branchViews,
+  }));
+
+  // 🔥 chatViews 최신값을 참조하기 위한 ref (snapshot 저장/부모 계산용)
+  const chatViewsRef = useRef(chatViews);
+  useEffect(() => {
+    chatViewsRef.current = chatViews;
+  }, [chatViews]);
+
   const latestBranchViewsRef = useRef(branchViews);
   useEffect(() => {
     latestBranchViewsRef.current = branchViews;
@@ -411,8 +95,16 @@ export default function ChatFlowPage() {
 
   useEffect(() => {
     const next = deriveViews(effectiveRoomData);
-    setChatViews(attachParentChildren(next.chatViews));
+    const nextChat = attachParentChildren(next.chatViews);
+
+    setChatViews(nextChat);
     setBranchViews(next.branchViews);
+
+    // ✅ 링크에 들어왔을 때 상태를 baseline으로 기록
+    setBaseline({
+      chatViews: nextChat,
+      branchViews: next.branchViews,
+    });
   }, [effectiveRoomData]);
 
   /* ------------------------ 채팅 리스트 (로컬 임시용) ------------------------ */
@@ -494,16 +186,36 @@ export default function ChatFlowPage() {
       if (!hasGraph && !hasBranches) {
         return;
       }
-      saveRoomData.mutate({
-        roomId,
-        chatInfo: JSON.stringify(normalized),
-        branchView: JSON.stringify(latestBranchViewsRef.current),
-      });
 
+      const payload = {
+        roomId: Number(roomId),
+        chatInfo: normalized,
+        branchView: latestBranchViewsRef.current,
+      };
+
+      console.log("==== [SAVE_DEBUG] persistViews payload (object) ====");
+      console.log(payload);
+      console.log(
+        "==== [SAVE_DEBUG] persistViews payload (JSON) ====\n",
+        JSON.stringify(payload, null, 2)
+      );
+
+      // ✅ 실제 저장 API 호출
+      saveRoomData.mutate(
+        {
+          roomId: Number(roomId),
+          chatInfo: JSON.stringify(normalized),
+          branchView: JSON.stringify(latestBranchViewsRef.current),
+        },
+        {
+          onError: (err) => {
+            console.error("[persistViews] saveRoomData error:", err);
+          },
+        }
+      );
     },
     [roomId, saveRoomData]
   );
-
 
   const persistBoth = useCallback(
     (nextChatViews, nextBranchViews) => {
@@ -518,14 +230,68 @@ export default function ChatFlowPage() {
       if (!hasGraph && !hasBranches) {
         return;
       }
-      saveRoomData.mutate({
-        roomId,
-        chatInfo: JSON.stringify(normalized),
-        branchView: JSON.stringify(nextBranchViews),
-      });
+
+      const payload = {
+        roomId: Number(roomId),
+        chatInfo: normalized,
+        branchView: nextBranchViews,
+      };
+
+      console.log("==== [SAVE_DEBUG] persistBoth payload (object) ====");
+      console.log(payload);
+      console.log(
+        "==== [SAVE_DEBUG] persistBoth payload (JSON) ====\n",
+        JSON.stringify(payload, null, 2)
+      );
+
+      // ✅ 실제 저장 API 호출
+      saveRoomData.mutate(
+        {
+          roomId: Number(roomId),
+          chatInfo: JSON.stringify(normalized),
+          branchView: JSON.stringify(nextBranchViews),
+        },
+        {
+          onError: (err) => {
+            console.error("[persistBoth] saveRoomData error:", err);
+          },
+        }
+      );
     },
     [roomId, saveRoomData]
   );
+
+  /* 🔥 새로 추가: 검증 없이 조용히 스냅샷만 저장하는 함수
+     - 채팅 전송(handleSend)에서만 사용
+     - 비어 있는 노드가 있어도 validateForSave를 호출하지 않음 */
+  const canvasRef = useRef(null);
+
+  const snapshotAndPersistSilently = useCallback(() => {
+    if (!canvasRef.current?.getSnapshot) return;
+
+    const snapshot = canvasRef.current.getSnapshot?.() || {
+      nodes: [],
+      edges: [],
+    };
+
+    const { chatInfo, branchView } = rebuildFromSnapshot(
+      chatViewsRef.current,
+      latestBranchViewsRef.current,
+      snapshot,
+      roomId
+    );
+
+    setChatViews(chatInfo);
+    setBranchViews(branchView);
+    latestBranchViewsRef.current = branchView;
+
+    setBaseline({
+      chatViews: chatInfo,
+      branchViews: branchView,
+    });
+
+    persistBoth(chatInfo, branchView);
+  }, [roomId, persistBoth]);
 
   /* -------------------------- SSE / 스트림 관련 -------------------------- */
   const attachHandlers = useSSEStore((s) => s.attachHandlers);
@@ -539,7 +305,6 @@ export default function ChatFlowPage() {
   const firstStreamOpenedRef = useRef(false);
 
   /* ----------------------------- 라우트 / 상태 ----------------------------- */
-
   const pathname = routeState.location.pathname;
   const isGroups = pathname.startsWith("/groups");
 
@@ -572,13 +337,10 @@ export default function ChatFlowPage() {
   const [errorOpen, setErrorOpen] = useState(false);
   const [errorMsg, setErrorMsg] = useState("");
 
-  const canvasRef = useRef(null);
   const createGroup = useCreateGroup();
-
 
   const attachChatFromExisting = useAttachChatFromExisting();
   const attachGroupToRoom = useAttachGroup();
-
 
   /* --------------------------- 에러 핸들러 --------------------------- */
   const handleCoreError = useCallback(({ message }) => {
@@ -586,30 +348,17 @@ export default function ChatFlowPage() {
     setErrorOpen(true);
   }, []);
 
-  /* ----------------------------- 채팅 전송 ----------------------------- */
-  const handleSend = useCallback(() => {
-    const t = input.trim();
-    if (!t) return;
-    addUser(t);
-    setInput("");
-    setTimeout(() => addAssistant("응답: " + t), 300);
-
-    if (editingNodeId) {
-      canvasRef.current?.updateNodeLabel(editingNodeId, t);
-      const branchMap = loadJSON(LS_BRANCH_BY_NODE, {});
-      const pending = loadJSON(LS_PENDING_MSGS, []);
-      pending.push({
-        nodeId: editingNodeId,
-        text: t,
-        ts: Date.now(),
-        branchName: branchMap[editingNodeId] || null,
-      });
-      saveJSON(LS_PENDING_MSGS, pending);
-    }
-  }, [input, addUser, addAssistant, editingNodeId]);
-
   /* ------------------------- FlowCanvas 조작 ------------------------- */
-  const handleInit = () => canvasRef.current?.reset();
+  const handleInit = () => {
+    if (!baseline) return;
+
+    setChatViews(baseline.chatViews);
+    setBranchViews(baseline.branchViews);
+    latestBranchViewsRef.current = baseline.branchViews;
+
+    // 필요하다면 여기서도 한번 저장해도 됨
+    // persistBoth(baseline.chatViews, baseline.branchViews);
+  };
 
   const handleSave = useCallback(async () => {
     console.log("=== handleSave called ===", chatViews, branchViews);
@@ -641,12 +390,21 @@ export default function ChatFlowPage() {
       ])
     );
 
+    // 1-2) RF 부모/자식 맵 (childRFId -> parentRFId)
+    const rfParentMap = new Map();
+    (snapshot.edges ?? []).forEach((e) => {
+      if (!e) return;
+      const child = String(e.target);
+      const parent = String(e.source);
+      rfParentMap.set(child, parent);
+    });
+
     // ✅ 항상 snapshot 기준으로 한 번 재구성해서
     //    삭제/이동/연결 상태를 base로 만든다
     const { chatInfo: baseChatInfo, branchView: baseBranchView } =
       rebuildFromSnapshot(chatViews, branchViews, snapshot, roomId);
 
-    // 1-2) RF id → 도메인 chat_id 맵 (기존 노드용)
+    // 1-3) RF id → 도메인 chat_id 맵 (기존 노드용)
     const flowIdToChatId = new Map();
     (baseChatInfo?.nodes ?? []).forEach((n) => {
       const cid = n.chat_id ?? n.id ?? n.node_id;
@@ -664,8 +422,13 @@ export default function ChatFlowPage() {
     if (!hasPending) {
       setChatViews(baseChatInfo);
       setBranchViews(baseBranchView);
+
       latestBranchViewsRef.current = baseBranchView;
 
+      setBaseline({
+        chatViews: baseChatInfo,
+        branchViews: baseBranchView,
+      });
       debugLogRoomAndGraph("handleSave (no pendingOps, rebuilt)", {
         chatInfoOverride: baseChatInfo,
         branchViewOverride: baseBranchView,
@@ -833,10 +596,148 @@ export default function ChatFlowPage() {
       }
     }
 
-    // 5) 그룹 붙이기 (순차)
-    for (const { roomId: rid, group_id } of groupAttachments) {
+    // 5) 그룹 붙이기 (순차) + 도메인 GROUP 노드 생성
+    for (const { roomId: rid, group_id, nodeId } of groupAttachments) {
       try {
-        await attachGroupToRoom.mutateAsync({ roomId: rid, group_id });
+        const response = await attachGroupToRoom.mutateAsync({
+          roomId: rid,
+          group_id,
+        });
+        const res = response.data.data;
+        console.log("[attachGroupToRoom] response:", res);
+
+        // ⚠️ 응답 구조는 추측입니다.
+        const apiData = res?.data ?? res;
+        const groupNodeId =
+          apiData?.newChatId ??
+          apiData?.chat_id ??
+          apiData?.data?.node_id ??
+          apiData?.data?.chat_id ??
+          null;
+
+        if (!groupNodeId) {
+          console.warn(
+            "[attachGroupToRoom] 응답에 node_id/chat_id 없음, 도메인 노드 생성 생략"
+          );
+          continue;
+        }
+
+        const rfId = String(nodeId);
+
+        // RF 스냅샷에서 이 그룹 노드의 위치
+        const pos = posMap.get(rfId) || { x: 0, y: 0 };
+
+        // RF 스냅샷에서 이 Flow 노드 자체 (data 복사용)
+        const snapNodeForGroup = snapNodes.find((n) => String(n.id) === rfId);
+
+        const prevNodes = nextChatViews?.nodes ?? [];
+        const prevEdges = nextChatViews?.edges ?? [];
+
+        // 부모 edge (부모 → 그룹)
+        const parentEdge = (snapshot.edges ?? []).find(
+          (e) => String(e.target) === rfId
+        );
+
+        let parentChatId = null;
+        if (parentEdge) {
+          const parentRFId = String(parentEdge.source);
+          parentChatId =
+            flowIdToChatId.get(parentRFId) ??
+            (!Number.isNaN(Number(parentRFId)) ? Number(parentRFId) : null);
+        }
+
+        // 🔍 형제 edge들 (부모가 이미 다른 자식들을 갖고 있는지 확인)
+        const siblingEdges = parentEdge
+          ? (snapshot.edges ?? []).filter(
+              (e) => String(e.source) === String(parentEdge.source)
+            )
+          : [];
+
+        const hasOtherChildren =
+          parentEdge && siblingEdges.some((e) => String(e.target) !== rfId);
+
+        // branch_id 결정: 스냅샷 data → 없으면 부모 branch_id 상속
+        const baseBranchId =
+          snapNodeForGroup?.data?.branch_id ??
+          snapNodeForGroup?.data?.branchId ??
+          (parentChatId != null
+            ? prevNodes.find((n) => Number(n.chat_id) === Number(parentChatId))
+                ?.branch_id
+            : null);
+
+        let branchId = baseBranchId ?? null;
+
+        // 🔹 부모가 이미 다른 자식이 있으면 → 새 branch id 생성
+        if (hasOtherChildren) {
+          const prevBV = latestBranchViewsRef.current ?? nextBranchViews;
+
+          const branchIdsFromBV = Object.keys(prevBV?.branches ?? {})
+            .map((k) => Number(k))
+            .filter((v) => !Number.isNaN(v));
+
+          const branchIdsFromNodes = prevNodes
+            .map((n) => n?.branch_id ?? n?.branchId ?? null)
+            .filter((v) => v != null)
+            .map((v) => Number(v))
+            .filter((v) => !Number.isNaN(v));
+
+          const allIds = [...branchIdsFromBV, ...branchIdsFromNodes];
+
+          const currentMax =
+            allIds.length > 0
+              ? Math.max(...allIds)
+              : (prevBV?.max_branch_number ?? 0);
+
+          branchId = currentMax + 1;
+        }
+
+        // 🔥 도메인 GROUP 노드 생성
+        const groupNode = {
+          ...(snapNodeForGroup?.data?.raw ?? snapNodeForGroup?.data ?? {}),
+          chat_id: Number(groupNodeId),
+          type: "GROUP",
+          group_id: Number(group_id),
+          parent: parentChatId ?? null,
+          position: { x: pos.x, y: pos.y },
+          branch_id: branchId ?? baseBranchId ?? null,
+          created_at: new Date().toISOString(),
+        };
+
+        const nextEdges = [...prevEdges];
+
+        // 부모 → 그룹 edge
+        if (parentChatId != null) {
+          const already = nextEdges.some(
+            (e) =>
+              Number(e.source) === Number(parentChatId) &&
+              Number(e.target) === Number(groupNodeId)
+          );
+          if (!already) {
+            nextEdges.push({
+              source: Number(parentChatId),
+              target: Number(groupNodeId),
+            });
+          }
+        }
+
+        // 누적 상태에 GROUP 노드 반영
+        nextChatViews = attachParentChildren({
+          ...(nextChatViews ?? {}),
+          nodes: [...prevNodes, groupNode],
+          edges: nextEdges,
+          last_updated: new Date().toISOString(),
+        });
+
+        // GROUP 노드까지 포함해서 branchViews 재계산
+        nextBranchViews = rebuildBranchViewsFromNodes(
+          nextChatViews.nodes ?? [],
+          nextChatViews.edges ?? [],
+          roomId,
+          latestBranchViewsRef.current ?? nextBranchViews
+        );
+
+        // placeholder RF id → 실제 chat_id 매핑
+        flowIdToChatId.set(rfId, Number(groupNodeId));
       } catch (e) {
         console.error("[attachGroupToRoom] error:", e);
         setErrorMsg("그룹을 붙이는 중 오류가 발생했습니다.");
@@ -844,10 +745,61 @@ export default function ChatFlowPage() {
       }
     }
 
+    // 5.5) RF 부모/자식 맵을 기준으로 도메인 엣지 보정
+    if (nextChatViews) {
+      const currentEdges = nextChatViews.edges ?? [];
+      let finalEdges = [...currentEdges];
+
+      rfParentMap.forEach((parentRfId, childRfId) => {
+        const parentChatId = flowIdToChatId.get(String(parentRfId));
+        const childChatId = flowIdToChatId.get(String(childRfId));
+
+        // 둘 중 하나라도 매핑이 없으면 (ex. 아직 서버에 없는 빈 노드) 스킵
+        if (!parentChatId || !childChatId) return;
+
+        const already = finalEdges.some(
+          (e) =>
+            Number(e.source) === Number(parentChatId) &&
+            Number(e.target) === Number(childChatId)
+        );
+        if (!already) {
+          finalEdges.push({
+            source: Number(parentChatId),
+            target: Number(childChatId),
+          });
+        }
+      });
+
+      nextChatViews = attachParentChildren({
+        ...(nextChatViews ?? {}),
+        edges: finalEdges,
+        last_updated: new Date().toISOString(),
+      });
+
+      nextBranchViews = rebuildBranchViewsFromNodes(
+        nextChatViews.nodes ?? [],
+        nextChatViews.edges ?? [],
+        roomId,
+        latestBranchViewsRef.current ?? nextBranchViews
+      );
+    }
+
+    // 🔥 브랜치명 로컬 캐시 반영
+    nextBranchViews = applyLocalBranchNames(
+      nextChatViews,
+      nextBranchViews,
+      flowIdToChatId
+    );
+
     // 6) 최종 누적 상태를 한번에 반영 + 저장
     setChatViews(nextChatViews);
     setBranchViews(nextBranchViews);
     latestBranchViewsRef.current = nextBranchViews;
+
+    setBaseline({
+      chatViews: nextChatViews,
+      branchViews: nextBranchViews,
+    });
     persistBoth(nextChatViews, nextBranchViews);
 
     // 7) 작업 큐 비우기
@@ -865,6 +817,89 @@ export default function ChatFlowPage() {
     setErrorMsg,
     setErrorOpen,
     persistBoth,
+  ]);
+
+  /* ----------------------------- 채팅 전송 ----------------------------- */
+  const handleSend = useCallback(() => {
+    const t = input.trim();
+    if (!t) return;
+
+    // 0. 편집 중인 노드 기준 정보 준비
+    const flowNodeId = editingNodeId; // ReactFlow node.id (지금 ModalShell이 붙어있는 노드)
+    let parentChatIds = [];
+    let branchId = null;
+
+    // 1. 채팅 전용: 검증 없이 조용히 스냅샷 기반 graph 저장
+    try {
+      snapshotAndPersistSilently();
+    } catch (e) {
+      console.error("[handleSend] snapshotAndPersistSilently 실패:", e);
+    }
+
+    // 2. 저장 이후의 최신 chatViews 기준으로 부모 chain 계산
+    const currentViews = chatViewsRef.current;
+
+    if (flowNodeId && currentViews) {
+      const nodes = currentViews.nodes ?? [];
+
+      const target = nodes.find(
+        (n) => String(n.chat_id ?? n.id ?? n.node_id) === String(flowNodeId)
+      );
+
+      if (target) {
+        const cidRaw = target.chat_id ?? target.id ?? target.node_id;
+        const cid =
+          cidRaw !== undefined && cidRaw !== null ? Number(cidRaw) : null;
+
+        if (cid !== null && !Number.isNaN(cid)) {
+          parentChatIds = collectAncestorChatIds(currentViews, cid, 5);
+        }
+
+        const bRaw = target.branch_id ?? target.branchId ?? null;
+        if (bRaw != null && !Number.isNaN(Number(bRaw))) {
+          branchId = Number(bRaw);
+        }
+      }
+    }
+
+    // 3. UI 상에는 기존처럼 바로 유저 메시지 출력
+    addUser(t);
+    setInput("");
+
+    // 4. 백엔드에 새 채팅 생성 요청
+    //    (모델명 / useLlm 값은 백엔드 설정에 따라 조정 필요 → 추측입니다.)
+    try {
+      createChat.mutate({
+        roomId: Number(roomId),
+        question: t,
+        parents: parentChatIds, // 🔥 조상 최대 5개
+        branch_id: branchId, // 현재 노드가 속한 브랜치
+        model: "gpt-4o-mini", // 추측입니다.
+        useLlm: false,
+      });
+    } catch (e) {
+      console.error("[handleSend] createChat 호출 실패:", e);
+    }
+
+    if (editingNodeId) {
+      canvasRef.current?.updateNodeLabel(editingNodeId, t);
+      const branchMap = loadJSON(LS_BRANCH_BY_NODE, {});
+      const pending = loadJSON(LS_PENDING_MSGS, []);
+      pending.push({
+        nodeId: editingNodeId,
+        text: t,
+        ts: Date.now(),
+        branchName: branchMap[editingNodeId] || null,
+      });
+      saveJSON(LS_PENDING_MSGS, pending);
+    }
+  }, [
+    input,
+    addUser,
+    editingNodeId,
+    snapshotAndPersistSilently,
+    roomId,
+    createChat,
   ]);
 
   const openSearchPanel = () => {
@@ -949,15 +984,12 @@ export default function ChatFlowPage() {
     [pendingNodes, enqueueChatCopy, enqueueGroupAttach]
   );
 
-  const handleEmptyNodeClick = useCallback(
-    (nodeId) => {
-      if (!nodeId) return;
-      setPendingNodes((prev) => [...prev, { nodeId, source: "emptyClick" }]);
-      setPanelType("search");
-      setPanelOpen(true);
-    },
-    [isGroups]
-  );
+  const handleEmptyNodeClick = useCallback((nodeId) => {
+    if (!nodeId) return;
+    setPendingNodes((prev) => [...prev, { nodeId, source: "emptyClick" }]);
+    setPanelType("search");
+    setPanelOpen(true);
+  }, []);
 
   const handleClosePanel = useCallback(() => {
     setPanelOpen(false);
@@ -975,8 +1007,93 @@ export default function ChatFlowPage() {
     });
   }, []);
 
-  const showGroupButton =
-    editMode && selectedCount > 1 && !hasGroupInSelection;
+  // ✅ 편집모드 OFF 일 때 노드 클릭 → 해당 브랜치 선택 + 채팅 패널 열기
+  const handleNodeClickInViewMode = useCallback(
+    (nodeId, meta) => {
+      if (!nodeId) return;
+
+      // 1) 빈 노드이면 지금처럼 검색 패널 열기
+      if (meta?.empty) {
+        handleEmptyNodeClick(nodeId);
+        return;
+      }
+
+      const allNodes = chatViews?.nodes ?? [];
+
+      // ReactFlow node.id ↔ 도메인 chat_id 매핑
+      const target = allNodes.find(
+        (n) => String(n.chat_id ?? n.id ?? n.node_id) === String(nodeId)
+      );
+
+      // 못 찾으면 기존 동작 유지 (패널만 열기)
+      if (!target) {
+        const isGroupsView = pathname.startsWith("/groups");
+        if (isGroupsView) {
+          setPanelType("search");
+        } else {
+          setEditingNodeId(nodeId);
+          setPanelType("chat");
+        }
+        setPanelOpen(true);
+        return;
+      }
+
+      // 🔥 이 노드의 도메인 chat_id 추출해서 포커스 상태로 저장
+      const cidRaw = target.chat_id ?? target.id ?? target.node_id;
+      const cid =
+        cidRaw !== undefined && cidRaw !== null ? Number(cidRaw) : null;
+      if (cid !== null && !Number.isNaN(cid)) {
+        setFocusedChatId(cid);
+      }
+
+      // 2) 이 노드가 속한 브랜치 찾기
+      let nextBranchKey = "전체";
+
+      const rawBranch = target.branch_id ?? target.branchId ?? null;
+      if (rawBranch != null && !Number.isNaN(Number(rawBranch))) {
+        nextBranchKey = String(Number(rawBranch));
+      } else {
+        const branchesObj = branchViews?.branches ?? {};
+        const nodeCid = Number(target.chat_id ?? target.id ?? target.node_id);
+
+        for (const [key, b] of Object.entries(branchesObj)) {
+          const ids = (b.included_nodes ?? [])
+            .map((id) => Number(id))
+            .filter((v) => !Number.isNaN(v));
+
+          if (ids.includes(nodeCid)) {
+            nextBranchKey = key;
+            break;
+          }
+        }
+      }
+
+      // 🔥 ModalShell이 열려 있을 때는 브랜치 전환 안 함
+      if (!panelOpen && nextBranchKey !== activeBranchKey) {
+        setActiveBranchKey(nextBranchKey);
+      }
+
+      // 4) 채팅/검색 패널 열기
+      const isGroupsView = pathname.startsWith("/groups");
+      if (isGroupsView) {
+        setPanelType("search");
+      } else {
+        setEditingNodeId(nodeId);
+        setPanelType("chat");
+      }
+      setPanelOpen(true);
+    },
+    [
+      chatViews,
+      branchViews,
+      pathname,
+      handleEmptyNodeClick,
+      activeBranchKey,
+      panelOpen,
+    ]
+  );
+
+  const showGroupButton = editMode && selectedCount > 1 && !hasGroupInSelection;
 
   /* -------------------------- 브랜치 드롭다운 -------------------------- */
   const branchItems = useMemo(() => {
@@ -1004,6 +1121,14 @@ export default function ChatFlowPage() {
     return items;
   }, [branchViews, activeBranchKey]);
 
+  const firstBranchKeyForWhole = useMemo(() => {
+    // "전체" 말고, 실제 브랜치 중 첫 번째 아이템
+    const firstBranchItem = (branchItems || []).find(
+      (it) => it.value !== "전체"
+    );
+    return firstBranchItem?.value ?? null;
+  }, [branchItems]);
+
   const handleBranchSelect = useCallback((value) => {
     setActiveBranchKey(value);
   }, []);
@@ -1025,10 +1150,8 @@ export default function ChatFlowPage() {
 
     const off = attachHandlers({
       /* ✅ CHAT_STREAM: 델타 + 그래프 조각 */
-      onChatStream: (evt) => {
+      onChatStream: (payload) => {
         try {
-          const payload = evt?.data ?? evt;
-
           const chatId =
             payload?.chat_id ??
             payload?.id ??
@@ -1085,9 +1208,8 @@ export default function ChatFlowPage() {
       },
 
       // ✅ CHAT_DONE: answer / answered_at + 델타 버퍼 정리
-      onChatDone: (evt) => {
+      onChatDone: (payload) => {
         try {
-          const payload = evt?.data ?? evt;
           const chatId =
             payload?.chat_id ??
             payload?.id ??
@@ -1121,9 +1243,8 @@ export default function ChatFlowPage() {
       },
 
       // ✅ CHAT_SUMMARY_KEYWORDS
-      onChatSummaryKeywords: (evt) => {
+      onChatSummaryKeywords: (payload) => {
         try {
-          const payload = evt?.data ?? evt;
           const chatId =
             payload?.chat_id ??
             payload?.id ??
@@ -1158,10 +1279,8 @@ export default function ChatFlowPage() {
       },
 
       // ✅ ROOM_SHORT_SUMMARY
-      onRoomShortSummary: (evt) => {
+      onRoomShortSummary: (payload) => {
         try {
-          const payload = evt?.data ?? evt;
-
           const room_id =
             payload?.room_id ?? payload?.data?.room_id ?? undefined;
           const branch_id_raw =
@@ -1253,12 +1372,241 @@ export default function ChatFlowPage() {
     roomId,
   ]);
 
-  const rf = useMemo(
-    () => toRF(chatViews ?? { nodes: [], edges: [] }),
-    [chatViews]
+  const filteredGraph = useMemo(() => {
+    const base = chatViews ?? { nodes: [], edges: [] };
+
+    // 1) 전체 보기면 그대로
+    if (activeBranchKey === "전체") return base;
+
+    const branchInfo = branchViews?.branches?.[activeBranchKey];
+    if (!branchInfo) return base;
+
+    const nodes = base.nodes ?? [];
+    const edges = base.edges ?? [];
+
+    // chat_id 기준으로 노드 맵
+    const nodeById = new Map(
+      nodes.map((n) => [Number(n.chat_id ?? n.id ?? n.node_id), n])
+    );
+
+    // 2) 이 브랜치에 포함된 노드들 집합
+    const branchSet = new Set(
+      (branchInfo.included_nodes ?? [])
+        .map((id) => Number(id))
+        .filter((v) => !Number.isNaN(v))
+    );
+
+    // 3) 브랜치 노드들 + 루트까지의 부모 체인 전부 모으기
+    const visibleSet = new Set();
+
+    for (const id of branchSet) {
+      let cur = id;
+      while (cur != null && !Number.isNaN(cur) && !visibleSet.has(cur)) {
+        visibleSet.add(cur);
+        const node = nodeById.get(cur);
+        if (!node || node.parent == null) break;
+        cur = Number(node.parent);
+      }
+    }
+
+    // 4) visibleSet에 포함된 노드만 남기기
+    const filteredNodes = nodes.filter((n) => {
+      const rawId = n.chat_id ?? n.id ?? n.node_id;
+      const cid = rawId != null ? Number(rawId) : NaN;
+      return !Number.isNaN(cid) && visibleSet.has(cid);
+    });
+
+    // 5) visibleSet에 양 끝이 모두 있는 엣지만 남기기
+    const filteredEdges = (edges ?? []).filter((e) => {
+      const s = Number(e.source);
+      const t = Number(e.target);
+      if (Number.isNaN(s) || Number.isNaN(t)) return false;
+      return visibleSet.has(s) && visibleSet.has(t);
+    });
+
+    return {
+      ...base,
+      nodes: filteredNodes,
+      edges: filteredEdges,
+    };
+  }, [chatViews, branchViews, activeBranchKey]);
+
+  // 🔥 ChatContent 전용 그래프: "전체"일 땐 첫 번째 브랜치만 보여주기
+  const messageGraph = useMemo(() => {
+    // 전체가 아니면, 그냥 filteredGraph(현재 브랜치) 사용
+    if (activeBranchKey !== "전체") return filteredGraph;
+
+    // 브랜치가 하나도 없으면 전체 그래프 그대로 사용
+    if (!firstBranchKeyForWhole) return filteredGraph;
+
+    const base = chatViews ?? { nodes: [], edges: [] };
+    const branchInfo = branchViews?.branches?.[firstBranchKeyForWhole];
+    if (!branchInfo) return filteredGraph;
+
+    const nodes = base.nodes ?? [];
+    const edges = base.edges ?? [];
+
+    const nodeById = new Map(
+      nodes.map((n) => [Number(n.chat_id ?? n.id ?? n.node_id), n])
+    );
+
+    // 첫 번째 브랜치에 포함된 노드 집합
+    const branchSet = new Set(
+      (branchInfo.included_nodes ?? [])
+        .map((id) => Number(id))
+        .filter((v) => !Number.isNaN(v))
+    );
+
+    const visibleSet = new Set();
+
+    // 브랜치 노드 + 루트까지 부모 체인 포함
+    for (const id of branchSet) {
+      let cur = id;
+      while (cur != null && !Number.isNaN(cur) && !visibleSet.has(cur)) {
+        visibleSet.add(cur);
+        const node = nodeById.get(cur);
+        if (!node || node.parent == null) break;
+        cur = Number(node.parent);
+      }
+    }
+
+    const filteredNodes = nodes.filter((n) => {
+      const rawId = n.chat_id ?? n.id ?? n.node_id;
+      const cid = rawId != null ? Number(rawId) : NaN;
+      return !Number.isNaN(cid) && visibleSet.has(cid);
+    });
+
+    const filteredEdges = (edges ?? []).filter((e) => {
+      const s = Number(e.source);
+      const t = Number(e.target);
+      if (Number.isNaN(s) || Number.isNaN(t)) return false;
+      return visibleSet.has(s) && visibleSet.has(t);
+    });
+
+    return {
+      ...base,
+      nodes: filteredNodes,
+      edges: filteredEdges,
+    };
+  }, [
+    filteredGraph,
+    chatViews,
+    branchViews,
+    activeBranchKey,
+    firstBranchKeyForWhole,
+  ]);
+
+  const handleSelectionCountChange = useCallback(
+    (count, containsGroup, selNodes) => {
+      setSelectedCount(count);
+      setHasGroupInSelection(!!containsGroup);
+      setSelectedNodesForGroup(selNodes ?? []);
+    },
+    []
   );
 
-  const serverMessages = useMemo(() => toChatMessages(chatViews), [chatViews]);
+  // 🔥 이 브랜치에서 "보이는 chat_id" 집합
+  const visibleChatIdSet = useMemo(() => {
+    const nodes = messageGraph?.nodes ?? [];
+    const ids = nodes
+      .map((n) => Number(n.chat_id ?? n.id ?? n.node_id))
+      .filter((v) => !Number.isNaN(v));
+    return new Set(ids);
+  }, [messageGraph]);
+
+  const rf = useMemo(
+    () => toRF(filteredGraph ?? { nodes: [], edges: [] }),
+    [filteredGraph]
+  );
+
+  // 🔥 ReactFlow에 보이는 그래프(filteredGraph) 기준으로만 메시지 생성
+  const serverMessages = useMemo(() => {
+    const ordered = orderedNodesByGraph(messageGraph);
+    const result = [];
+
+    ordered.forEach((n) => {
+      const raw = n || {};
+      const data = raw.data || {};
+      const cidRaw = raw.chat_id ?? raw.id ?? raw.node_id;
+      const cid = cidRaw != null ? Number(cidRaw) : null;
+
+      const nodeType = raw.type ?? data.type ?? null;
+
+      // =========================
+      // 1) GROUP 노드 처리
+      // =========================
+      if (nodeType === "GROUP") {
+        const name =
+          raw.group_name ||
+          data.group_name ||
+          raw.label ||
+          data.label ||
+          `그룹 ${raw.group_id ?? cid ?? ""}`;
+
+        result.push({
+          id: `group-${cid ?? Math.random()}`,
+          role: "group",
+          content: `${name} 추가`,
+          ts:
+            raw.updated_at ||
+            data.updated_at ||
+            raw.created_at ||
+            data.created_at ||
+            0,
+          // 🔥 이 그룹이 어떤 노드인지 필요하면 같이 내려줄 수 있음
+          chatId: cid,
+        });
+        return;
+      }
+
+      // =========================
+      // 2) 일반 CHAT 노드 처리
+      // =========================
+      const question =
+        raw.question ?? data.question ?? raw.label ?? data.label ?? "";
+
+      const answer =
+        raw.answer ??
+        raw.short_summary ??
+        raw.summary ??
+        data.answer ??
+        data.short_summary ??
+        data.summary ??
+        "";
+
+      const createdTs = raw.created_at || data.created_at || 0;
+      const updatedTs =
+        raw.answered_at ||
+        raw.updated_at ||
+        data.answered_at ||
+        data.updated_at ||
+        createdTs;
+
+      if (question) {
+        result.push({
+          id: `q-${cid ?? Math.random()}`,
+          role: "user",
+          content: question,
+          ts: createdTs,
+          // 🔥 이 말풍선이 어떤 chat 노드의 질문인지
+          chatId: cid,
+        });
+      }
+
+      if (answer) {
+        result.push({
+          id: `a-${cid ?? Math.random()}`,
+          role: "assistant",
+          content: answer,
+          ts: updatedTs,
+          // 🔥 이 말풍선이 어떤 chat 노드의 답변인지
+          chatId: cid,
+        });
+      }
+    });
+
+    return result;
+  }, [messageGraph]);
 
   // ✨ 서버 메시지 + 로컬 메시지 + 스트리밍 버퍼
   const uiMessages = useMemo(() => {
@@ -1269,6 +1617,11 @@ export default function ChatFlowPage() {
 
     for (const [cid, text] of Object.entries(streamRef.current)) {
       if (!text) continue;
+
+      const numId = Number(cid);
+      // 🔥 현재 브랜치에 보이지 않는 노드(chat_id)는 ChatContent에서 제외
+      if (!Number.isNaN(numId) && !visibleChatIdSet.has(numId)) continue;
+
       base.push({
         id: `stream-${cid}`,
         role: "assistant",
@@ -1279,7 +1632,7 @@ export default function ChatFlowPage() {
     }
 
     return base;
-  }, [serverMessages, messages, streamTick]);
+  }, [serverMessages, messages, streamTick, visibleChatIdSet]);
 
   /* ---------------------- 브랜치명 입력 / 저장 콜백 ---------------------- */
   const askBranchName = useCallback((parentId, newNodeId) => {
@@ -1304,7 +1657,7 @@ export default function ChatFlowPage() {
         setEditMode={setEditMode}
         onSave={handleSave}
         onInit={handleInit}
-        canReset={setCanReset}
+        canReset={canReset}
       />
 
       {/* 🔥 그래프 상단 브랜치 드롭다운 */}
@@ -1340,6 +1693,8 @@ export default function ChatFlowPage() {
         branchItems={branchItems}
         activeBranchKey={activeBranchKey}
         onBranchSelect={handleBranchSelect}
+        // 🔥 새로 추가: 어떤 노드를 가운데로 스크롤할지
+        focusChatId={focusedChatId}
       />
 
       <InputDialog
@@ -1369,7 +1724,6 @@ export default function ChatFlowPage() {
         onClose={() => setErrorOpen(false)}
       />
 
-
       <FlowCanvas
         ref={canvasRef}
         editMode={editMode}
@@ -1377,26 +1731,8 @@ export default function ChatFlowPage() {
         nodes={rf.nodes}
         edges={rf.edges}
         onCanResetChange={setCanReset}
-        onSelectionCountChange={(count, containsGroup, selNodes) => {
-          setSelectedCount(count);
-          setHasGroupInSelection(!!containsGroup);
-          setSelectedNodesForGroup(selNodes ?? []);
-        }}
-        onNodeClickInViewMode={(nodeId, meta) => {
-          if (meta?.empty) {
-            handleEmptyNodeClick(nodeId);
-            return;
-          }
-          const isGroupsView = pathname.startsWith("/groups");
-          if (isGroupsView) {
-            setPanelType("search");
-            setPanelOpen(true);
-          } else {
-            if (nodeId) setEditingNodeId(nodeId);
-            setPanelType("chat");
-            setPanelOpen(true);
-          }
-        }}
+        onSelectionCountChange={handleSelectionCountChange}
+        onNodeClickInViewMode={handleNodeClickInViewMode}
         onEditNodeClick={(nodeId, meta) => {
           if (meta?.empty && nodeId) {
             handleEmptyNodeClick(nodeId);
@@ -1413,7 +1749,6 @@ export default function ChatFlowPage() {
           ...(effectiveRoomData ?? {}),
           ...chatViews,
         }}
-
         roomLoading={roomLoading}
         roomError={roomError}
       />

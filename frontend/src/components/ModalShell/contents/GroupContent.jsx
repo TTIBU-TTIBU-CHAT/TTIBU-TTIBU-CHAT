@@ -43,12 +43,18 @@ function makePlaceholderGraph(title = "Group") {
 /* ===== 서버 응답 → UI용 그룹 객체 정규화 ===== */
 function normalizeGroup(g, colorMap) {
   // ✅ 백엔드 필드 기준: group_id, name, summary, keyword, updated_at
-  const id = g?.groupId ?? g?.id ?? String(Math.random());
+  const rawGroupId = g?.group_id ?? g?.groupId ?? g?.id ?? null;
+
+  const id = rawGroupId != null ? String(rawGroupId) : String(Math.random());
   const title = g?.name ?? `Group ${id}`;
+
   const summary = g?.summary ?? "";
   const keywords = Array.isArray(g?.keyword) ? g.keyword : [];
   const updatedAt = g?.updated_at ?? null;
-  const color = colorMap?.[id] ?? null;
+  const color =
+    rawGroupId != null
+      ? (colorMap?.[rawGroupId] ?? colorMap?.[String(rawGroupId)] ?? null)
+      : null;
   // 그래프는 아직 서버에서 안 주므로 placeholder
   const graph = makePlaceholderGraph(title);
 
@@ -115,7 +121,14 @@ export function GroupContent({ onPick }) {
     () => rawGroups.map((g) => normalizeGroup(g, colorMap)),
     [rawGroups, colorMap]
   );
-
+  console.log(
+    "[GroupContent] normalized groups (with color):",
+    groups.map((g) => ({
+      id: g.id,
+      rawGroupId: g.__raw?.group_id ?? g.__raw?.groupId ?? g.__raw?.id,
+      color: g.color,
+    }))
+  );
   const makeDragPayload = (g) =>
     JSON.stringify({
       type: "group",
@@ -159,6 +172,7 @@ export function GroupContent({ onPick }) {
       keywords: g.keywords,
       updatedAt: g.updatedAt,
       graph: g.graph,
+      color: g.color, // 🔥 클릭 선택에도 색 같이 전달
     });
   };
 
@@ -278,7 +292,6 @@ const CardSummary = styled.div`
   font-size: 13px;
   color: #374151;
   line-height: 1.4;
-
 `;
 
 const PreviewCardSurface = styled.div`
