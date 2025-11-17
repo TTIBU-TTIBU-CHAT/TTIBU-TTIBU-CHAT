@@ -33,4 +33,4 @@ ENV HF_HOME=/app/.cache/huggingface
 # 포트 노출
 EXPOSE 8001
 
-CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8001"]
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8001"]
