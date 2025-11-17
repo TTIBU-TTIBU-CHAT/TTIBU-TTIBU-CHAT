@@ -8,7 +8,7 @@ from keybert import KeyBERT
 # ----------------------------------------------------
 # LLM 설정
 # ----------------------------------------------------
-MODEL_NAME = "Qwen/Qwen2.5-Mini"
+MODEL_NAME = "Qwen/Qwen2.5-0.5B"
 DEVICE = "cpu"
 
 print(f"📌 Loading Qwen model: {MODEL_NAME} (CPU)")
