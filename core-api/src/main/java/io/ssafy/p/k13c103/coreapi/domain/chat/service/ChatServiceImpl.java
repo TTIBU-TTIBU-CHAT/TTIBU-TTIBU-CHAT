@@ -297,6 +297,13 @@ public class ChatServiceImpl implements ChatService {
                                         }
 
                                         log.info("[STEP 3] 긴 요약 + 키워드 처리 시작");
+                                        String summary = aiResult.getSummary();
+                                        List<String> keywords = aiResult.getKeywords();
+
+                                        if (summary == null || summary.isBlank()) {
+                                            summary = buildFallbackSummary(keywords, aiAnswer);
+                                        }
+
                                         chat.updateSummaryAndKeywords(aiResult.getSummary(), convertToJson(aiResult.getKeywords()));
                                         chatRepository.save(chat);
 
@@ -305,8 +312,8 @@ public class ChatServiceImpl implements ChatService {
                                         payload.put("branch_id", branchId);
                                         payload.put("updated_at", chat.getUpdatedAt());
                                         payload.put("chat_id", chat.getChatUid());
-                                        payload.put("summary", aiResult.getSummary());
-                                        payload.put("keywords", aiResult.getKeywords());
+                                        payload.put("summary", summary);
+                                        payload.put("keywords", keywords);
 
                                         sseEmitterManager.sendEvent(
                                                 roomId,
@@ -411,5 +418,25 @@ public class ChatServiceImpl implements ChatService {
         log.info("[USAGE] member={}, provider={}, +{} tokens (prompt={}, completion={})",
                 room.getOwner().getMemberUid(), provider, total, prompt, completion);
     }
+
+    private String buildFallbackSummary(List<String> keywords, String originalText) {
+        if (keywords != null && !keywords.isEmpty()) {
+            List<String> top = keywords.stream()
+                    .filter(k -> k != null && !k.isBlank())
+                    .limit(3)
+                    .toList();
+
+            if (!top.isEmpty()) {
+                return String.join(", ", top) + " 관련 내용입니다.";
+            }
+        }
+
+        if (originalText != null && originalText.length() > 120) {
+            return originalText.substring(0, 120) + "...";
+        }
+
+        return originalText != null ? originalText : "요약 생성이 어려운 내용입니다.";
+    }
+
 
 }
