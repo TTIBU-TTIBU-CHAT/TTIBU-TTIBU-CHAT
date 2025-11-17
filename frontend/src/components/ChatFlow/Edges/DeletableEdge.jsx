@@ -1,6 +1,6 @@
 import React from "react";
 import { EdgeLabelRenderer, getSmoothStepPath, useReactFlow } from "reactflow";
-import { EdgeDelBtn } from "@/components/Chatflow/styles";
+import { EdgeDelBtn } from "@/components/ChatFlow/styles";
 
 export default function DeletableEdge(props) {
   const {

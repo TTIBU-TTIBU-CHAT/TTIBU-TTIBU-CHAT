@@ -6,7 +6,7 @@ import { useChatList } from "@/hooks/useChatList";
 import BranchDropdown from "@/components/BranchDropdown/BranchDropdown";
 import TopleftCard from "@/components/topleftCard/TopleftCard";
 import ModalShell from "@/components/ModalShell/ModalShell";
-import FlowCanvas from "@/components/flow/FlowCanvas";
+import FlowCanvas from "@/components/ChatFlow/FlowCanvas";
 
 export const Route = createFileRoute("/test")({ component: RouteComponent });
 
