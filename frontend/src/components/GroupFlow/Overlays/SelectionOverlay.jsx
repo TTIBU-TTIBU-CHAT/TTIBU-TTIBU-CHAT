@@ -1,6 +1,6 @@
 import React from "react";
 import { useStore } from "reactflow";
-import { AbsoluteBox, IconBtn } from "@/components/Groupflow/styles";
+import { AbsoluteBox, IconBtn } from "@/components/GroupFlow/styles";
 
 export default function SelectionOverlay({ selectedNodes, lastSelectedId, onAdd, onRemove }) {
   if (!selectedNodes || selectedNodes.length === 0) return null;
