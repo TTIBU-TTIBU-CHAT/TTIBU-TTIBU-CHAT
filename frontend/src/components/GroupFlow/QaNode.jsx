@@ -18,7 +18,7 @@ export default function QaNode({ data = {}, sourcePosition, targetPosition }) {
   // 🔥 raw 데이터 통합
   const raw = data?.raw || data;
   const pendingFlag = raw.pending ?? data.pending ?? raw.data?.pending ?? false;
-  console.log("QaNode data:", data, sourcePosition, targetPosition);
+
   const answerText =
     raw.answer ??
     raw.short_summary ??
@@ -31,7 +31,12 @@ export default function QaNode({ data = {}, sourcePosition, targetPosition }) {
   const isPending = !!pendingFlag && !answerText;
 
   const { label = "제목 없음", summary, question, answer, date } = data;
-
+  const keywordsArr = raw.keywords ?? data.keywords ?? raw.data?.keywords ?? []; // 혹시 다른 위치에 있을 수도 있어 안전하게
+  const firstKeyword =
+    Array.isArray(keywordsArr) && keywordsArr.length > 0
+      ? keywordsArr[0]
+      : null;
+  console.log("QaNode keywords", firstKeyword);
   const rawType = data?.type || data?.raw?.type;
   const isGroup =
     typeof rawType === "string" && rawType.toUpperCase() === "GROUP";
@@ -44,14 +49,15 @@ export default function QaNode({ data = {}, sourcePosition, targetPosition }) {
     : baseTier;
 
   const showFull = !isGroup && tier === "full";
-
+  const displayTitle = question || label || firstKeyword || "제목 없음";
+  console.log("QaNodekey",displayTitle);
   // 🔽 기존 렌더링 그대로 유지
   return (
     <NodeShell>
       {!showFull ? (
         <LiteCard $group={isGroup} $bg={bgColor}>
           {tier === "label" ? (
-            <LiteTitle title={label}>{label}</LiteTitle>
+            <LiteTitle title={displayTitle}>{displayTitle}</LiteTitle>
           ) : (
             summary && <LiteSummary title={summary}>{summary}</LiteSummary>
           )}
@@ -63,7 +69,9 @@ export default function QaNode({ data = {}, sourcePosition, targetPosition }) {
             {date && <MetaDate>{date}</MetaDate>}
           </HeadRow>
 
-          <OneLine title={question || label}>{question || label}</OneLine>
+          <OneLine title={displayTitle}>
+            {displayTitle}
+          </OneLine>
 
           <Divider />
 

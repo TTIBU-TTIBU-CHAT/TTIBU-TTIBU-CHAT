@@ -236,7 +236,10 @@ export function rebuildBranchViewsFromNodes(
 }
 
 /* ======================================================================= */
-/* 🧠 ReactFlow snapshot 기준으로 chatViews / branchViews 재구성            */
+/* 🧠 ReactFlow snapshot 기준으로 chatViews / branchViews "부분" 재구성    */
+/*      - 기존 도메인 그래프(prevChatViews)는 유지                         */
+/*      - snapshot에 있는 노드들에 대해서만 position 을 갱신                */
+/*      - ignoreRfIds 는 "도메인에 아직 없는 임시 노드"로 취급            */
 /* ======================================================================= */
 export function rebuildFromSnapshot(
   prevChatViews,
@@ -245,80 +248,58 @@ export function rebuildFromSnapshot(
   roomId,
   options = {}
 ) {
-   const ignoreSet = new Set(
+  const ignoreSet = new Set(
     (options.ignoreRfIds ?? []).map((id) => String(id))
   );
 
   const prevNodes = prevChatViews?.nodes ?? [];
   const prevEdges = prevChatViews?.edges ?? [];
 
-  const prevById = new Map(
-    prevNodes.map((n) => [Number(n.chat_id ?? n.id ?? n.node_id), n])
-  );
-
   const snapNodesRaw = Array.isArray(snapshot?.nodes) ? snapshot.nodes : [];
-  const snapEdgesRaw = Array.isArray(snapshot?.edges) ? snapshot.edges : [];
 
-  // 🔥 1) ignore 대상 노드는 아예 제외
-  const snapNodes = snapNodesRaw.filter(
-    (n) => !ignoreSet.has(String(n.id))
-  );
+  // ✅ 1) ignore 대상이 아닌 RF 노드만 사용해서 position 맵 구성
+  const snapNodes = snapNodesRaw.filter((n) => !ignoreSet.has(String(n.id)));
 
-  // 🔥 2) ignore 노드가 source/target인 엣지도 제거
-  const snapEdges = snapEdgesRaw.filter((e) => {
-    const s = String(e.source);
-    const t = String(e.target);
-    if (ignoreSet.has(s) || ignoreSet.has(t)) return false;
-    return true;
-  });
-
-  // snapshot에서 "도메인 노드(chat_id 기반)"로 볼 수 있는 id set 수집
-  const domainIdSet = new Set();
-
+  const posMap = new Map();
   snapNodes.forEach((n) => {
+    // ReactFlow id 는 도메인 chat_id 와 동일하다고 가정
     const cid = Number(n.id);
-    if (!Number.isNaN(cid)) {
-      domainIdSet.add(cid);
+    if (Number.isNaN(cid)) return;
+
+    const x = n.position?.x ?? n.x ?? 0;
+    const y = n.position?.y ?? n.y ?? 0;
+    posMap.set(cid, { x, y });
+  });
+
+  // ✅ 2) 기존 도메인 노드들을 베이스로 두고,
+  //       snapshot 에서 position 정보가 있는 노드만 위치 갱신
+  const rebuiltNodes = prevNodes.map((n) => {
+    const cidRaw = n.chat_id ?? n.id ?? n.node_id;
+    const cid = cidRaw != null ? Number(cidRaw) : NaN;
+    if (Number.isNaN(cid)) {
+      return n;
     }
-  });
 
-  snapEdges.forEach((e) => {
-    const s = Number(e.source);
-    const t = Number(e.target);
-    if (!Number.isNaN(s)) domainIdSet.add(s);
-    if (!Number.isNaN(t)) domainIdSet.add(t);
-  });
-
-  // 도메인 노드들만 재구성 (기존 도메인 데이터는 그대로 유지)
-  const rebuiltNodes = Array.from(domainIdSet).map((cid) => {
-    const prev = prevById.get(cid) || {};
-    const snapNode = snapNodes.find((n) => Number(n.id) === cid);
-
-    const pos = snapNode
-      ? {
-          x: snapNode.position?.x ?? snapNode.x ?? prev.position?.x ?? 0,
-          y: snapNode.position?.y ?? snapNode.y ?? prev.position?.y ?? 0,
-        }
-      : (prev.position ?? { x: 0, y: 0 });
+    const pos = posMap.get(cid);
+    if (!pos) {
+      // 이 노드는 이번 snapshot 에 안 나왔을 뿐, 도메인에서는 그대로 유지
+      return n;
+    }
 
     return {
-      ...prev,
-      chat_id: cid,
-      position: pos,
+      ...n,
+      position: {
+        ...(n.position ?? {}),
+        ...pos,
+      },
     };
   });
 
-  // 도메인 엣지만 재구성 (source/target 둘 다 숫자인 것만)
-  const rebuiltEdges = snapEdges
-    .map((e) => {
-      const s = Number(e.source);
-      const t = Number(e.target);
-      if (Number.isNaN(s) || Number.isNaN(t)) return null;
-      return { source: s, target: t };
-    })
-    .filter(Boolean);
+  // ✅ 3) 엣지는 우선 기존 도메인 엣지를 그대로 사용
+  //    (ReactFlow 에서 "삭제" 기능까지 구현하면, 그 때 삭제 로직을 추가)
+  const rebuiltEdges = [...prevEdges];
 
-  // parent / children 부착
+  // ✅ 4) parent / children 부착
   const chatInfo = attachParentChildren({
     chat_room_id: Number(roomId),
     ...(prevChatViews ?? {}),
@@ -327,7 +308,7 @@ export function rebuildFromSnapshot(
     last_updated: new Date().toISOString(),
   });
 
-  // branchViews 재구성 (branch_name은 가능한 유지)
+  // ✅ 5) branchViews 재구성 (branch_name 은 prevBranchViews 를 최대한 유지)
   const branchView = rebuildBranchViewsFromNodes(
     chatInfo.nodes ?? [],
     chatInfo.edges ?? [],

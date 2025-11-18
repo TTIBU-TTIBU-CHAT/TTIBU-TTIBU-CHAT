@@ -59,23 +59,45 @@ export function uniqEdges(edges) {
 }
 
 /* 작은 유틸: 노드 변경 헬퍼 (변경된 key만 수집해 로그용으로 반환) */
+/* 작은 유틸: 노드 변경 헬퍼 (변경된 key만 수집해 로그용으로 반환) */
 export function updateNodeByChatId(prevChatViews, chatId, updater) {
   if (!prevChatViews) return { next: prevChatViews, changed: null };
-  const nextNodes = prevChatViews.nodes.map((n) => {
-    const nid = n?.chat_id ?? n?.id;
-    if (String(nid) === String(chatId)) {
+
+  const nodes = prevChatViews.nodes ?? [];
+  const targetIdNum = Number(chatId);
+  if (Number.isNaN(targetIdNum)) {
+    return { next: prevChatViews, changed: null };
+  }
+
+  let changedFlag = false;
+
+  const nextNodes = nodes.map((n) => {
+    const rawId = n?.chat_id ?? n?.id ?? n?.node_id;
+    const cid = rawId != null ? Number(rawId) : NaN;
+
+    if (!Number.isNaN(cid) && cid === targetIdNum) {
       const next = updater(n);
+      changedFlag = true;
       return next;
     }
     return n;
   });
 
-  const prevNode = prevChatViews.nodes.find(
-    (n) => String(n?.chat_id ?? n?.id) === String(chatId)
-  );
-  const nextNode = nextNodes.find(
-    (n) => String(n?.chat_id ?? n?.id) === String(chatId)
-  );
+  if (!changedFlag) {
+    return { next: prevChatViews, changed: null };
+  }
+
+  const prevNode = nodes.find((n) => {
+    const rawId = n?.chat_id ?? n?.id ?? n?.node_id;
+    const cid = rawId != null ? Number(rawId) : NaN;
+    return !Number.isNaN(cid) && cid === targetIdNum;
+  });
+
+  const nextNode = nextNodes.find((n) => {
+    const rawId = n?.chat_id ?? n?.id ?? n?.node_id;
+    const cid = rawId != null ? Number(rawId) : NaN;
+    return !Number.isNaN(cid) && cid === targetIdNum;
+  });
 
   let changed = null;
   if (prevNode && nextNode) {
@@ -86,16 +108,33 @@ export function updateNodeByChatId(prevChatViews, chatId, updater) {
       }
     }
   }
-  return { next: { ...prevChatViews, nodes: nextNodes }, changed };
+
+  return {
+    next: { ...prevChatViews, nodes: nextNodes },
+    changed,
+  };
 }
 
 /* -------------------------- RF 포맷 변환기 -------------------------- */
 export function toRF(chatViews) {
   const nodes = (chatViews?.nodes ?? []).map((n, i) => {
-    const id = String(n?.chat_id ?? n?.id ?? i);
+    const cidRaw = n?.chat_id ?? n?.id ?? i;
+    const id = String(cidRaw);
+
     const pos = n?.position ?? { x: 100 + 400 * i, y: 100 };
+
+    // 🔥 노드에 보여줄 텍스트 우선순위:
+    // short_summary > summary > answer > question > label > id
+    const title =
+      n?.label ??
+      n?.question ??
+      n?.short_summary ??
+      n?.summary ??
+      n?.answer ??
+      id;
+
     const branch_id = n?.branch_id ?? null;
-    console.log("branch_id 확인용:", branch_id);
+
     return {
       id,
       position: {
@@ -104,12 +143,12 @@ export function toRF(chatViews) {
       },
       type: "qa",
       data: {
-        label: n?.label ?? n?.question ?? n?.summary ?? id,
+        label: title,
         question: n?.question ?? "",
         answer: n?.answer ?? "",
         summary: n?.summary ?? "",
-        keywords: n?.keywords ?? [],
         short_summary: n?.short_summary ?? "",
+        keywords: n?.keywords ?? [],
         branch: n?.branch,
         branch_id,
         raw: n,
@@ -215,7 +254,7 @@ export function deriveViews(src) {
       const pos = hasPos ? n.position : { x: START_X + GAP_X * i, y: START_Y };
 
       const branch_id = n?.branch_id ?? null;
-      return { ...n, position: pos,branch_id, };
+      return { ...n, position: pos, branch_id };
     });
 
     chatViews = {
