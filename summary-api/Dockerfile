@@ -3,9 +3,10 @@ FROM python:3.11-slim AS builder
 
 WORKDIR /app
 
-# 시스템 의존성 설치 (JDK for KoNLPy)
+# 시스템 의존성 설치 (git, JDK for KoNLPy)
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
+    git \
     default-jdk \
     && rm -rf /var/lib/apt/lists/*
 
@@ -14,18 +15,35 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir --user -r requirements.txt
 
 # HuggingFace 모델 미리 다운로드 (컨테이너 시작 시간 단축)
-RUN python -c "\
-from transformers import PreTrainedTokenizerFast, BartForConditionalGeneration; \
-from sentence_transformers import SentenceTransformer; \
-print('Downloading gogamza/kobart-summarization...'); \
-PreTrainedTokenizerFast.from_pretrained('gogamza/kobart-summarization'); \
-BartForConditionalGeneration.from_pretrained('gogamza/kobart-summarization'); \
-print('Downloading heegyu/kobart-title...'); \
-PreTrainedTokenizerFast.from_pretrained('heegyu/kobart-title'); \
-BartForConditionalGeneration.from_pretrained('heegyu/kobart-title'); \
-print('Downloading jhgan/ko-sroberta-multitask...'); \
-SentenceTransformer('jhgan/ko-sroberta-multitask'); \
-print('All models downloaded successfully!');"
+RUN python - << 'PYTHON'
+from transformers import AutoTokenizer, AutoModelForCausalLM
+from sentence_transformers import SentenceTransformer
+import torch
+import sys
+
+print('=== Downloading HuggingFace Models ===')
+
+print('[1/2] Downloading Qwen/Qwen2.5-0.5B...')
+try:
+    AutoTokenizer.from_pretrained('Qwen/Qwen2.5-0.5B')
+    AutoModelForCausalLM.from_pretrained(
+        'Qwen/Qwen2.5-0.5B',
+        torch_dtype=torch.float32,
+        low_cpu_mem_usage=True,
+    )
+    print('✓ Qwen/Qwen2.5-0.5B downloaded successfully')
+except Exception as e:
+    print(f'✗ Failed to download Qwen/Qwen2.5-0.5B: {e}', file=sys.stderr)
+
+print('[2/2] Downloading jhgan/ko-sroberta-multitask...')
+try:
+    SentenceTransformer('jhgan/ko-sroberta-multitask')
+    print('✓ jhgan/ko-sroberta-multitask downloaded successfully')
+except Exception as e:
+    print(f'✗ Failed to download jhgan/ko-sroberta-multitask: {e}', file=sys.stderr)
+
+print('=== Model download process completed ===')
+PYTHON
 
 # Runtime stage - 실행 환경
 FROM python:3.11-slim
@@ -35,6 +53,7 @@ WORKDIR /app
 # JDK 설치 (KoNLPy 실행 필수)
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
+    git \
     default-jdk \
     && rm -rf /var/lib/apt/lists/*
 
@@ -50,6 +69,9 @@ COPY app/ ./app/
 
 # PATH에 로컬 패키지 경로 추가
 ENV PATH=/root/.local/bin:$PATH
+
+# HuggingFace 캐시 경로 설정
+ENV HF_HOME=/root/.cache/huggingface
 
 EXPOSE 8001
 
