@@ -68,7 +68,7 @@ export default function ChatRoomList() {
       params: { nodeId: String(id) },
       state: {
         mode: "existing-room", // or 생략 (기본값)
-        startBranchKey: 100, // "전체" 대신 특정 브랜치
+
       },
     });
 
