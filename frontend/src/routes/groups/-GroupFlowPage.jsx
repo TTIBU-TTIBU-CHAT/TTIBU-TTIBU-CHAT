@@ -23,7 +23,7 @@ export default function GroupFlowPage() {
   const [groupData, setGroupData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const updateGroup =useUpdateGroup();
+  const updateGroup = useUpdateGroup();
   /* ===== 그룹 상세 불러오기 ===== */
   useEffect(() => {
     const fetchGroupDetail = async () => {
@@ -176,11 +176,11 @@ export default function GroupFlowPage() {
       groupId: Number(groupId),
       name: groupData?.name,
       nodes: orderedNodeIds,
-      summary_regen: true,
+      summaryRegen: true,
     });
 
     console.log("✅ 검증 통과! (API 호출은 위 부분에서 연결)");
-  }, []);
+  }, [groupId, groupData, updateGroup]);
 
   // 편집 모드 + 2개 이상 선택 시만 그룹 버튼 (옵션)
   const showGroupButton = editMode && selectedCount > 1;

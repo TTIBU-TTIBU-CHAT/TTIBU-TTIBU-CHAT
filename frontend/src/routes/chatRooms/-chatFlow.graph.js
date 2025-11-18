@@ -1,34 +1,27 @@
 // src/routes/chatrooms/-chatFlow.graph.js
-import {
-  LS_BRANCH_BY_NODE,
-  loadJSON,
-  saveJSON,
-} from "./-chatFlow.storage";
+import { LS_BRANCH_BY_NODE, loadJSON, saveJSON } from "./-chatFlow.storage";
 
 /* ======================================================================= */
 /* 🔥 parent 체인 따라 올라가면서 최대 limit 개수만큼 조상 chat_id 수집 */
 /* ======================================================================= */
-export function collectAncestorChatIds(chatViews, startChatId, limit = 5) {
-  if (!chatViews || !startChatId || Number.isNaN(Number(startChatId)))
-    return [];
+export function collectAncestorChatIds(nodes, startChatId, limit = 5) {
+  if (!startChatId) return [];
 
-  const nodes = chatViews.nodes ?? [];
-  const byId = new Map(
-    nodes.map((n) => [Number(n.chat_id ?? n.id ?? n.node_id), n])
-  );
+  const parentMap = {};
+  for (const n of nodes) {
+    if (n.chat_id && n.parent_chat_id) {
+      parentMap[n.chat_id] = n.parent_chat_id;
+    }
+  }
 
   const result = [];
-  let cur = Number(startChatId);
+  let cur = startChatId;
 
   while (result.length < limit) {
-    const node = byId.get(cur);
-    if (!node || node.parent == null) break;
-
-    const parentId = Number(node.parent);
-    if (Number.isNaN(parentId)) break;
-
-    result.push(parentId); // 부모부터 위로 추가
-    cur = parentId;
+    const parent = parentMap[cur];
+    if (!parent) break; // 부모 없으면 종료
+    result.push(parent);
+    cur = parent;
   }
 
   return result;
@@ -249,8 +242,13 @@ export function rebuildFromSnapshot(
   prevChatViews,
   prevBranchViews,
   snapshot,
-  roomId
+  roomId,
+  options = {}
 ) {
+   const ignoreSet = new Set(
+    (options.ignoreRfIds ?? []).map((id) => String(id))
+  );
+
   const prevNodes = prevChatViews?.nodes ?? [];
   const prevEdges = prevChatViews?.edges ?? [];
 
@@ -258,8 +256,21 @@ export function rebuildFromSnapshot(
     prevNodes.map((n) => [Number(n.chat_id ?? n.id ?? n.node_id), n])
   );
 
-  const snapNodes = Array.isArray(snapshot?.nodes) ? snapshot.nodes : [];
-  const snapEdges = Array.isArray(snapshot?.edges) ? snapshot.edges : [];
+  const snapNodesRaw = Array.isArray(snapshot?.nodes) ? snapshot.nodes : [];
+  const snapEdgesRaw = Array.isArray(snapshot?.edges) ? snapshot.edges : [];
+
+  // 🔥 1) ignore 대상 노드는 아예 제외
+  const snapNodes = snapNodesRaw.filter(
+    (n) => !ignoreSet.has(String(n.id))
+  );
+
+  // 🔥 2) ignore 노드가 source/target인 엣지도 제거
+  const snapEdges = snapEdgesRaw.filter((e) => {
+    const s = String(e.source);
+    const t = String(e.target);
+    if (ignoreSet.has(s) || ignoreSet.has(t)) return false;
+    return true;
+  });
 
   // snapshot에서 "도메인 노드(chat_id 기반)"로 볼 수 있는 id set 수집
   const domainIdSet = new Set();
@@ -288,7 +299,7 @@ export function rebuildFromSnapshot(
           x: snapNode.position?.x ?? snapNode.x ?? prev.position?.x ?? 0,
           y: snapNode.position?.y ?? snapNode.y ?? prev.position?.y ?? 0,
         }
-      : prev.position ?? { x: 0, y: 0 };
+      : (prev.position ?? { x: 0, y: 0 });
 
     return {
       ...prev,
