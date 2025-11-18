@@ -9,7 +9,7 @@ APP_DIR="/home/ubuntu/ttibu-app"
 cd "$APP_DIR"
 
 # 최대 대기 시간 (초)
-MAX_WAIT=300
+MAX_WAIT=600
 ELAPSED=0
 CHECK_INTERVAL=10
 
