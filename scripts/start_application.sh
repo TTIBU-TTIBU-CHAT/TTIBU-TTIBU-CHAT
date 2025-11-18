@@ -5,15 +5,15 @@ echo "=========================================="
 echo "Starting TTIBU Application..."
 echo "=========================================="
 
-APP_DIR="/home/ec2-user/ttibu-app"
+APP_DIR="/home/ubuntu/ttibu-app"
 
 # 애플리케이션 디렉토리로 이동
 cd "$APP_DIR"
 
 # .env 파일 복원 (백업이 있는 경우)
-if [ -f "/home/ec2-user/.env.backup" ] && [ ! -f ".env" ]; then
+if [ -f "/home/ubuntu/.env.backup" ] && [ ! -f ".env" ]; then
     echo "Restoring .env file from backup..."
-    cp "/home/ec2-user/.env.backup" ".env"
+    cp "/home/ubuntu/.env.backup" ".env"
 fi
 
 # .env 파일 확인

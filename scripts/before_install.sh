@@ -5,9 +5,9 @@ echo "=========================================="
 echo "Preparing Environment..."
 echo "=========================================="
 
-APP_DIR="/home/ec2-user/ttibu-app"
+APP_DIR="/home/ubuntu/ttibu-app"
 S3_BUCKET="${S3_CONFIG_BUCKET}"
-LITELLM_CONFIG_PATH="/home/ec2-user/litellm-config.yaml"
+LITELLM_CONFIG_PATH="/home/ubuntu/litellm-config.yaml"
 
 # S3에서 litellm-config.yaml 다운로드
 if [ -n "$S3_BUCKET" ]; then
@@ -28,7 +28,7 @@ if [ -d "$APP_DIR" ]; then
     echo "Cleaning up old deployment files (keeping .env)..."
     # .env 파일 백업
     if [ -f "$APP_DIR/.env" ]; then
-        cp "$APP_DIR/.env" "/home/ec2-user/.env.backup"
+        cp "$APP_DIR/.env" "/home/ubuntu/.env.backup"
     fi
 fi
 

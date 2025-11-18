@@ -5,7 +5,7 @@ echo "=========================================="
 echo "Stopping TTIBU Application..."
 echo "=========================================="
 
-APP_DIR="/home/ec2-user/ttibu-app"
+APP_DIR="/home/ubuntu/ttibu-app"
 
 # Docker Compose 파일이 존재하는지 확인
 if [ -f "$APP_DIR/docker-compose.prod.yml" ]; then

@@ -5,7 +5,7 @@ echo "=========================================="
 echo "Validating Service Health..."
 echo "=========================================="
 
-APP_DIR="/home/ec2-user/ttibu-app"
+APP_DIR="/home/ubuntu/ttibu-app"
 cd "$APP_DIR"
 
 # 최대 대기 시간 (초)

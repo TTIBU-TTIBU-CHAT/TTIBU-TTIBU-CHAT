@@ -2,26 +2,26 @@ version: 0.0
 os: linux
 files:
   - source: /
-    destination: /home/ec2-user/ttibu-app
+    destination: /home/ubuntu/ttibu-app
     overwrite: true
 
 hooks:
   ApplicationStop:
     - location: scripts/stop_application.sh
       timeout: 300
-      runas: ec2-user
+      runas: ubuntu
 
   BeforeInstall:
     - location: scripts/before_install.sh
       timeout: 300
-      runas: ec2-user
+      runas: ubuntu
 
   ApplicationStart:
     - location: scripts/start_application.sh
       timeout: 600
-      runas: ec2-user
+      runas: ubuntu
 
   ValidateService:
     - location: scripts/validate_service.sh
       timeout: 300
-      runas: ec2-user
+      runas: ubuntu

@@ -30,7 +30,7 @@ services:
     ports:
       - "8080:8080"
     volumes:
-      - /home/ec2-user/litellm-config.yaml:/app/litellm-config.yaml:ro
+      - /home/ubuntu/litellm-config.yaml:/app/litellm-config.yaml:ro
     depends_on:
       - litellm
       - summary-api
@@ -54,7 +54,7 @@ services:
       - LITELLM_MASTER_KEY=${LITELLM_MASTER_KEY}
       - LITELLM_LOG=INFO
     volumes:
-      - /home/ec2-user/litellm-config.yaml:/app/config.yaml:ro
+      - /home/ubuntu/litellm-config.yaml:/app/config.yaml:ro
     command: --config /app/config.yaml --port 4000
     networks:
       - ttibu-network
