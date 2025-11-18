@@ -14,9 +14,8 @@ RUN apt-get update && \
 COPY requirements.txt .
 RUN pip install --no-cache-dir --user -r requirements.txt
 
-# HuggingFace 모델 미리 다운로드 (컨테이너 시작 시간 단축)
+# 모델 다운로드 스크립트 복사 (컨테이너 시작 시 실행)
 COPY download_models.py .
-RUN python download_models.py
 
 # Runtime stage - 실행 환경
 FROM python:3.11-slim
@@ -33,9 +32,11 @@ RUN apt-get update && \
 # JAVA_HOME 환경 변수 설정
 ENV JAVA_HOME=/usr/lib/jvm/default-java
 
-# builder stage에서 설치된 패키지와 모델 캐시 복사
+# builder stage에서 설치된 패키지 복사
 COPY --from=builder /root/.local /root/.local
-COPY --from=builder /root/.cache /root/.cache
+
+# 모델 다운로드 스크립트 복사
+COPY --from=builder /app/download_models.py .
 
 # 애플리케이션 코드 복사
 COPY app/ ./app/
