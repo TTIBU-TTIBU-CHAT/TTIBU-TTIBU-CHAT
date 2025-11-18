@@ -62,9 +62,14 @@ export const chatService = {
    *  Response: { room_id, node_id, branch_id, created_at }
    *  (LLM 답변/요약/키워드는 SSE 이벤트로 전달)
    */
-  createChat: ({ roomId, ...payload }) =>{
+  createChat: async ({ roomId, ...payload }) => {
     console.log("createChat payload", roomId, payload);
-    api.post(`/rooms/${roomId}/chats`, payload)
+    const res =  await api.post(`/rooms/${roomId}/chats`, payload);
+    console.log("CREATE CHAT RAW:", res);
+    console.log("CREATE CHAT DATA:", res.data);
+    console.log("CREATE CHAT DATA.data:", res.data?.data);
+    console.log("CREATE CHAT keys:", Object.keys(res));
+    return res.data.data;
   },
 
   /** ✅ GET /api/v1/chats?k=&k=&page=&size= (JSESSIONID 쿠키 필요) */

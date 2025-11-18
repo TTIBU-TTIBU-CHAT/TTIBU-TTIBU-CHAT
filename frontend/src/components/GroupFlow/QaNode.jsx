@@ -17,7 +17,18 @@ export default function QaNode({ data = {}, sourcePosition, targetPosition }) {
 
   // 🔥 raw 데이터 통합
   const raw = data?.raw || data;
-  const isPending = !!raw?.pending;
+  const pendingFlag = raw.pending ?? data.pending ?? raw.data?.pending ?? false;
+  console.log("QaNode data:", data, sourcePosition, targetPosition);
+  const answerText =
+    raw.answer ??
+    raw.short_summary ??
+    raw.summary ??
+    data.answer ??
+    data.short_summary ??
+    data.summary;
+
+  // 🔥 답변/요약이 생기면 pending 이 true여도 "생성중..."을 안 띄움
+  const isPending = !!pendingFlag && !answerText;
 
   const { label = "제목 없음", summary, question, answer, date } = data;
 
@@ -33,30 +44,6 @@ export default function QaNode({ data = {}, sourcePosition, targetPosition }) {
     : baseTier;
 
   const showFull = !isGroup && tier === "full";
-
-  // 🔥🔥 pending 상태일 때 전용 렌더링
-  if (isPending) {
-    return (
-      <NodeShell>
-        <LiteCard $group={false} $bg="#F9FAFB">
-          <LiteTitle title="생성중...">생성중...</LiteTitle>
-        </LiteCard>
-
-        <Handle
-          type="target"
-          position={targetPosition ?? Position.Left}
-          className="mini-handle"
-        />
-        {typeof sourcePosition !== "undefined" && (
-          <Handle
-            type="source"
-            position={sourcePosition ?? Position.Right}
-            className="mini-handle"
-          />
-        )}
-      </NodeShell>
-    );
-  }
 
   // 🔽 기존 렌더링 그대로 유지
   return (

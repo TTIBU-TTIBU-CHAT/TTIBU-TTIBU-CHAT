@@ -72,14 +72,18 @@ function collectAncestorsFromGraph(nodes, startChatId, limit = 5) {
 
   return result;
 }
+
 export default function ChatFlowPage() {
   /* ✅ URL 파라미터 (/chatrooms/$roomId) */
-  const { nodeId } = useParams({ strict: false });
-  const [roomId] = useState(nodeId);
+  const { nodeId: roomId } = useParams({ strict: false });
 
   /* ✅ 라우터 state (NewChat → navigate 시 넘긴 roomInit) */
   const routeState = useRouterState();
+  const locationState = routeState?.location?.state ?? {};
   const roomInit = routeState?.location?.state?.roomInit;
+  const routeMode = locationState.mode ?? "existing-room";
+
+  const startBranchKeyFromRoute = locationState.startBranchKey ?? "전체";
 
   // 선택된 노드의 chat_id (뷰 모드 포커싱용)
   const [focusedChatId, setFocusedChatId] = useState(null);
@@ -92,7 +96,9 @@ export default function ChatFlowPage() {
 
   const [branchOpen, setBranchOpen] = useState(false);
   // 드롭다운에서 선택된 항목 (value는 "전체" 또는 branch_id 문자열)
-  const [activeBranchKey, setActiveBranchKey] = useState("전체");
+  const [activeBranchKey, setActiveBranchKey] = useState(
+    startBranchKeyFromRoute
+  );
 
   const [editMode, setEditMode] = useState(true);
   const [panelOpen, setPanelOpen] = useState(false);
@@ -234,13 +240,186 @@ export default function ChatFlowPage() {
     },
     [roomId]
   );
+  function upsertCreatedChatNode({
+    room_id,
+    node_id,
+    branch_id,
+    question,
+    parents,
+    created_at,
+  }) {
+    if (!node_id) return;
+
+    setChatViews((prev) => {
+      const base = prev ?? { nodes: [], edges: [] };
+      const prevNodes = base.nodes ?? [];
+      const prevEdges = base.edges ?? [];
+
+      const parentId =
+        Array.isArray(parents) && parents.length > 0
+          ? Number(parents[0]) // ✅ parent는 “직접 부모 하나만”
+          : null;
+
+      const nodeIdNum = Number(node_id);
+
+      // 0) 이미 같은 chat_id 있으면 중복 이벤트 → 무시
+      if (
+        prevNodes.some(
+          (n) => Number(n.chat_id ?? n.id ?? n.node_id) === nodeIdNum
+        )
+      ) {
+        return prev;
+      }
+
+      // 1) handleSend에서 만들어 둔 placeholder 찾기
+      const placeholderIndex = prevNodes.findIndex((n) => {
+        const rawId = n.chat_id ?? n.id ?? n.node_id;
+        const nodeParent = n.parent ?? n.parent_chat_id ?? null;
+        const nodeBranch = n.branch_id ?? n.branchId ?? null;
+
+        const sameParent =
+          parentId == null
+            ? nodeParent == null
+            : Number(nodeParent) === Number(parentId);
+
+        const hasRealChatId =
+          n.chat_id != null && !Number.isNaN(Number(n.chat_id));
+        const isPending = !!n.pending;
+        const isTemp = isPending && !hasRealChatId; // 🔥 임시 노드 판정
+        const emptyQuestion = !n.question && !(n.data && n.data.question);
+
+        return sameParent && (isTemp || emptyQuestion);
+      });
+
+      let nextNodes;
+
+      if (placeholderIndex >= 0) {
+        // 2-A) placeholder 승격
+        const old = prevNodes[placeholderIndex];
+
+        nextNodes = [
+          ...prevNodes.slice(0, placeholderIndex),
+          {
+            ...old,
+            chat_id: nodeIdNum, // 🔥 여기에서 chat_id 확정
+            parent: parentId,
+            parents: parents ?? [],
+            branch_id: branch_id ?? old.branch_id ?? null,
+            question: question || old.question || "",
+            created_at:
+              created_at ?? old.created_at ?? new Date().toISOString(),
+            pending: true, // 답변이 아직 안 왔으니 true 유지
+            type: old.type ?? "CHAT",
+          },
+          ...prevNodes.slice(placeholderIndex + 1),
+        ];
+      } else {
+        // 2-B) placeholder 없으면 새 노드 생성
+        nextNodes = [
+          ...prevNodes,
+          {
+            type: "CHAT",
+            chat_id: nodeIdNum,
+            parent: parentId,
+            parents: parents ?? [],
+            branch_id: branch_id ?? null,
+            question: question ?? "",
+            children: [],
+            keywords: [],
+            created_at: created_at ?? new Date().toISOString(),
+            pending: true,
+          },
+        ];
+      }
+
+      // 3) 엣지 (parent → node_id) 추가
+      const nextEdges = [...prevEdges];
+      if (parentId != null && !Number.isNaN(parentId)) {
+        const already = nextEdges.some(
+          (e) => Number(e.source) === parentId && Number(e.target) === nodeIdNum
+        );
+        if (!already) {
+          nextEdges.push({
+            source: parentId,
+            target: nodeIdNum,
+          });
+        }
+      }
+
+      // 4) 부모/자식 정보 채우고 브랜치뷰 갱신
+      const nextChat = attachParentChildren({
+        ...base,
+        nodes: nextNodes,
+        edges: nextEdges,
+        last_updated: new Date().toISOString(),
+      });
+
+      let nextBV = rebuildBranchViewsFromNodes(
+        nextChat.nodes ?? [],
+        nextChat.edges ?? [],
+        roomId,
+        latestBranchViewsRef.current
+      );
+
+      setBranchViews(nextBV);
+      latestBranchViewsRef.current = nextBV;
+
+      return nextChat;
+    });
+  }
+  // 🧩 QUESTION_CREATED / createChat onSuccess 둘 다에서 쓰는 공통 함수
+  function stripTempNodes(chatInfo) {
+    const nodes = chatInfo?.nodes ?? [];
+    const edges = chatInfo?.edges ?? [];
+
+    // edge에서 실제로 쓰이는 chat_id들
+    const edgeRefs = new Set();
+    edges.forEach((e) => {
+      if (e.source != null) edgeRefs.add(Number(e.source));
+      if (e.target != null) edgeRefs.add(Number(e.target));
+    });
+
+    const realNodes = nodes.filter((n) => {
+      const cid = n.chat_id;
+      const num = cid != null ? Number(cid) : NaN;
+
+      // chat_id 숫자 아니면 탈락
+      if (cid == null || Number.isNaN(num)) return false;
+
+      const hasContent =
+        !!n.question || !!n.answer || !!n.summary || !!n.short_summary;
+      const hasChildren = Array.isArray(n.children) && n.children.length > 0;
+      const usedInEdges = edgeRefs.has(num);
+
+      // 내용도 없고, 자식도 없고, edge에서도 애매하면 → 임시 쓰레기로 판정
+      if (!hasContent && !hasChildren && !usedInEdges) {
+        return false;
+      }
+
+      return true;
+    });
+
+    const validIds = new Set(realNodes.map((n) => Number(n.chat_id)));
+
+    const realEdges = (edges ?? []).filter((e) => {
+      const s = Number(e.source);
+      const t = Number(e.target);
+      return validIds.has(s) && validIds.has(t);
+    });
+
+    return {
+      ...chatInfo,
+      nodes: realNodes,
+      edges: realEdges,
+    };
+  }
 
   const persistViews = useCallback(
     (nextChatViews) => {
       const normalized = attachParentChildren(nextChatViews);
+      const cleaned = stripTempNodes(normalized);
       const hasGraph =
-        (normalized?.nodes?.length ?? 0) > 0 ||
-        (normalized?.edges?.length ?? 0) > 0;
+        (cleaned?.nodes?.length ?? 0) > 0 || (cleaned?.edges?.length ?? 0) > 0;
       const hasBranches =
         !!latestBranchViewsRef.current?.branches &&
         Object.keys(latestBranchViewsRef.current.branches).length > 0;
@@ -255,18 +434,18 @@ export default function ChatFlowPage() {
         branchView: latestBranchViewsRef.current,
       };
 
-      console.log("==== [SAVE_DEBUG] persistViews payload (object) ====");
-      console.log(payload);
-      console.log(
-        "==== [SAVE_DEBUG] persistViews payload (JSON) ====\n",
-        JSON.stringify(payload, null, 2)
-      );
+      // console.log("==== [SAVE_DEBUG] persistViews payload (object) ====");
+      // console.log(payload);
+      // console.log(
+      //   "==== [SAVE_DEBUG] persistViews payload (JSON) ====\n",
+      //   JSON.stringify(payload, null, 2)
+      // );
 
       // ✅ 실제 저장 API 호출
       saveRoomData.mutate(
         {
           roomId: Number(roomId),
-          chatInfo: JSON.stringify(normalized),
+          chatInfo: JSON.stringify(cleaned),
           branchView: JSON.stringify(latestBranchViewsRef.current),
         },
         {
@@ -282,9 +461,9 @@ export default function ChatFlowPage() {
   const persistBoth = useCallback(
     (nextChatViews, nextBranchViews) => {
       const normalized = attachParentChildren(nextChatViews);
+      const cleaned = stripTempNodes(normalized); // 🔥 임시 노드 제거
       const hasGraph =
-        (normalized?.nodes?.length ?? 0) > 0 ||
-        (normalized?.edges?.length ?? 0) > 0;
+        (cleaned?.nodes?.length ?? 0) > 0 || (cleaned?.edges?.length ?? 0) > 0;
       const hasBranches =
         !!nextBranchViews?.branches &&
         Object.keys(nextBranchViews.branches).length > 0;
@@ -310,7 +489,7 @@ export default function ChatFlowPage() {
       saveRoomData.mutate(
         {
           roomId: Number(roomId),
-          chatInfo: JSON.stringify(normalized),
+          chatInfo: JSON.stringify(cleaned),
           branchView: JSON.stringify(nextBranchViews),
         },
         {
@@ -913,6 +1092,178 @@ export default function ChatFlowPage() {
     }
   }, [chatViews, branchViews, flushFromSnapshot, setErrorMsg, setErrorOpen]);
 
+  const filteredGraph = useMemo(() => {
+    const base = chatViews ?? { nodes: [], edges: [] };
+
+    // 1) 전체 보기면 그대로
+    if (activeBranchKey === "전체") return base;
+
+    const branchInfo = branchViews?.branches?.[activeBranchKey];
+    if (!branchInfo) return base;
+
+    const nodes = base.nodes ?? [];
+    const edges = base.edges ?? [];
+
+    // chat_id 기준으로 노드 맵
+    const nodeById = new Map(
+      nodes.map((n) => [Number(n.chat_id ?? n.id ?? n.node_id), n])
+    );
+
+    // 2) 이 브랜치에 포함된 노드들 집합 (branchView 기준)
+    const branchSet = new Set(
+      (branchInfo.included_nodes ?? [])
+        .map((id) => Number(id))
+        .filter((v) => !Number.isNaN(v))
+    );
+
+    // 🔥 추가: 아직 branchView에 안 들어간 “새 노드”도,
+    //        branch_id 가 activeBranchKey 와 같으면 강제로 포함
+    const branchIdNum = Number(activeBranchKey);
+    nodes.forEach((n) => {
+      const rawId = n.chat_id ?? n.id ?? n.node_id;
+      const cid = rawId != null ? Number(rawId) : NaN;
+      const rawBranch = n.branch_id ?? n.branchId ?? null;
+      const bid = rawBranch != null ? Number(rawBranch) : NaN;
+
+      if (!Number.isNaN(cid) && !Number.isNaN(bid) && bid === branchIdNum) {
+        branchSet.add(cid);
+      }
+    });
+
+    // 3) 브랜치 노드들 + 루트까지의 부모 체인 전부 모으기
+    const visibleSet = new Set();
+
+    for (const id of branchSet) {
+      let cur = id;
+      while (cur != null && !Number.isNaN(cur) && !visibleSet.has(cur)) {
+        visibleSet.add(cur);
+        const node = nodeById.get(cur);
+        if (!node || node.parent == null) break;
+        cur = Number(node.parent);
+      }
+    }
+
+    // 4) visibleSet에 포함된 노드만 남기기
+    const filteredNodes = nodes.filter((n) => {
+      const rawId = n.chat_id ?? n.id ?? n.node_id;
+      const cid = rawId != null ? Number(rawId) : NaN;
+      return !Number.isNaN(cid) && visibleSet.has(cid);
+    });
+
+    // 5) visibleSet에 양 끝이 모두 있는 엣지만 남기기
+    const filteredEdges = (edges ?? []).filter((e) => {
+      const s = Number(e.source);
+      const t = Number(e.target);
+      if (Number.isNaN(s) || Number.isNaN(t)) return false;
+      return visibleSet.has(s) && visibleSet.has(t);
+    });
+
+    return {
+      ...base,
+      nodes: filteredNodes,
+      edges: filteredEdges,
+    };
+  }, [chatViews, branchViews, activeBranchKey]);
+  const branchItems = useMemo(() => {
+    const items = [
+      {
+        label: "전체",
+        value: "전체",
+        active: activeBranchKey === "전체",
+      },
+    ];
+
+    const branchesObj = branchViews?.branches ?? {};
+    const keys = Object.keys(branchesObj);
+
+    keys.forEach((key) => {
+      const b = branchesObj[key];
+      const label = b?.branch_name || `브랜치-${key}`;
+      items.push({
+        label,
+        value: key, // value는 branch_id 문자열
+        active: activeBranchKey === key,
+      });
+    });
+
+    return items;
+  }, [branchViews, activeBranchKey]);
+  const firstBranchKeyForWhole = useMemo(() => {
+    // "전체" 말고, 실제 브랜치 중 첫 번째 아이템
+    const firstBranchItem = (branchItems || []).find(
+      (it) => it.value !== "전체"
+    );
+    return firstBranchItem?.value ?? null;
+  }, [branchItems]);
+
+  const handleBranchSelect = useCallback((value) => {
+    setActiveBranchKey(value);
+  }, []);
+  const messageGraph = useMemo(() => {
+    // 전체가 아니면, 그냥 filteredGraph(현재 브랜치) 사용
+    if (activeBranchKey !== "전체") return filteredGraph;
+
+    // 브랜치가 하나도 없으면 전체 그래프 그대로 사용
+    if (!firstBranchKeyForWhole) return filteredGraph;
+
+    const base = chatViews ?? { nodes: [], edges: [] };
+    const branchInfo = branchViews?.branches?.[firstBranchKeyForWhole];
+    if (!branchInfo) return filteredGraph;
+
+    const nodes = base.nodes ?? [];
+    const edges = base.edges ?? [];
+
+    const nodeById = new Map(
+      nodes.map((n) => [Number(n.chat_id ?? n.id ?? n.node_id), n])
+    );
+
+    // 첫 번째 브랜치에 포함된 노드 집합
+    const branchSet = new Set(
+      (branchInfo.included_nodes ?? [])
+        .map((id) => Number(id))
+        .filter((v) => !Number.isNaN(v))
+    );
+
+    const visibleSet = new Set();
+
+    // 브랜치 노드 + 루트까지 부모 체인 포함
+    for (const id of branchSet) {
+      let cur = id;
+      while (cur != null && !Number.isNaN(cur) && !visibleSet.has(cur)) {
+        visibleSet.add(cur);
+        const node = nodeById.get(cur);
+        if (!node || node.parent == null) break;
+        cur = Number(node.parent);
+      }
+    }
+
+    const filteredNodes = nodes.filter((n) => {
+      const rawId = n.chat_id ?? n.id ?? n.node_id;
+      const cid = rawId != null ? Number(rawId) : NaN;
+      return !Number.isNaN(cid) && visibleSet.has(cid);
+    });
+
+    const filteredEdges = (edges ?? []).filter((e) => {
+      const s = Number(e.source);
+      const t = Number(e.target);
+      if (Number.isNaN(s) || Number.isNaN(t)) return false;
+      return visibleSet.has(s) && visibleSet.has(t);
+    });
+
+    return {
+      ...base,
+      nodes: filteredNodes,
+      edges: filteredEdges,
+    };
+  }, [
+    filteredGraph,
+    chatViews,
+    branchViews,
+    activeBranchKey,
+    firstBranchKeyForWhole,
+  ]);
+
+  /* ----------------------------- 채팅 전송 ----------------------------- */
   /* ----------------------------- 채팅 전송 ----------------------------- */
   const handleSend = useCallback(async () => {
     const t = input.trim();
@@ -924,6 +1275,13 @@ export default function ChatFlowPage() {
     // 최종적으로 서버에 보낼 값
     let parentChatIds = [];
     let branchId = null;
+
+    // 🔥 이 flowNodeId가 이미 도메인 노드인지 여부 (ignoreRfIds 계산용 + 맨 아래에서도 사용)
+    const isExistingDomainNode =
+      flowNodeId != null &&
+      (chatViewsRef.current?.nodes ?? []).some(
+        (n) => String(n.chat_id ?? n.id ?? n.node_id) === String(flowNodeId)
+      );
 
     // 1) 현재 ReactFlow 스냅샷 + 도메인 그래프 flush
     let snapshot = null;
@@ -937,7 +1295,10 @@ export default function ChatFlowPage() {
           snapshot.nodes.map((n) => n.id)
         );
 
-        const ignoreIds = flowNodeId != null ? [String(flowNodeId)] : [];
+        const ignoreIds =
+          flowNodeId != null && !isExistingDomainNode
+            ? [String(flowNodeId)]
+            : [];
 
         // 🔥 여기서 아직 서버에 반영 안 된 노드들(드래그로 붙인 것들 등)을
         //     도메인 그래프로 다 재구성해 줌
@@ -949,9 +1310,9 @@ export default function ChatFlowPage() {
       }
     }
 
-    // 2) flush된 결과 기반으로 parentChatIds / branchId 계산
+    // 2) flush된 결과 기반으로 parentChatIds / branchId 계산 (✅ 기존: flowNodeId 기반)
     if (flushResult && flowNodeId != null) {
-      const { chatInfo, branchView, flowIdMap } = flushResult; // 🔥 branchView도 같이 가져오기
+      const { chatInfo, branchView, flowIdMap } = flushResult;
       const snapEdges = snapshot?.edges ?? [];
 
       // (1) RF 상에서 이 노드의 "부모" edge 찾기
@@ -1057,7 +1418,116 @@ export default function ChatFlowPage() {
       }
     }
 
-    // 3) 도메인 그래프에 pending 노드 심기 (UI용)
+    // 🔥 2-2) Fallback 로직:
+    //   - flowNodeId가 없거나 (노드 미선택)
+    //   - 위 로직으로 parentChatIds를 못 구했을 때
+    //   → focusedChatId / 현재 브랜치를 기준으로 parent/branch 세팅
+    if (parentChatIds.length === 0) {
+      const baseNodes = chatViewsRef.current?.nodes ?? [];
+
+      let primaryParentId = null;
+      let primaryParentNode = null;
+
+      // (A) 1순위: 포커스된 chat 노드(focusedChatId)
+      if (focusedChatId != null) {
+        const targetId = Number(focusedChatId);
+        if (!Number.isNaN(targetId)) {
+          const node = baseNodes.find(
+            (n) => Number(n.chat_id ?? n.id ?? n.node_id) === Number(targetId)
+          );
+          if (node) {
+            primaryParentId = targetId;
+            primaryParentNode = node;
+          }
+        }
+      }
+
+      // (B) 2순위: 현재 브랜치의 "마지막 CHAT 노드" (messageGraph 기준)
+      if (!primaryParentId) {
+        const ordered = orderedNodesByGraph(messageGraph);
+        const lastChatNode = [...ordered].reverse().find((n) => {
+          const type = n.type ?? n.data?.type;
+          return type !== "GROUP"; // GROUP 말고 실제 CHAT만 부모로
+        });
+
+        if (lastChatNode) {
+          const cidRaw =
+            lastChatNode.chat_id ?? lastChatNode.id ?? lastChatNode.node_id;
+          const cid = cidRaw != null ? Number(cidRaw) : NaN;
+          if (!Number.isNaN(cid)) {
+            primaryParentId = cid;
+            primaryParentNode =
+              baseNodes.find(
+                (n) => Number(n.chat_id ?? n.id ?? n.node_id) === Number(cid)
+              ) ?? null;
+          }
+        }
+      }
+
+      // (C) primaryParentId를 찾았다면 → ancestors + branch 계산
+      if (primaryParentId) {
+        const ancestors = collectAncestorsFromGraph(
+          baseNodes,
+          primaryParentId,
+          5
+        );
+
+        parentChatIds = [
+          Number(primaryParentId),
+          ...ancestors.map((v) => Number(v)),
+        ].filter((v, idx, arr) => !Number.isNaN(v) && arr.indexOf(v) === idx);
+
+        // 브랜치 계산
+        let parentBranch =
+          primaryParentNode?.branch_id ?? primaryParentNode?.branchId ?? null;
+
+        // 1) activeBranchKey가 특정 브랜치라면 우선 반영
+        if (
+          (parentBranch == null || Number.isNaN(Number(parentBranch))) &&
+          activeBranchKey !== "전체"
+        ) {
+          const parsed = Number(activeBranchKey);
+          if (!Number.isNaN(parsed)) parentBranch = parsed;
+        }
+
+        // 2) 그래도 없으면 branchViews에서 검색
+        if (
+          (parentBranch == null || Number.isNaN(Number(parentBranch))) &&
+          branchViews?.branches
+        ) {
+          for (const [key, b] of Object.entries(branchViews.branches)) {
+            const ids = (b.included_nodes ?? [])
+              .map((id) => Number(id))
+              .filter((v) => !Number.isNaN(v));
+            if (ids.includes(Number(primaryParentId))) {
+              parentBranch = Number(key);
+              break;
+            }
+          }
+        }
+
+        if (parentBranch != null && !Number.isNaN(Number(parentBranch))) {
+          branchId = Number(parentBranch);
+        }
+      } else {
+        // (D) 부모 노드를 못 찾았으면, 그래도 브랜치는 activeBranchKey를 설정해 줄 수 있음
+        if (activeBranchKey !== "전체") {
+          const parsed = Number(activeBranchKey);
+          if (!Number.isNaN(parsed)) {
+            branchId = parsed;
+          }
+        }
+      }
+
+      console.log("[handleSend Fallback] parentChatIds / branchId", {
+        parentChatIds,
+        branchId,
+        focusedChatId,
+        activeBranchKey,
+      });
+    }
+
+    // 3) 도메인 그래프에 pending 노드 심기 (UI용) — 여전히 flowNodeId가 있을 때만
     if (flowNodeId) {
       const parentId =
         parentChatIds.length > 0
@@ -1079,16 +1549,15 @@ export default function ChatFlowPage() {
           const old = prevNodes[idx];
           nextNodes[idx] = {
             ...old,
-            id: old.id ?? flowNodeId,
-            node_id: old.node_id ?? flowNodeId,
-            // 이 노드는 아직 chat_id 없음 (QUESTION_CREATED에서 매핑)
-            parent: parentId ?? old.parent ?? null,
-            parents: parentChatIds,
-            branch_id: branchId ?? old.branch_id ?? old.branchId ?? null,
+            id: flowNodeId,
+            node_id: flowNodeId,
+            parent: parentId,
+            parents: parentChatIds, // 배열
+            branch_id: branchId, // 우리가 계산한 브랜치
             question: t,
             pending: true,
-            type: old.type ?? "CHAT",
-            created_at: old.created_at ?? new Date().toISOString(),
+            type: "CHAT",
+            created_at: new Date().toISOString(),
           };
         } else {
           nextNodes.push({
@@ -1169,14 +1638,47 @@ export default function ChatFlowPage() {
 
     // 6) 백엔드에 새 채팅 생성 요청 (여기서 parentChatIds / branchId 사용)
     try {
-      createChat.mutate({
-        roomId: Number(roomId),
-        question: t,
-        parents: parentChatIds,
-        branch_id: branchId,
-        model: modelCode || "gpt-4o-mini",
-        useLlm: false,
-      });
+      createChat.mutate(
+        {
+          roomId: Number(roomId),
+          question: t,
+          parents: parentChatIds,
+          branch_id: branchId,
+          model: modelCode || "gpt-4o-mini",
+          useLlm: false,
+        },
+        {
+          onSuccess: (res, vars) => {
+            const room_id = res.roomId;
+            const node_id = res.nodeId;
+            const created_at = res.createdAt;
+
+            const branch_id = vars.branch_id ?? res.branchId ?? null;
+            const parents = Array.isArray(vars.parents) ? vars.parents : [];
+            const question = vars.question;
+
+            console.log("[createChat onSuccess] fallback upsert", {
+              room_id,
+              node_id,
+              branch_id,
+              parents,
+              created_at,
+            });
+
+            upsertCreatedChatNode({
+              room_id,
+              node_id,
+              branch_id,
+              question,
+              parents,
+              created_at,
+            });
+          },
+          onError: (e) => {
+            console.error("[handleSend] createChat 호출 실패:", e);
+          },
+        }
+      );
     } catch (e) {
       console.error("[handleSend] createChat 호출 실패:", e);
     }
@@ -1193,10 +1695,7 @@ export default function ChatFlowPage() {
       });
       saveJSON(LS_PENDING_MSGS, pending);
 
-      const isExistingDomainNode = (chatViewsRef.current?.nodes ?? []).some(
-        (n) => String(n.chat_id ?? n.id ?? n.node_id) === String(editingNodeId)
-      );
-
+      // 🔥 위에서 미리 계산해둔 isExistingDomainNode 재사용
       if (!isExistingDomainNode) {
         canvasRef.current?.updateNodeLabel(editingNodeId, t);
       }
@@ -1212,6 +1711,10 @@ export default function ChatFlowPage() {
     modelCode,
     addUser,
     setInput,
+    focusedChatId,
+    activeBranchKey,
+    branchViews,
+    messageGraph,
   ]);
 
   const openSearchPanel = () => {
@@ -1410,42 +1913,6 @@ export default function ChatFlowPage() {
   const showGroupButton = editMode && selectedCount > 1 && !hasGroupInSelection;
 
   /* -------------------------- 브랜치 드롭다운 -------------------------- */
-  const branchItems = useMemo(() => {
-    const items = [
-      {
-        label: "전체",
-        value: "전체",
-        active: activeBranchKey === "전체",
-      },
-    ];
-
-    const branchesObj = branchViews?.branches ?? {};
-    const keys = Object.keys(branchesObj);
-
-    keys.forEach((key) => {
-      const b = branchesObj[key];
-      const label = b?.branch_name || `브랜치-${key}`;
-      items.push({
-        label,
-        value: key, // value는 branch_id 문자열
-        active: activeBranchKey === key,
-      });
-    });
-
-    return items;
-  }, [branchViews, activeBranchKey]);
-
-  const firstBranchKeyForWhole = useMemo(() => {
-    // "전체" 말고, 실제 브랜치 중 첫 번째 아이템
-    const firstBranchItem = (branchItems || []).find(
-      (it) => it.value !== "전체"
-    );
-    return firstBranchItem?.value ?? null;
-  }, [branchItems]);
-
-  const handleBranchSelect = useCallback((value) => {
-    setActiveBranchKey(value);
-  }, []);
 
   const activeBranchLabel = useMemo(() => {
     if (activeBranchKey === "전체") return "전체";
@@ -1467,168 +1934,25 @@ export default function ChatFlowPage() {
         try {
           console.log("[QUESTION_CREATED @ChatFlowPage]", payload);
 
-          const room_id = payload?.room_id;
-          const node_id = payload?.node_id; // 새 chat_id
-          const branch_id = payload?.branch_id ?? null;
-          const branch_name = payload?.branch_name;
-          const question = payload?.question ?? "";
+          const room_id = payload?.room_id ?? payload?.data?.room_id;
+          const node_id = payload?.node_id ?? payload?.data?.node_id;
+          const branch_id =
+            payload?.branch_id ?? payload?.data?.branch_id ?? null;
+          const question = payload?.question ?? payload?.data?.question ?? "";
           const parents = Array.isArray(payload?.parents)
             ? payload.parents
-            : [];
-          const created_at = payload?.created_at;
+            : Array.isArray(payload?.data?.parents)
+              ? payload.data.parents
+              : [];
+          const created_at = payload?.created_at ?? payload?.data?.created_at;
 
-          if (!node_id) return;
-
-          setChatViews((prev) => {
-            const base = prev ?? { nodes: [], edges: [] };
-            const prevNodes = base.nodes ?? [];
-            const prevEdges = base.edges ?? [];
-
-            // 0) 이미 같은 chat_id 가진 노드가 있으면(중복 이벤트) 스킵
-            if (
-              prevNodes.some(
-                (n) =>
-                  Number(n.chat_id ?? n.id ?? n.node_id) === Number(node_id)
-              )
-            ) {
-              return prev;
-            }
-
-            // 부모: parents 배열의 마지막 값만 실제 edge(source)로 사용
-            const parentId =
-              parents.length > 0 ? Number(parents[parents.length - 1]) : null;
-
-            /* =======================================================
-             * 1) "채워져야 할 자리"로 보이는 placeholder 노드 찾기
-             *    - chat_id 가 비어 있거나
-             *    - question 이 비어 있고
-             *    - parent / branch_id 가 이번 이벤트와 동일
-             * ======================================================= */
-            const placeholderIndex = prevNodes.findIndex((n) => {
-              const rawId = n.chat_id ?? n.id ?? n.node_id;
-
-              const nodeParent = n.parent ?? n.parent_chat_id ?? null;
-              const nodeBranch = n.branch_id ?? n.branchId ?? null;
-
-              const sameParent =
-                parentId == null
-                  ? nodeParent == null
-                  : Number(nodeParent) === Number(parentId);
-
-              const sameBranch = (nodeBranch ?? null) === (branch_id ?? null);
-
-              const noChatId = rawId == null || Number.isNaN(Number(rawId));
-              const emptyQuestion = !n.question && !(n.data && n.data.question);
-              // 🔥 pending 노드거나, chat_id 없는 노드를 우선적으로 잡는다
-              const isPending = !!n.pending;
-              return (
-                sameParent &&
-                sameBranch &&
-                (isPending || noChatId || emptyQuestion)
-              );
-            });
-
-            let nextNodes = [];
-            let usedNodeId = Number(node_id);
-
-            if (placeholderIndex >= 0) {
-              // ✅ 2-A) placeholder 노드를 "진짜 채팅 노드"로 승격
-              const old = prevNodes[placeholderIndex];
-
-              const updated = {
-                ...old,
-                chat_id: usedNodeId, // ← 이제 서버 chat_id 매핑
-                type: payload?.type ?? old.type ?? "CHAT",
-                question: question || old.question || "",
-                parent: parentId,
-                parents,
-                children: payload?.children ?? old.children ?? [],
-                branch_id: branch_id ?? old.branch_id ?? null,
-                created_at:
-                  created_at ?? old.created_at ?? new Date().toISOString(),
-                pending: true, // 🔥 계속 로딩 중 상태 유지
-              };
-
-              nextNodes = [
-                ...prevNodes.slice(0, placeholderIndex),
-                updated,
-                ...prevNodes.slice(placeholderIndex + 1),
-              ];
-            } else {
-              // ✅ 2-B) placeholder 없으면 기존처럼 새 노드 생성
-              const newNode = {
-                chat_id: usedNodeId,
-                type: payload?.type ?? "CHAT",
-                question,
-                parent: parentId,
-                parents,
-                children: payload?.children ?? [],
-                branch_id: branch_id ?? null,
-                created_at: created_at ?? new Date().toISOString(),
-                pending: true, // 🔥 바로 로딩 중
-              };
-
-              nextNodes = [...prevNodes, newNode];
-            }
-
-            // 3) 엣지 갱신 (parent → node_id)
-            const nextEdges = [...prevEdges];
-            if (parentId != null && !Number.isNaN(parentId)) {
-              const already = nextEdges.some(
-                (e) =>
-                  Number(e.source) === parentId &&
-                  Number(e.target) === usedNodeId
-              );
-              if (!already) {
-                nextEdges.push({
-                  source: parentId,
-                  target: usedNodeId,
-                });
-              }
-            }
-
-            // 4) 부모/자식 정보 포함해서 정규화
-            const nextChat = attachParentChildren({
-              ...base,
-              nodes: nextNodes,
-              edges: nextEdges,
-              last_updated: new Date().toISOString(),
-            });
-
-            // 🔥 브랜치 뷰도 갱신
-            let nextBV = rebuildBranchViewsFromNodes(
-              nextChat.nodes ?? [],
-              nextChat.edges ?? [],
-              roomId,
-              latestBranchViewsRef.current
-            );
-
-            // 만약 새 브랜치라면 branch_name 바로 반영
-            if (branch_id != null && branch_name) {
-              const bid = String(branch_id);
-              const prevBranches = nextBV.branches ?? {};
-              const prevEntry = prevBranches[bid] || {
-                branch_name: "",
-                included_nodes: [],
-                included_edges: [],
-              };
-
-              nextBV = {
-                ...nextBV,
-                branches: {
-                  ...prevBranches,
-                  [bid]: {
-                    ...prevEntry,
-                    branch_name: branch_name,
-                  },
-                },
-              };
-            }
-
-            setBranchViews(nextBV);
-            latestBranchViewsRef.current = nextBV;
-
-            return nextChat;
+          upsertCreatedChatNode({
+            room_id,
+            node_id,
+            branch_id,
+            question,
+            parents,
+            created_at,
           });
         } catch (e) {
           console.error("[QUESTION_CREATED] merge fail:", e);
@@ -1637,6 +1961,7 @@ export default function ChatFlowPage() {
 
       /* ✅ CHAT_STREAM: 델타 + 그래프 조각 */
       onChatStream: (payload) => {
+        console.log("[Chat_Stream] response", payload);
         try {
           const chatId =
             payload?.chat_id ??
@@ -1695,6 +2020,7 @@ export default function ChatFlowPage() {
 
       // ✅ CHAT_DONE: answer / answered_at + 델타 버퍼 정리
       onChatDone: (payload) => {
+        console.log("[Chat_Done] response", payload);
         try {
           const chatId =
             payload?.chat_id ??
@@ -1744,6 +2070,7 @@ export default function ChatFlowPage() {
           const keywords =
             payload?.keywords ?? payload?.data?.keywords ?? undefined;
 
+          console.log("[Chat_Summary_Keywords response", payload, summary);
           if (chatId == null) {
             return;
           }
@@ -1852,143 +2179,7 @@ export default function ChatFlowPage() {
     return () => off && off();
   }, [connected, attachHandlers, persistViews, persistBoth, chatViews, roomId]);
 
-  const filteredGraph = useMemo(() => {
-    const base = chatViews ?? { nodes: [], edges: [] };
-
-    // 1) 전체 보기면 그대로
-    if (activeBranchKey === "전체") return base;
-
-    const branchInfo = branchViews?.branches?.[activeBranchKey];
-    if (!branchInfo) return base;
-
-    const nodes = base.nodes ?? [];
-    const edges = base.edges ?? [];
-
-    // chat_id 기준으로 노드 맵
-    const nodeById = new Map(
-      nodes.map((n) => [Number(n.chat_id ?? n.id ?? n.node_id), n])
-    );
-
-    // 2) 이 브랜치에 포함된 노드들 집합 (branchView 기준)
-    const branchSet = new Set(
-      (branchInfo.included_nodes ?? [])
-        .map((id) => Number(id))
-        .filter((v) => !Number.isNaN(v))
-    );
-
-    // 🔥 추가: 아직 branchView에 안 들어간 “새 노드”도,
-    //        branch_id 가 activeBranchKey 와 같으면 강제로 포함
-    const branchIdNum = Number(activeBranchKey);
-    nodes.forEach((n) => {
-      const rawId = n.chat_id ?? n.id ?? n.node_id;
-      const cid = rawId != null ? Number(rawId) : NaN;
-      const rawBranch = n.branch_id ?? n.branchId ?? null;
-      const bid = rawBranch != null ? Number(rawBranch) : NaN;
-
-      if (!Number.isNaN(cid) && !Number.isNaN(bid) && bid === branchIdNum) {
-        branchSet.add(cid);
-      }
-    });
-
-    // 3) 브랜치 노드들 + 루트까지의 부모 체인 전부 모으기
-    const visibleSet = new Set();
-
-    for (const id of branchSet) {
-      let cur = id;
-      while (cur != null && !Number.isNaN(cur) && !visibleSet.has(cur)) {
-        visibleSet.add(cur);
-        const node = nodeById.get(cur);
-        if (!node || node.parent == null) break;
-        cur = Number(node.parent);
-      }
-    }
-
-    // 4) visibleSet에 포함된 노드만 남기기
-    const filteredNodes = nodes.filter((n) => {
-      const rawId = n.chat_id ?? n.id ?? n.node_id;
-      const cid = rawId != null ? Number(rawId) : NaN;
-      return !Number.isNaN(cid) && visibleSet.has(cid);
-    });
-
-    // 5) visibleSet에 양 끝이 모두 있는 엣지만 남기기
-    const filteredEdges = (edges ?? []).filter((e) => {
-      const s = Number(e.source);
-      const t = Number(e.target);
-      if (Number.isNaN(s) || Number.isNaN(t)) return false;
-      return visibleSet.has(s) && visibleSet.has(t);
-    });
-
-    return {
-      ...base,
-      nodes: filteredNodes,
-      edges: filteredEdges,
-    };
-  }, [chatViews, branchViews, activeBranchKey]);
-
   // 🔥 ChatContent 전용 그래프: "전체"일 땐 첫 번째 브랜치만 보여주기
-  const messageGraph = useMemo(() => {
-    // 전체가 아니면, 그냥 filteredGraph(현재 브랜치) 사용
-    if (activeBranchKey !== "전체") return filteredGraph;
-
-    // 브랜치가 하나도 없으면 전체 그래프 그대로 사용
-    if (!firstBranchKeyForWhole) return filteredGraph;
-
-    const base = chatViews ?? { nodes: [], edges: [] };
-    const branchInfo = branchViews?.branches?.[firstBranchKeyForWhole];
-    if (!branchInfo) return filteredGraph;
-
-    const nodes = base.nodes ?? [];
-    const edges = base.edges ?? [];
-
-    const nodeById = new Map(
-      nodes.map((n) => [Number(n.chat_id ?? n.id ?? n.node_id), n])
-    );
-
-    // 첫 번째 브랜치에 포함된 노드 집합
-    const branchSet = new Set(
-      (branchInfo.included_nodes ?? [])
-        .map((id) => Number(id))
-        .filter((v) => !Number.isNaN(v))
-    );
-
-    const visibleSet = new Set();
-
-    // 브랜치 노드 + 루트까지 부모 체인 포함
-    for (const id of branchSet) {
-      let cur = id;
-      while (cur != null && !Number.isNaN(cur) && !visibleSet.has(cur)) {
-        visibleSet.add(cur);
-        const node = nodeById.get(cur);
-        if (!node || node.parent == null) break;
-        cur = Number(node.parent);
-      }
-    }
-
-    const filteredNodes = nodes.filter((n) => {
-      const rawId = n.chat_id ?? n.id ?? n.node_id;
-      const cid = rawId != null ? Number(rawId) : NaN;
-      return !Number.isNaN(cid) && visibleSet.has(cid);
-    });
-
-    const filteredEdges = (edges ?? []).filter((e) => {
-      const s = Number(e.source);
-      const t = Number(e.target);
-      if (Number.isNaN(s) || Number.isNaN(t)) return false;
-      return visibleSet.has(s) && visibleSet.has(t);
-    });
-
-    return {
-      ...base,
-      nodes: filteredNodes,
-      edges: filteredEdges,
-    };
-  }, [
-    filteredGraph,
-    chatViews,
-    branchViews,
-    activeBranchKey,
-    firstBranchKeyForWhole,
-  ]);
 
   const handleSelectionCountChange = useCallback(
     (count, containsGroup, selNodes) => {
@@ -2003,7 +2194,7 @@ export default function ChatFlowPage() {
   const visibleChatIdSet = useMemo(() => {
     const nodes = messageGraph?.nodes ?? [];
     const ids = nodes
-      .map((n) => Number(n.chat_id ?? n.id ?? n.node_id))
+      .map((n) => (n.chat_id != null ? Number(n.chat_id) : NaN))
       .filter((v) => !Number.isNaN(v));
     return new Set(ids);
   }, [messageGraph]);
