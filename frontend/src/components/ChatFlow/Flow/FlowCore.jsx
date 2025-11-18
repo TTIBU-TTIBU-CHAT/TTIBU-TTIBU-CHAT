@@ -51,7 +51,7 @@ import {
 /* ✅ 임시 노드 스타일 */
 const tempNodeStyle = {
   ...nodeStyle,
-  border: "2px dashed #9AD7B8",
+  border: "2px #9AD7B8",
   background: "#F6FBF8",
   opacity: 0.9,
   boxShadow: "inset 0 0 0 2px rgba(154,215,184,.25)",
@@ -301,7 +301,7 @@ const FlowCore = forwardRef(function FlowCore(
 
     const { x, y } = findFreeSpot(nodes, draftX, draftY);
 
-    const newId = `n-${Date.now()}`;
+    const newId = `${Date.now()}`;
     const newNodeBase = {
       id: newId,
       type: "qa",
@@ -453,7 +453,20 @@ const FlowCore = forwardRef(function FlowCore(
   const updateNodeLabel = useCallback(
     (id, label) => {
       setNodes((nds) =>
-        nds.map((n) => (n.id === id ? { ...n, data: { ...n.data, label } } : n))
+        nds.map((n) => {
+          if (n.id !== id) return n;
+
+          // 🔥 __temp 플래그 제거
+          const { __temp, ...restData } = n.data || {};
+
+          return {
+            ...n,
+            data: {
+              ...restData,
+              label,
+            },
+          };
+        })
       );
     },
     [setNodes]

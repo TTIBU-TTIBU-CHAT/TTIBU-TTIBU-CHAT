@@ -6,7 +6,10 @@ export const groupService = {
       nodes,
       name,
     }), // 그룹 생성
-  update: ({ groupId, ...patch }) => api.patch(`/groups/${groupId}`, patch), // 그룹 수정
+  update: ({ groupId, ...patch }) =>{
+    console.log("그룹 수정 파라미터", groupId, patch);
+    return api.patch(`/groups/${groupId}`, patch);
+  },  // 그룹 수정
   rename: ({ groupId, name }) => api.patch(`/groups/${groupId}/name`, { name }), // 그룹 이름 수정
   remove: (groupId) => api.delete(`/groups/${groupId}`), // 그룹 삭제
   detail: (groupId) => api.get(`/groups/${groupId}`), // 그룹 상세 조회

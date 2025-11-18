@@ -15,14 +15,28 @@ function useZoomTier() {
 export default function QaNode({ data = {}, sourcePosition, targetPosition }) {
   const { tier: baseTier } = useZoomTier();
 
+  // 🔥 raw 데이터 통합
+  const raw = data?.raw || data;
+  const pendingFlag = raw.pending ?? data.pending ?? raw.data?.pending ?? false;
+  console.log("QaNode data:", data, sourcePosition, targetPosition);
+  const answerText =
+    raw.answer ??
+    raw.short_summary ??
+    raw.summary ??
+    data.answer ??
+    data.short_summary ??
+    data.summary;
+
+  // 🔥 답변/요약이 생기면 pending 이 true여도 "생성중..."을 안 띄움
+  const isPending = !!pendingFlag && !answerText;
+
   const { label = "제목 없음", summary, question, answer, date } = data;
-  // console.log("QaNode data:", data, sourcePosition, targetPosition);
-  // ✅ 그룹 노드는 2단계: <1.0 => label / >=1.0 => summary
-  
+
   const rawType = data?.type || data?.raw?.type;
   const isGroup =
     typeof rawType === "string" && rawType.toUpperCase() === "GROUP";
-  const bgColor = data?.color||data?.raw?.color || (isGroup ? "#F4FAF7" : "#ffffff");
+  const bgColor =
+    data?.color || data?.raw?.color || (isGroup ? "#F4FAF7" : "#ffffff");
   const tier = isGroup
     ? baseTier === "label"
       ? "label"
@@ -31,6 +45,7 @@ export default function QaNode({ data = {}, sourcePosition, targetPosition }) {
 
   const showFull = !isGroup && tier === "full";
 
+  // 🔽 기존 렌더링 그대로 유지
   return (
     <NodeShell>
       {!showFull ? (
@@ -61,7 +76,6 @@ export default function QaNode({ data = {}, sourcePosition, targetPosition }) {
         </FullCard>
       )}
 
-      {/* 좌/우 작은 핸들 */}
       <Handle
         type="target"
         position={targetPosition ?? Position.Left}
