@@ -1,36 +1,78 @@
-# Build stage - 의존성 설치
+# Build stage - 의존성 설치 및 모델 다운로드
 FROM python:3.11-slim AS builder
 
 WORKDIR /app
 
-# 시스템 기본 의존성 (git 필요)
-RUN apt-get update && apt-get install -y \
+# 시스템 의존성 설치 (git, JDK for KoNLPy)
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
     git \
+    default-jdk \
     && rm -rf /var/lib/apt/lists/*
 
+# Python 의존성 파일 복사 및 설치
 COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+RUN pip install --no-cache-dir --user -r requirements.txt
 
-# Runtime stage
+# HuggingFace 모델 미리 다운로드 (컨테이너 시작 시간 단축)
+RUN python - << 'PYTHON'
+from transformers import AutoTokenizer, AutoModelForCausalLM
+from sentence_transformers import SentenceTransformer
+import torch
+import sys
+
+print('=== Downloading HuggingFace Models ===')
+
+print('[1/2] Downloading Qwen/Qwen2.5-0.5B...')
+try:
+    AutoTokenizer.from_pretrained('Qwen/Qwen2.5-0.5B')
+    AutoModelForCausalLM.from_pretrained(
+        'Qwen/Qwen2.5-0.5B',
+        torch_dtype=torch.float32,
+        low_cpu_mem_usage=True,
+    )
+    print('✓ Qwen/Qwen2.5-0.5B downloaded successfully')
+except Exception as e:
+    print(f'✗ Failed to download Qwen/Qwen2.5-0.5B: {e}', file=sys.stderr)
+
+print('[2/2] Downloading jhgan/ko-sroberta-multitask...')
+try:
+    SentenceTransformer('jhgan/ko-sroberta-multitask')
+    print('✓ jhgan/ko-sroberta-multitask downloaded successfully')
+except Exception as e:
+    print(f'✗ Failed to download jhgan/ko-sroberta-multitask: {e}', file=sys.stderr)
+
+print('=== Model download process completed ===')
+PYTHON
+
+# Runtime stage - 실행 환경
 FROM python:3.11-slim
 
 WORKDIR /app
 
-# 실행에 필요한 기본 패키지
-RUN apt-get update && apt-get install -y \
+# JDK 설치 (KoNLPy 실행 필수)
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
     git \
+    default-jdk \
     && rm -rf /var/lib/apt/lists/*
 
-# builder에서 설치한 site-packages 복사
-COPY --from=builder /usr/local /usr/local
+# JAVA_HOME 환경 변수 설정
+ENV JAVA_HOME=/usr/lib/jvm/default-java
+
+# builder stage에서 설치된 패키지와 모델 캐시 복사
+COPY --from=builder /root/.local /root/.local
+COPY --from=builder /root/.cache /root/.cache
 
 # 애플리케이션 코드 복사
-COPY . .
+COPY app/ ./app/
 
-# HuggingFace 캐시 경로 설정 (도커 내부에 캐시)
-ENV HF_HOME=/app/.cache/huggingface
+# PATH에 로컬 패키지 경로 추가
+ENV PATH=/root/.local/bin:$PATH
 
-# 포트 노출
+# HuggingFace 캐시 경로 설정
+ENV HF_HOME=/root/.cache/huggingface
+
 EXPOSE 8001
 
 CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8001"]
