@@ -14,11 +14,6 @@ echo "Downloading litellm-config.yaml from S3 (${S3_BUCKET})..."
 aws s3 cp "s3://${S3_BUCKET}/litellm-config.yaml" "$LITELLM_CONFIG_PATH"
 echo "✓ litellm-config.yaml downloaded successfully"
 
-# ECR Public 로그인
-echo "Logging in to Amazon ECR Public..."
-aws ecr-public get-login-password --region us-east-1 | docker login --username AWS --password-stdin public.ecr.aws
-echo "✓ ECR Public login successful"
-
 # 이전 배포 디렉토리 정리 (옵션)
 if [ -d "$APP_DIR" ]; then
     echo "Cleaning up old deployment files (keeping .env)..."
