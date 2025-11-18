@@ -143,7 +143,10 @@ public class SecurityConfig {
     @Bean
     CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration c = new CorsConfiguration();
-        c.setAllowedOrigins(List.of("http://localhost:5173"));
+        c.setAllowedOrigins(List.of(
+                "http://localhost:5173",
+                "https://app.tibutibu.click"
+        ));
         c.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"));
         c.setAllowedHeaders(List.of("Content-Type", "Authorization", "X-CSRF-TOKEN"));
         c.setExposedHeaders(List.of("Set-Cookie"));
