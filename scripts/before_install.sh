@@ -6,17 +6,13 @@ echo "Preparing Environment..."
 echo "=========================================="
 
 APP_DIR="/home/ubuntu/ttibu-app"
-S3_BUCKET="${S3_CONFIG_BUCKET}"
+S3_BUCKET="${S3_CONFIG_BUCKET:-s3-litellm-config}"  # 기본값 설정
 LITELLM_CONFIG_PATH="/home/ubuntu/litellm-config.yaml"
 
 # S3에서 litellm-config.yaml 다운로드
-if [ -n "$S3_BUCKET" ]; then
-    echo "Downloading litellm-config.yaml from S3..."
-    aws s3 cp "s3://${S3_BUCKET}/litellm-config.yaml" "$LITELLM_CONFIG_PATH"
-    echo "✓ litellm-config.yaml downloaded successfully"
-else
-    echo "⚠ S3_CONFIG_BUCKET not set, skipping config download"
-fi
+echo "Downloading litellm-config.yaml from S3 (${S3_BUCKET})..."
+aws s3 cp "s3://${S3_BUCKET}/litellm-config.yaml" "$LITELLM_CONFIG_PATH"
+echo "✓ litellm-config.yaml downloaded successfully"
 
 # ECR Public 로그인
 echo "Logging in to Amazon ECR Public..."
