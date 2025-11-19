@@ -6,7 +6,8 @@ export const GlobalRFStyles = createGlobalStyle`
   .react-flow__node.selected > div {
     border-color: #006e35ff !important;
     box-shadow:
-      0 0 0 3px rgba(0, 85, 41, 0.15);
+      0 0 0 3px #3367d9;
+    border-radius: 5px;
   }
 
   /* 엣지 색감 기본 */

@@ -84,6 +84,7 @@ export function useSearchChats(keywords = [], page = 0, size = 20) {
   return useQuery({
     queryKey: rk.search(keywords, page, size),
     queryFn: async () => {
+      console.log("useSearchChats called with:",keywords,page,size);
       const json = await chatService.searchChats({ keywords, page, size });
       // 서버 래핑: { status, data }
       console.log("Search response:", json);
