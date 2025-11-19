@@ -179,16 +179,58 @@ const FlowCore = forwardRef(function FlowCore(
       const childEdges = nextEdges.filter((e) => String(e.source) === parentId);
       const childCount = childEdges.length;
 
-      // 4) 브랜치명 입력 조건:
-      if (childCount >= 2 && typeof askBranchName === "function") {
-        const targetNode = nodes.find((n) => n.id === childId);
-        const alreadyBranch =
-          targetNode?.data?.branch ?? targetNode?.data?.branch_name;
-        if (alreadyBranch) return;
+      console.log("[onConnect] 엣지 연결:", {
+        parentId,
+        childId,
+        childCount,
+        description: childCount === 1 ? "첫 번째 자식 - 부모 브랜치 상속" : "두 번째 이후 자식 - 새 브랜치 생성"
+      });
+
+      // 4) 브랜치 처리
+      const targetNode = nodes.find((n) => n.id === childId);
+      const alreadyBranch =
+        targetNode?.data?.branch ?? targetNode?.data?.branch_name;
+
+      if (alreadyBranch) {
+        console.log("[onConnect] 이미 브랜치가 설정된 노드:", alreadyBranch);
+        return;
+      }
+
+      if (childCount === 1) {
+        // ✅ 첫 번째 자식 → 부모 branch 상속
+        const parentNode = nodes.find((n) => n.id === parentId);
+        const parentBranch = parentNode?.data?.branch ?? parentNode?.data?.branch_id;
+
+        console.log("[onConnect] 첫 번째 자식 - 부모 브랜치 상속:", {
+          parentId,
+          parentBranch,
+          childId
+        });
+
+        if (parentBranch) {
+          setNodes((nds) =>
+            nds.map((n) =>
+              n.id === childId
+                ? { ...n, data: { ...(n.data || {}), branch: parentBranch } }
+                : n
+            )
+          );
+        }
+      } else if (childCount >= 2 && typeof askBranchName === "function") {
+        // ✅ 두 번째 이후 자식 → 새 브랜치 생성 + 브랜치명 입력
+        console.log("[onConnect] 두 번째 이후 자식 - 브랜치명 입력 모달 호출");
 
         const name = await askBranchName(parentId, childId);
-        if (!name || !name.trim()) return;
+
+        if (!name || !name.trim()) {
+          console.log("[onConnect] 브랜치명 입력 취소 - 엣지 제거");
+          // 사용자가 취소하면 방금 추가한 엣지 제거
+          setEdges((eds) => eds.filter((e) => !(String(e.source) === parentId && String(e.target) === childId)));
+          return;
+        }
+
         const trimmed = name.trim();
+        console.log("[onConnect] 브랜치명 입력 완료:", trimmed);
 
         setNodes((nds) =>
           nds.map((n) =>
@@ -475,6 +517,18 @@ const FlowCore = forwardRef(function FlowCore(
     [setNodes, setEdges]
   );
 
+  // 🔥 임시 노드뿐만 아니라 일반 노드도 제거 (DnD placeholder 제거용)
+  const removeNode = useCallback(
+    (nodeId) => {
+      if (!nodeId) return;
+      setNodes((nds) => nds.filter((n) => n.id !== nodeId));
+      setEdges((eds) =>
+        eds.filter((e) => e.source !== nodeId && e.target !== nodeId)
+      );
+    },
+    [setNodes, setEdges]
+  );
+
   const applyContentToNode = useCallback(
     (nodeId, payload) => {
       if (!nodeId || !payload) return;
@@ -584,6 +638,7 @@ const FlowCore = forwardRef(function FlowCore(
       updateNodeLabel,
       applyContentToNode,
       discardTempNode,
+      removeNode,
       validateForSave,
       getSnapshot,
     }),
@@ -592,6 +647,7 @@ const FlowCore = forwardRef(function FlowCore(
       updateNodeLabel,
       applyContentToNode,
       discardTempNode,
+      removeNode,
       validateForSave,
       getSnapshot,
     ]

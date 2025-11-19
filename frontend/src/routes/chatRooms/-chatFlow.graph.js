@@ -253,7 +253,6 @@ export function rebuildFromSnapshot(
   );
 
   const prevNodes = prevChatViews?.nodes ?? [];
-  const prevEdges = prevChatViews?.edges ?? [];
 
   const snapNodesRaw = Array.isArray(snapshot?.nodes) ? snapshot.nodes : [];
 
@@ -272,31 +271,62 @@ export function rebuildFromSnapshot(
   });
 
   // ✅ 2) 기존 도메인 노드들을 베이스로 두고,
-  //       snapshot 에서 position 정보가 있는 노드만 위치 갱신
-  const rebuiltNodes = prevNodes.map((n) => {
-    const cidRaw = n.chat_id ?? n.id ?? n.node_id;
-    const cid = cidRaw != null ? Number(cidRaw) : NaN;
-    if (Number.isNaN(cid)) {
-      return n;
-    }
+  //       snapshot 에 있는 노드만 유지하면서 position 갱신
+  //       🔥 snapshot에 없는 노드는 삭제된 것으로 간주하여 제외
+  const rebuiltNodes = prevNodes
+    .filter((n) => {
+      const cidRaw = n.chat_id ?? n.id ?? n.node_id;
+      const cid = cidRaw != null ? Number(cidRaw) : NaN;
+      if (Number.isNaN(cid)) {
+        return false; // 유효하지 않은 노드 제거
+      }
+      // 🔥 snapshot에 있는 노드만 유지 (없으면 삭제된 것으로 간주)
+      return posMap.has(cid);
+    })
+    .map((n) => {
+      const cidRaw = n.chat_id ?? n.id ?? n.node_id;
+      const cid = Number(cidRaw);
+      const pos = posMap.get(cid);
 
-    const pos = posMap.get(cid);
-    if (!pos) {
-      // 이 노드는 이번 snapshot 에 안 나왔을 뿐, 도메인에서는 그대로 유지
-      return n;
-    }
+      return {
+        ...n,
+        position: {
+          ...(n.position ?? {}),
+          ...pos,
+        },
+      };
+    });
 
-    return {
-      ...n,
-      position: {
-        ...(n.position ?? {}),
-        ...pos,
-      },
-    };
-  });
+  // ✅ 3) snapshot의 엣지를 기준으로 재구성
+  //       🔥 노드 삭제 시 ReactFlow에서 재연결된 엣지를 반영하기 위해
+  //       snapshot의 엣지를 우선 사용하되, 유효한 노드만 연결
+  const snapEdges = Array.isArray(snapshot?.edges) ? snapshot.edges : [];
 
-  // ✅ 3) 엣지는 우선 기존 도메인 엣지를 그대로 사용
-  const rebuiltEdges = [...prevEdges];
+  // snapshot 엣지 중 ignore 대상이 아니고, 양쪽 노드가 모두 존재하는 것만 사용
+  const rebuiltEdges = snapEdges
+    .filter((e) => {
+      const sourceStr = String(e.source);
+      const targetStr = String(e.target);
+
+      // ignore 대상 제외
+      if (ignoreSet.has(sourceStr) || ignoreSet.has(targetStr)) {
+        return false;
+      }
+
+      const sourceId = Number(e.source);
+      const targetId = Number(e.target);
+
+      // 양쪽 노드가 모두 snapshot에 있는 엣지만 유지
+      return posMap.has(sourceId) && posMap.has(targetId);
+    })
+    .map((e) => ({
+      source: Number(e.source),
+      target: Number(e.target),
+      // 기타 엣지 속성 유지
+      ...(e.id && { id: e.id }),
+      ...(e.type && { type: e.type }),
+      ...(e.data && { data: e.data }),
+    }));
 
   // ✅ 4) parent / children 부착
   const chatInfo = attachParentChildren({

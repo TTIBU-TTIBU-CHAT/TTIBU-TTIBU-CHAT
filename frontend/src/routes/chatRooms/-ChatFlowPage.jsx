@@ -95,6 +95,8 @@ function collectAncestorsFromGraph(nodes, startChatId, limit = 5) {
 /* 컴포넌트 시작                                                             */
 /* ======================================================================= */
 export default function ChatFlowPage() {
+  console.log("[COMPONENT] 🟣 ===== ChatFlowPage 렌더링 시작 =====");
+
   /* ✅ URL 파라미터 (/chatrooms/$roomId) */
   const { nodeId: roomId } = useParams({ strict: false });
   const {
@@ -128,6 +130,14 @@ export default function ChatFlowPage() {
     startBranchKeyFromRoute
   );
 
+  // 🔥 Track when activeBranchKey changes
+  useEffect(() => {
+    console.log("[EFFECT] 🔶 activeBranchKey 변경:", {
+      activeBranchKey,
+      timestamp: new Date().toISOString(),
+    });
+  }, [activeBranchKey]);
+
   const [editMode, setEditMode] = useState(true);
   const [panelOpen, setPanelOpen] = useState(false);
   const [panelType, setPanelType] = useState("chat");
@@ -160,16 +170,87 @@ export default function ChatFlowPage() {
   const effectiveRoomData =
     ignoreRoomInit || !roomInit ? apiRoomData : roomInit;
 
+  // 🔥 Track component mount
+  useEffect(() => {
+    console.log("[MOUNT] 🟣 ===== ChatFlowPage 최초 마운트 =====", {
+      roomId,
+      hasRoomInit: !!roomInit,
+      hasApiRoomData: !!apiRoomData,
+      routeMode,
+      startBranchKeyFromRoute,
+    });
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // 🔥 Track when effectiveRoomData changes
+  useEffect(() => {
+    console.log("[EFFECT] 🟡 effectiveRoomData 변경:", {
+      ignoreRoomInit,
+      hasRoomInit: !!roomInit,
+      hasApiRoomData: !!apiRoomData,
+      roomId: effectiveRoomData?.room_id,
+      nodesCount: effectiveRoomData?.nodes?.length ?? 0,
+    });
+  }, [effectiveRoomData, ignoreRoomInit, roomInit, apiRoomData]);
+
   /* --------------------------------------------------------------------- */
   const initialViews = useMemo(
-    () => deriveViews(effectiveRoomData),
+    () => {
+      const views = deriveViews(effectiveRoomData);
+      console.log("[INIT] 🟡 deriveViews 호출:", {
+        chatViewsNodes: views?.chatViews?.nodes?.length ?? 0,
+        branchViewsBranches: Object.keys(views?.branchViews?.branches ?? {}),
+      });
+      return views;
+    },
     [effectiveRoomData]
   );
 
-  const [chatViews, setChatViews] = useState(
-    attachParentChildren(initialViews.chatViews)
-  );
-  const [branchViews, setBranchViews] = useState(initialViews.branchViews);
+  const [chatViews, setChatViewsRaw] = useState(() => {
+    const initial = attachParentChildren(initialViews.chatViews);
+    console.log("[INIT] 🔵 chatViews 초기값:", {
+      nodesCount: initial?.nodes?.length ?? 0,
+      edgesCount: initial?.edges?.length ?? 0,
+      nodeIds: (initial?.nodes ?? []).map(n => n.chat_id ?? n.id ?? n.node_id),
+    });
+    return initial;
+  });
+  const [branchViews, setBranchViewsRaw] = useState(() => {
+    const initial = initialViews.branchViews;
+    console.log("[INIT] 🟢 branchViews 초기값:", {
+      branches: Object.keys(initial?.branches ?? {}),
+      branchDetails: initial?.branches,
+    });
+    return initial;
+  });
+
+  // 🔥 Wrapper to log all setChatViews calls
+  const setChatViews = useCallback((updater) => {
+    setChatViewsRaw((prev) => {
+      const next = typeof updater === 'function' ? updater(prev) : updater;
+      console.log("[setChatViews] 🔵 호출:", {
+        prevNodesCount: prev?.nodes?.length ?? 0,
+        nextNodesCount: next?.nodes?.length ?? 0,
+        prevNodeIds: (prev?.nodes ?? []).map(n => n.chat_id ?? n.id ?? n.node_id),
+        nextNodeIds: (next?.nodes ?? []).map(n => n.chat_id ?? n.id ?? n.node_id),
+        stack: new Error().stack?.split('\n').slice(2, 5).join('\n'),
+      });
+      return next;
+    });
+  }, []);
+
+  // 🔥 Wrapper to log all setBranchViews calls
+  const setBranchViews = useCallback((updater) => {
+    setBranchViewsRaw((prev) => {
+      const next = typeof updater === 'function' ? updater(prev) : updater;
+      console.log("[setBranchViews] 🟢 호출:", {
+        prevBranches: Object.keys(prev?.branches ?? {}),
+        nextBranches: Object.keys(next?.branches ?? {}),
+        nextBranchDetails: next?.branches,
+        stack: new Error().stack?.split('\n').slice(2, 5).join('\n'),
+      });
+      return next;
+    });
+  }, []);
 
   const [baseline, setBaseline] = useState(() => ({
     chatViews: attachParentChildren(initialViews.chatViews),
@@ -330,6 +411,20 @@ export default function ChatFlowPage() {
 
         const jitteredPos = jitterPosition(posRightOfParent, nodeIdNum);
 
+        // 🔥 branch_id 결정: 서버 → placeholder → 부모 상속 순
+        let finalBranchId = branch_id ?? old.branch_id ?? null;
+        if (finalBranchId == null && parentNode) {
+          const parentBranchId =
+            parentNode.branch_id ?? parentNode.branchId ?? null;
+          if (parentBranchId != null && !Number.isNaN(Number(parentBranchId))) {
+            finalBranchId = Number(parentBranchId);
+            console.log(
+              "[upsertCreatedChatNode] 부모로부터 branch_id 상속:",
+              finalBranchId
+            );
+          }
+        }
+
         nextNodes = [
           ...prevNodes.slice(0, placeholderIndex),
           {
@@ -337,7 +432,7 @@ export default function ChatFlowPage() {
             chat_id: nodeIdNum,
             parent: parentId,
             parents: parents ?? [],
-            branch_id: branch_id ?? old.branch_id ?? null,
+            branch_id: finalBranchId,
             question: question || old.question || "",
             created_at:
               created_at ?? old.created_at ?? new Date().toISOString(),
@@ -378,6 +473,20 @@ export default function ChatFlowPage() {
 
         const pos = jitterPosition(posBase, nodeIdNum);
 
+        // 🔥 branch_id 결정: 서버 값 → 부모 상속 순
+        let finalBranchId = branch_id ?? null;
+        if (finalBranchId == null && parentNode) {
+          const parentBranchId =
+            parentNode.branch_id ?? parentNode.branchId ?? null;
+          if (parentBranchId != null && !Number.isNaN(Number(parentBranchId))) {
+            finalBranchId = Number(parentBranchId);
+            console.log(
+              "[upsertCreatedChatNode] 새 노드 - 부모로부터 branch_id 상속:",
+              finalBranchId
+            );
+          }
+        }
+
         nextNodes = [
           ...prevNodes,
           {
@@ -385,7 +494,7 @@ export default function ChatFlowPage() {
             chat_id: nodeIdNum,
             parent: parentId,
             parents: parents ?? [],
-            branch_id: branch_id ?? null,
+            branch_id: finalBranchId,
             question: question ?? "",
             children: [],
             keywords: [],
@@ -398,11 +507,20 @@ export default function ChatFlowPage() {
 
       // 3) 엣지 (parent → node_id) 추가
       const nextEdges = [...prevEdges];
-      if (parentId != null && !Number.isNaN(parentId)) {
+      // 🔥 자기 자신을 엣지로 연결하는 것 방지
+      if (
+        parentId != null &&
+        !Number.isNaN(parentId) &&
+        Number(parentId) !== nodeIdNum
+      ) {
         const already = nextEdges.some(
           (e) => Number(e.source) === parentId && Number(e.target) === nodeIdNum
         );
         if (!already) {
+          console.log("[upsertCreatedChatNode] 엣지 추가:", {
+            source: parentId,
+            target: nodeIdNum,
+          });
           nextEdges.push({
             source: parentId,
             target: nodeIdNum,
@@ -507,7 +625,7 @@ export default function ChatFlowPage() {
   );
 
   const persistBoth = useCallback(
-    (nextChatViews, nextBranchViews) => {
+    (nextChatViews, nextBranchViews, callSite = "unknown") => {
       const normalized = attachParentChildren(nextChatViews);
       const cleaned = stripTempNodes(normalized);
       const hasGraph =
@@ -518,6 +636,16 @@ export default function ChatFlowPage() {
 
       if (!hasGraph && !hasBranches) {
         return;
+      }
+
+      console.log(`==== [SAVE_DEBUG] persistBoth 호출위치: ${callSite} ====`);
+
+      // 🔥 브랜치별 branch_name 상세 로그
+      if (nextBranchViews?.branches) {
+        console.log("🔍 [SAVE_DEBUG] 각 브랜치의 branch_name 상태:");
+        Object.entries(nextBranchViews.branches).forEach(([key, value]) => {
+          console.log(`  브랜치 ${key}: branch_name = "${value.branch_name || "(빈 문자열)"}"`);
+        });
       }
 
       console.log("==== [SAVE_DEBUG] persistBoth payload (object) ====");
@@ -710,7 +838,7 @@ export default function ChatFlowPage() {
           branchViewOverride: mergedBranchView,
         });
 
-        persistBoth(normalized, mergedBranchView);
+        persistBoth(normalized, mergedBranchView, "flushFromSnapshot");
 
         const flowIdMap = {};
         flowIdToChatId.forEach((v, k) => {
@@ -739,6 +867,9 @@ export default function ChatFlowPage() {
       // ================================
       // 3) 채팅 복사(chatCopies) 순차 처리
       // ================================
+      // 🔥 아직 처리되지 않은 nodeId 추적 (순차 처리 중)
+      const pendingNodeIds = new Set((chatCopies || []).map(op => String(op.nodeId)));
+
       for (const { originUid, roomUid, nodeId } of chatCopies || []) {
         try {
           const res = await attachChatFromExisting.mutateAsync({
@@ -788,19 +919,41 @@ export default function ChatFlowPage() {
             parentChatId2 = flowIdToChatId.get(parentFlowId) ?? null;
           }
 
-          // 형제 edge들 (부모가 이미 다른 자식들을 갖고 있는지)
-          const siblingEdges = parentEdge
-            ? (safeSnapshot.edges ?? []).filter(
-                (e) => String(e.source) === String(parentEdge.source)
+          const prevNodes = nextChatViews?.nodes ?? [];
+          const prevEdges = nextChatViews?.edges ?? [];
+
+          // 🔥 형제 edge들 (부모가 이미 다른 자식들을 갖고 있는지)
+          // snapshot과 도메인 그래프 모두 확인
+          // ⚠️ snapshot에서는 "아직 처리되지 않은 pending 노드"를 제외
+          const siblingEdgesInSnapshot = parentEdge
+            ? (safeSnapshot.edges ?? []).filter((e) => {
+                const isSameParent = String(e.source) === String(parentEdge.source);
+                const isNotSelf = String(e.target) !== nodeKey;
+                const targetNode = String(e.target);
+                // 자기 자신이 아니고, 아직 처리 안 된 다른 pending 노드도 제외
+                return isSameParent && isNotSelf && !pendingNodeIds.has(targetNode);
+              })
+            : [];
+
+          const siblingEdgesInDomain = parentChatId2
+            ? prevEdges.filter(
+                (e) => Number(e.source) === Number(parentChatId2)
               )
             : [];
 
-          const hasOtherChildren =
-            parentEdge &&
-            siblingEdges.some((e) => String(e.target) !== nodeKey);
+          const hasOtherChildren = siblingEdgesInSnapshot.length > 0 || siblingEdgesInDomain.length > 0;
 
-          const prevNodes = nextChatViews?.nodes ?? [];
-          const prevEdges = nextChatViews?.edges ?? [];
+          console.log("[flushFromSnapshot chatCopy] hasOtherChildren 판단:", {
+            nodeId,
+            parentChatId2,
+            pendingNodeIds: Array.from(pendingNodeIds),
+            siblingEdgesInSnapshot: siblingEdgesInSnapshot.length,
+            siblingEdgesInDomain: siblingEdgesInDomain.length,
+            hasOtherChildren
+          });
+
+          // 🔥 hasOtherChildren 계산 완료 후 pending에서 제거
+          pendingNodeIds.delete(nodeKey);
 
           const originNode = prevNodes.find(
             (n) => Number(n.chat_id) === Number(originUid)
@@ -814,6 +967,9 @@ export default function ChatFlowPage() {
             ...(originNode || {}),
           };
 
+          // 🔥 ReactFlow snapshot에서 브랜치명 가져오기
+          const branchNameFromSnapshot = snapNodeForNew?.data?.branch ?? null;
+
           let baseBranchId =
             baseNode?.branch_id ??
             baseNode?.branchId ??
@@ -824,6 +980,7 @@ export default function ChatFlowPage() {
               : null);
 
           let branchId = baseBranchId ?? null;
+          let branchName = null; // 새 브랜치명 저장용
 
           // 🔹 부모가 이미 다른 자식이 있으면 → 새 branch id 생성
           if (hasOtherChildren) {
@@ -847,6 +1004,24 @@ export default function ChatFlowPage() {
                 : prevBV?.max_branch_number ?? 0;
 
             branchId = currentMax + 1;
+
+            // 🔥 브랜치명이 있으면 저장
+            if (branchNameFromSnapshot && typeof branchNameFromSnapshot === "string") {
+              branchName = branchNameFromSnapshot.trim();
+              console.log("[flushFromSnapshot chatCopy] 새 브랜치 발급:", {
+                branchId,
+                branchName,
+                nodeId
+              });
+            }
+          } else if (branchNameFromSnapshot) {
+            // 🔹 첫 번째 자식인데 브랜치명이 있는 경우 (부모 브랜치명일 수도 있음)
+            // 부모의 브랜치명과 다르면 기록
+            console.log("[flushFromSnapshot chatCopy] 첫 번째 자식 - 브랜치명 확인:", {
+              branchId: baseBranchId,
+              branchName: branchNameFromSnapshot,
+              nodeId
+            });
           }
 
           const newNode = {
@@ -888,8 +1063,39 @@ export default function ChatFlowPage() {
             latestBranchViewsRef.current ?? nextBranchViews
           );
 
+          // 🔥 브랜치명이 있으면 branchViews에 반영
+          if (branchName && branchId != null) {
+            const key = String(branchId);
+            nextBranchViews = {
+              ...nextBranchViews,
+              branches: {
+                ...(nextBranchViews.branches ?? {}),
+                [key]: {
+                  ...(nextBranchViews.branches?.[key] ?? {}),
+                  branch_name: branchName,
+                  included_nodes: nextBranchViews.branches?.[key]?.included_nodes ?? [],
+                  included_edges: nextBranchViews.branches?.[key]?.included_edges ?? [],
+                },
+              },
+              max_branch_number: Math.max(
+                nextBranchViews.max_branch_number ?? 0,
+                branchId
+              ),
+            };
+
+            console.log("[flushFromSnapshot chatCopy] branchViews 업데이트:", {
+              branchId,
+              branchName,
+              branches: nextBranchViews.branches
+            });
+          }
+
           // 이후 자식들을 위해 placeholder id → copyId 매핑
           flowIdToChatId.set(nodeKey, Number(copyId));
+
+          // 🔥 ReactFlow에서 임시 placeholder 노드 제거
+          console.log("[flushFromSnapshot chatCopy] ReactFlow 임시 노드 제거:", nodeKey);
+          canvasRef.current?.removeNode(nodeKey);
         } catch (e) {
           console.error("[attachChatFromExisting] error:", e);
           setErrorMsg("기존 채팅을 붙이는 중 오류가 발생했습니다.");
@@ -948,15 +1154,32 @@ export default function ChatFlowPage() {
               (!Number.isNaN(Number(parentRFId)) ? Number(parentRFId) : null);
           }
 
-          // 형제 edge들
-          const siblingEdges = parentEdge
+          // 🔥 형제 edge들 (부모가 이미 다른 자식들을 갖고 있는지)
+          // snapshot과 도메인 그래프 모두 확인
+          const siblingEdgesInSnapshot = parentEdge
             ? (safeSnapshot.edges ?? []).filter(
-                (e) => String(e.source) === String(parentEdge.source)
+                (e) => String(e.source) === String(parentEdge.source) && String(e.target) !== rfId
               )
             : [];
 
-          const hasOtherChildren =
-            parentEdge && siblingEdges.some((e) => String(e.target) !== rfId);
+          const siblingEdgesInDomain = parentChatId
+            ? prevEdges.filter(
+                (e) => Number(e.source) === Number(parentChatId)
+              )
+            : [];
+
+          const hasOtherChildren = siblingEdgesInSnapshot.length > 0 || siblingEdgesInDomain.length > 0;
+
+          console.log("[flushFromSnapshot groupAttach] hasOtherChildren 판단:", {
+            nodeId,
+            parentChatId,
+            siblingEdgesInSnapshot: siblingEdgesInSnapshot.length,
+            siblingEdgesInDomain: siblingEdgesInDomain.length,
+            hasOtherChildren
+          });
+
+          // 🔥 ReactFlow snapshot에서 브랜치명 가져오기
+          const branchNameFromSnapshot = snapNodeForGroup?.data?.branch ?? null;
 
           // branch_id 결정
           const baseBranchId =
@@ -969,6 +1192,7 @@ export default function ChatFlowPage() {
               : null);
 
           let branchId = baseBranchId ?? null;
+          let branchName = null; // 새 브랜치명 저장용
 
           // 🔹 부모가 이미 다른 자식이 있으면 → 새 branch id 생성
           if (hasOtherChildren) {
@@ -992,6 +1216,22 @@ export default function ChatFlowPage() {
                 : prevBV?.max_branch_number ?? 0;
 
             branchId = currentMax + 1;
+
+            // 🔥 브랜치명이 있으면 저장
+            if (branchNameFromSnapshot && typeof branchNameFromSnapshot === "string") {
+              branchName = branchNameFromSnapshot.trim();
+              console.log("[flushFromSnapshot groupAttach] 새 브랜치 발급:", {
+                branchId,
+                branchName,
+                nodeId
+              });
+            }
+          } else if (branchNameFromSnapshot) {
+            console.log("[flushFromSnapshot groupAttach] 첫 번째 자식 - 브랜치명 확인:", {
+              branchId: baseBranchId,
+              branchName: branchNameFromSnapshot,
+              nodeId
+            });
           }
 
           // 🔥 도메인 GROUP 노드 생성
@@ -1039,8 +1279,39 @@ export default function ChatFlowPage() {
             latestBranchViewsRef.current ?? nextBranchViews
           );
 
+          // 🔥 브랜치명이 있으면 branchViews에 반영
+          if (branchName && branchId != null) {
+            const key = String(branchId);
+            nextBranchViews = {
+              ...nextBranchViews,
+              branches: {
+                ...(nextBranchViews.branches ?? {}),
+                [key]: {
+                  ...(nextBranchViews.branches?.[key] ?? {}),
+                  branch_name: branchName,
+                  included_nodes: nextBranchViews.branches?.[key]?.included_nodes ?? [],
+                  included_edges: nextBranchViews.branches?.[key]?.included_edges ?? [],
+                },
+              },
+              max_branch_number: Math.max(
+                nextBranchViews.max_branch_number ?? 0,
+                branchId
+              ),
+            };
+
+            console.log("[flushFromSnapshot groupAttach] branchViews 업데이트:", {
+              branchId,
+              branchName,
+              branches: nextBranchViews.branches
+            });
+          }
+
           // placeholder RF id → 실제 chat_id 매핑
           flowIdToChatId.set(rfId, Number(groupNodeId));
+
+          // 🔥 ReactFlow에서 임시 placeholder 노드 제거
+          console.log("[flushFromSnapshot groupAttach] ReactFlow 임시 노드 제거:", rfId);
+          canvasRef.current?.removeNode(rfId);
         } catch (e) {
           console.error("[attachGroupToRoom] error:", e);
           setErrorMsg("그룹을 붙이는 중 오류가 발생했습니다.");
@@ -1096,6 +1367,12 @@ export default function ChatFlowPage() {
       );
 
       // 6) 최종 누적 상태를 한번에 반영 + 저장
+      console.log("[flushFromSnapshot] 최종 상태 업데이트:", {
+        nodesCount: nextChatViews?.nodes?.length ?? 0,
+        edgesCount: nextChatViews?.edges?.length ?? 0,
+        branches: Object.keys(nextBranchViews?.branches ?? {}),
+        branchDetails: nextBranchViews?.branches,
+      });
       setChatViews(nextChatViews);
       setBranchViews(nextBranchViews);
       latestBranchViewsRef.current = nextBranchViews;
@@ -1104,7 +1381,7 @@ export default function ChatFlowPage() {
         chatViews: nextChatViews,
         branchViews: nextBranchViews,
       });
-      persistBoth(nextChatViews, nextBranchViews);
+      persistBoth(nextChatViews, nextBranchViews, "flushFromSnapshot_pendingOps완료");
 
       // 7) pendingOps 비우기
       const cleared = {
@@ -1294,6 +1571,8 @@ export default function ChatFlowPage() {
         active: activeBranchKey === "전체",
       },
     ];
+    console.log("[branchItems] branchViews:", branchViews);
+    console.log("[branchItems] activeBranchKey:", activeBranchKey);
 
     const branchesObj = branchViews?.branches ?? {};
     const keys = Object.keys(branchesObj);
@@ -1301,6 +1580,11 @@ export default function ChatFlowPage() {
     keys.forEach((key) => {
       const b = branchesObj[key];
       const label = b?.branch_name || `브랜치-${key}`;
+      console.log(`[branchItems] 브랜치 ${key}:`, {
+        branch_name: b?.branch_name,
+        label,
+        nodeCount: b?.included_nodes?.length ?? 0,
+      });
       items.push({
         label,
         value: key,
@@ -1308,6 +1592,7 @@ export default function ChatFlowPage() {
       });
     });
 
+    console.log("[branchItems] 최종 items:", items);
     return items;
   }, [branchViews, activeBranchKey]);
 
@@ -1320,21 +1605,114 @@ export default function ChatFlowPage() {
   }, [branchItems]);
 
   const handleBranchSelect = useCallback((value) => {
+    console.log("[handleBranchSelect] 브랜치 전환:", {
+      from: activeBranchKey,
+      to: value,
+    });
     setActiveBranchKey(value);
-  }, []);
+    // 🔥 브랜치 전환 시 preview 모드 해제
+    setPreviewChatIds(null);
+  }, [activeBranchKey]);
 
   // 🔥 ChatContent에 보여줄 messageGraph (전체/브랜치에 따라 다름)
   const messageGraph = useMemo(() => {
-    if (activeBranchKey !== "전체") return filteredGraph;
-
-    if (!firstBranchKeyForWhole) return filteredGraph;
+    console.log("[messageGraph] 🔴 ===== useMemo 재계산 시작 =====");
+    console.log("[messageGraph] 시작:", {
+      activeBranchKey,
+      chatViewsNodes: chatViews?.nodes?.length ?? 0,
+      chatViewsNodeIds: (chatViews?.nodes ?? []).map(n => ({
+        id: n.chat_id ?? n.id ?? n.node_id,
+        branch_id: n.branch_id ?? n.branchId,
+      })),
+      branchViewsBranches: Object.keys(branchViews?.branches ?? {}),
+      branchViewsDetails: branchViews?.branches,
+      firstBranchKeyForWhole,
+      filteredGraphNodes: filteredGraph?.nodes?.length ?? 0,
+    });
 
     const base = chatViews ?? { nodes: [], edges: [] };
-    const branchInfo = branchViews?.branches?.[firstBranchKeyForWhole];
-    if (!branchInfo) return filteredGraph;
-
     const nodes = base.nodes ?? [];
     const edges = base.edges ?? [];
+
+    // 🔥 "전체" 모드가 아닌 경우: activeBranchKey에 해당하는 브랜치 노드들만 필터링
+    if (activeBranchKey !== "전체") {
+      const branchInfo = branchViews?.branches?.[activeBranchKey];
+      console.log(`[messageGraph] 브랜치 ${activeBranchKey} 정보:`, branchInfo);
+
+      if (!branchInfo) {
+        // 브랜치 정보가 없으면 filteredGraph 반환 (ReactFlow 필터링)
+        console.warn(`[messageGraph] ⚠️ 브랜치 ${activeBranchKey} 정보 없음 → filteredGraph 사용`);
+        return filteredGraph;
+      }
+
+      const nodeById = new Map(
+        nodes.map((n) => [Number(n.chat_id ?? n.id ?? n.node_id), n])
+      );
+
+      const branchSet = new Set(
+        (branchInfo.included_nodes ?? [])
+          .map((id) => Number(id))
+          .filter((v) => !Number.isNaN(v))
+      );
+
+      // 🔥 추가: 아직 branchView에 안 들어간 "새 노드"도,
+      //        branch_id 가 activeBranchKey 와 같으면 강제로 포함
+      const branchIdNum = Number(activeBranchKey);
+      nodes.forEach((n) => {
+        const rawId = n.chat_id ?? n.id ?? n.node_id;
+        const cid = rawId != null ? Number(rawId) : NaN;
+        const rawBranch = n.branch_id ?? n.branchId ?? null;
+        const bid = rawBranch != null ? Number(rawBranch) : NaN;
+
+        if (!Number.isNaN(cid) && !Number.isNaN(bid) && bid === branchIdNum) {
+          branchSet.add(cid);
+        }
+      });
+
+      // 🔥 브랜치 노드들의 조상까지 포함 (채팅 히스토리 표시용)
+      const visibleSet = new Set();
+      for (const id of branchSet) {
+        let cur = id;
+        while (cur != null && !Number.isNaN(cur) && !visibleSet.has(cur)) {
+          visibleSet.add(cur);
+          const node = nodeById.get(cur);
+          if (!node || node.parent == null) break;
+          cur = Number(node.parent);
+        }
+      }
+
+      const filteredNodes = nodes.filter((n) => {
+        const rawId = n.chat_id ?? n.id ?? n.node_id;
+        const cid = rawId != null ? Number(rawId) : NaN;
+        return !Number.isNaN(cid) && visibleSet.has(cid);
+      });
+
+      const filteredEdges = edges.filter((e) => {
+        const s = Number(e.source);
+        const t = Number(e.target);
+        if (Number.isNaN(s) || Number.isNaN(t)) return false;
+        return visibleSet.has(s) && visibleSet.has(t);
+      });
+
+      console.log("[messageGraph] 브랜치 필터링:", {
+        activeBranchKey,
+        branchNodesCount: branchSet.size,
+        visibleNodesCount: visibleSet.size,
+        filteredNodesCount: filteredNodes.length,
+      });
+
+      return {
+        ...base,
+        nodes: filteredNodes,
+        edges: filteredEdges,
+      };
+    }
+
+    // 🔥 "전체" 모드: firstBranchKeyForWhole 사용
+    if (!firstBranchKeyForWhole) return filteredGraph;
+
+    const branchInfo = branchViews?.branches?.[firstBranchKeyForWhole];
+    if (!branchInfo) return filteredGraph;
 
     const nodeById = new Map(
       nodes.map((n) => [Number(n.chat_id ?? n.id ?? n.node_id), n])
@@ -1345,6 +1723,20 @@ export default function ChatFlowPage() {
         .map((id) => Number(id))
         .filter((v) => !Number.isNaN(v))
     );
+
+    // 🔥 추가: 아직 branchView에 안 들어간 "새 노드"도,
+    //        branch_id 가 firstBranchKeyForWhole 와 같으면 강제로 포함
+    const branchIdNum = Number(firstBranchKeyForWhole);
+    nodes.forEach((n) => {
+      const rawId = n.chat_id ?? n.id ?? n.node_id;
+      const cid = rawId != null ? Number(rawId) : NaN;
+      const rawBranch = n.branch_id ?? n.branchId ?? null;
+      const bid = rawBranch != null ? Number(rawBranch) : NaN;
+
+      if (!Number.isNaN(cid) && !Number.isNaN(bid) && bid === branchIdNum) {
+        branchSet.add(cid);
+      }
+    });
 
     const visibleSet = new Set();
 
@@ -1371,11 +1763,30 @@ export default function ChatFlowPage() {
       return visibleSet.has(s) && visibleSet.has(t);
     });
 
-    return {
+    console.log("[messageGraph] 전체 모드 (firstBranch):", {
+      firstBranchKeyForWhole,
+      branchNodesCount: branchSet.size,
+      visibleNodesCount: visibleSet.size,
+      filteredNodesCount: filteredNodes.length,
+    });
+
+    const result = {
       ...base,
       nodes: filteredNodes,
       edges: filteredEdges,
     };
+
+    console.log("[messageGraph] 🔴 ===== useMemo 재계산 완료 =====");
+    console.log("[messageGraph] 최종 결과:", {
+      노드수: result.nodes.length,
+      엣지수: result.edges.length,
+      노드IDs: result.nodes.map(n => ({
+        id: n.chat_id ?? n.id ?? n.node_id,
+        branch_id: n.branch_id ?? n.branchId,
+      })),
+    });
+
+    return result;
   }, [
     filteredGraph,
     chatViews,
@@ -1388,6 +1799,11 @@ export default function ChatFlowPage() {
    * 📨 채팅 전송
    * ======================================================================= */
   const handleSend = useCallback(async () => {
+    console.log("🚨🚨🚨 [handleSend] 함수 호출 시작", {
+      timestamp: new Date().toISOString(),
+      stack: new Error().stack,
+    });
+
     const t = input.trim();
     if (!t) return;
 
@@ -1525,6 +1941,33 @@ export default function ChatFlowPage() {
 
             branchId = currentMax + 1;
             createdNewBranch = true;
+
+            console.log("[handleSend Primary] 🔥 새 브랜치 발급:", branchId);
+
+            // 🔹 브랜치명 입력 모달 호출
+            const inputBranchName = await askBranchName(
+              Number(parentChatId),
+              flowNodeId
+            );
+
+            // 🔥 사용자가 취소(null)한 경우만 전송 중단
+            if (inputBranchName === null) {
+              console.log("[handleSend Primary] 브랜치명 입력 취소 → 전송 중단");
+              return;
+            }
+
+            // 🔥 빈 문자열이면 기본 브랜치명 자동 생성
+            const trimmedName = (inputBranchName || "").trim();
+            if (!trimmedName) {
+              branchName = `브랜치 ${branchId}`;
+              console.log(
+                "[handleSend Primary] 빈 브랜치명 → 기본값 생성:",
+                branchName
+              );
+            } else {
+              branchName = trimmedName;
+              console.log("[handleSend Primary] ✅ 사용자 입력 브랜치명 사용:", branchName);
+            }
           }
 
           console.log("[handleSend] 최종 parentChatIds / branchId", {
@@ -1617,8 +2060,81 @@ export default function ChatFlowPage() {
           }
         }
 
-        if (parentBranch != null && !Number.isNaN(Number(parentBranch))) {
-          branchId = Number(parentBranch);
+        // 🔹 최신 edges로 자식 노드 여부 확인
+        const latestEdges = chatViewsRef.current?.edges ?? [];
+        const domainChildren = latestEdges.filter(
+          (e) => Number(e.source) === Number(primaryParentId)
+        );
+        const hasOtherChildren = domainChildren.length >= 1;
+
+        console.log("[handleSend Fallback] 자식 노드 확인:", {
+          primaryParentId,
+          childrenCount: domainChildren.length,
+          hasOtherChildren,
+          edges: latestEdges.map((e) => ({ source: e.source, target: e.target })),
+        });
+
+        const prevBV = latestBranchViewsRef.current;
+
+        if (!hasOtherChildren) {
+          // ✅ 자식이 없으면 → 부모 브랜치 상속
+          if (parentBranch != null && !Number.isNaN(Number(parentBranch))) {
+            branchId = Number(parentBranch);
+            console.log("[handleSend Fallback] 브랜치 상속:", branchId);
+          }
+        } else {
+          // ✅ 이미 자식이 있으면 → 새 브랜치 번호 발급
+          const branchIdsFromBV = Object.keys(prevBV?.branches ?? {})
+            .map((k) => Number(k))
+            .filter((v) => !Number.isNaN(v));
+
+          const branchIdsFromNodes = baseNodes
+            .map((n) => n.branch_id ?? n.branchId ?? null)
+            .filter((v) => v != null)
+            .map((v) => Number(v))
+            .filter((v) => !Number.isNaN(v));
+
+          const allIds = [...branchIdsFromBV, ...branchIdsFromNodes];
+          const currentMax =
+            allIds.length > 0
+              ? Math.max(...allIds)
+              : prevBV?.max_branch_number ?? 0;
+
+          branchId = currentMax + 1;
+          createdNewBranch = true;
+
+          console.log("[handleSend Fallback] 🔥 새 브랜치 발급:", branchId);
+
+          // 🔹 브랜치명 입력 모달 호출
+          const inputBranchName = await askBranchName(
+            Number(primaryParentId),
+            flowNodeId
+          );
+
+          // 🔥 사용자가 취소(null)한 경우만 전송 중단
+          if (inputBranchName === null) {
+            console.log("[handleSend] 브랜치명 입력 취소 → 전송 중단");
+            return;
+          }
+
+          // 🔥 빈 문자열이면 기본 브랜치명 자동 생성
+          const trimmedName = (inputBranchName || "").trim();
+          console.log("[handleSend] 📝 모달에서 받은 브랜치명:", {
+            inputBranchName,
+            trimmedName,
+            isEmpty: !trimmedName,
+          });
+
+          if (!trimmedName) {
+            branchName = `브랜치 ${branchId}`;
+            console.log(
+              "[handleSend] ❌ 빈 브랜치명 → 기본값 생성:",
+              branchName
+            );
+          } else {
+            branchName = trimmedName;
+            console.log("[handleSend] ✅ 사용자 입력 브랜치명 사용:", branchName);
+          }
         }
       } else {
         // 부모 노드를 못 찾았으면, 그래도 activeBranchKey를 브랜치로 설정
@@ -1643,66 +2159,83 @@ export default function ChatFlowPage() {
       setActiveBranchKey(String(branchId));
       setPreviewChatIds(null);
 
-      if (flowNodeId != null) {
-        const branchMap = loadJSON(LS_BRANCH_BY_NODE, {});
-        const rawName = branchMap[String(flowNodeId)];
-        const name = rawName && rawName.trim();
+      // 🔥 branchName이 있으면 바로 branchViews에 저장
+      console.log("[handleSend] 💾 새 브랜치 저장:", {
+        branchId,
+        branchName,
+        source: branchName ? "모달 입력" : "기본값",
+      });
 
-        if (name) {
-          setBranchViews((prev) => {
-            const prevBV = prev || {
-              chat_room_id: Number(roomId) || 0,
-              max_branch_number: 0,
-              branches: {},
-              last_updated: "",
-            };
+      console.log("[handleSend] 🔥🔥 setBranchViews 호출 시작 #1", {
+        branchId,
+        branchName,
+        timestamp: new Date().toISOString(),
+      });
 
-            const prevBranches = prevBV.branches || {};
-            const key = String(branchId);
-            const prevEntry = prevBranches[key] || {
-              branch_name: "",
-              included_nodes: [],
-              included_edges: [],
-            };
+      setBranchViews((prev) => {
+        console.log("[handleSend] 🔥🔥 setBranchViews 내부 실행 #1", {
+          branchId,
+          branchName,
+          prev,
+        });
 
-            const nextBV = {
-              ...prevBV,
-              chat_room_id: Number(roomId) || prevBV.chat_room_id || 0,
-              max_branch_number: Math.max(
-                prevBV.max_branch_number || 0,
-                Number(branchId)
-              ),
-              branches: {
-                ...prevBranches,
-                [key]: {
-                  ...prevEntry,
-                  branch_name: name,
-                },
-              },
-              last_updated: new Date().toISOString(),
-            };
+        const prevBV = prev || {
+          chat_room_id: Number(roomId) || 0,
+          max_branch_number: 0,
+          branches: {},
+          last_updated: "",
+        };
 
-            latestBranchViewsRef.current = nextBV;
+        const prevBranches = prevBV.branches || {};
+        const key = String(branchId);
+        const prevEntry = prevBranches[key] || {
+          branch_name: "",
+          included_nodes: [],
+          included_edges: [],
+        };
 
-            const normalized = attachParentChildren(
-              chatViewsRef.current ?? { nodes: [], edges: [] }
-            );
-            persistBoth(normalized, nextBV);
+        const nextBV = {
+          ...prevBV,
+          chat_room_id: Number(roomId) || prevBV.chat_room_id || 0,
+          max_branch_number: Math.max(
+            prevBV.max_branch_number || 0,
+            Number(branchId)
+          ),
+          branches: {
+            ...prevBranches,
+            [key]: {
+              ...prevEntry,
+              branch_name: branchName || "", // 🔥 모달에서 받은 branchName 사용
+            },
+          },
+          last_updated: new Date().toISOString(),
+        };
 
-            return nextBV;
-          });
-        }
-      }
+        latestBranchViewsRef.current = nextBV;
+
+        const normalized = attachParentChildren(
+          chatViewsRef.current ?? { nodes: [], edges: [] }
+        );
+        persistBoth(normalized, nextBV, "handleSend_브랜치저장");
+
+        console.log("[handleSend] 💾 branchViews 저장 완료:", nextBV);
+
+        return nextBV;
+      });
     }
 
     // ★ 3-2) 최종 branchName 계산 (API에 같이 보내기 위함)
-    if (branchId != null) {
+    // 🔥 이미 모달에서 받은 branchName이 있으면 덮어쓰지 않음
+    if (branchId != null && !branchName) {
+      console.log("[handleSend] 📋 branchName 없음 → 로컬스토리지/branchViews에서 조회");
+
       // 1순위: 노드별 로컬 스토리지 매핑
       if (flowNodeId != null) {
         const branchMap = loadJSON(LS_BRANCH_BY_NODE, {});
         const raw = branchMap[String(flowNodeId)];
         if (raw && typeof raw === "string" && raw.trim()) {
           branchName = raw.trim();
+          console.log("[handleSend] 📋 로컬스토리지에서 branchName 발견:", branchName);
         }
       }
 
@@ -1715,14 +2248,31 @@ export default function ChatFlowPage() {
         const raw = entry?.branch_name;
         if (raw && typeof raw === "string" && raw.trim()) {
           branchName = raw.trim();
+          console.log("[handleSend] 📋 branchViews에서 branchName 발견:", branchName);
         }
       }
+    } else if (branchName) {
+      console.log("[handleSend] 📋 이미 branchName 설정됨 (모달 입력):", branchName);
     }
 
     // 4) 도메인 그래프에 pending 노드 심기 (UI용)
     if (flowNodeId) {
       const parentId =
         parentChatIds.length > 0 ? Number(parentChatIds[0]) : null;
+
+      // 🔥 자기 자신을 부모로 설정하는 것을 방지
+      const safeParentId =
+        parentId != null && Number(parentId) === Number(flowNodeId)
+          ? null
+          : parentId;
+
+      console.log("[handleSend] placeholder 생성/갱신:", {
+        flowNodeId,
+        parentId,
+        safeParentId,
+        branchId,
+        question: t,
+      });
 
       setChatViews((prev) => {
         const base = prev ?? { nodes: [], edges: [] };
@@ -1737,23 +2287,39 @@ export default function ChatFlowPage() {
 
         if (idx >= 0) {
           const old = prevNodes[idx];
-          nextNodes[idx] = {
-            ...old,
-            id: flowNodeId,
-            node_id: flowNodeId,
-            parent: parentId,
-            parents: parentChatIds,
-            branch_id: branchId,
-            question: t,
-            pending: true,
-            type: "CHAT",
-            created_at: new Date().toISOString(),
-          };
+
+          // 🔥 이미 실제 chat_id를 가진 노드는 수정하지 않음
+          const hasRealChatId =
+            old.chat_id != null && !Number.isNaN(Number(old.chat_id));
+          const isPending = !!old.pending;
+
+          if (hasRealChatId && !isPending) {
+            console.warn(
+              "[handleSend] 기존 실제 노드 발견 - placeholder 생성 건너뜀:",
+              old.chat_id
+            );
+            // 🔥 이미 실제 노드가 있으면 placeholder를 추가하지 않음
+            // (기존 노드를 그대로 유지)
+          } else {
+            // ✅ placeholder 노드만 업데이트
+            nextNodes[idx] = {
+              ...old,
+              id: flowNodeId,
+              node_id: flowNodeId,
+              parent: safeParentId,
+              parents: parentChatIds,
+              branch_id: branchId,
+              question: t,
+              pending: true,
+              type: "CHAT",
+              created_at: new Date().toISOString(),
+            };
+          }
         } else {
           nextNodes.push({
             id: flowNodeId,
             node_id: flowNodeId,
-            parent: parentId,
+            parent: safeParentId,
             parents: parentChatIds,
             branch_id: branchId ?? null,
             question: t,
@@ -1764,17 +2330,23 @@ export default function ChatFlowPage() {
         }
 
         const nextEdges = [...prevEdges];
+        // 🔥 자기 자신을 엣지로 연결하는 것 방지
         if (
-          parentId != null &&
-          !Number.isNaN(parentId) &&
+          safeParentId != null &&
+          !Number.isNaN(safeParentId) &&
+          Number(safeParentId) !== Number(flowNodeId) &&
           !nextEdges.some(
             (e) =>
-              Number(e.source) === Number(parentId) &&
+              Number(e.source) === Number(safeParentId) &&
               String(e.target) === String(flowNodeId)
           )
         ) {
+          console.log("[handleSend] 엣지 추가:", {
+            source: safeParentId,
+            target: flowNodeId,
+          });
           nextEdges.push({
-            source: parentId,
+            source: safeParentId,
             target: flowNodeId,
           });
         }
@@ -1826,6 +2398,19 @@ export default function ChatFlowPage() {
       branchName // ★ 디버그용 로그
     );
 
+    // 🔥 서버 전송 직전 branch_id 확인 로그
+    console.log("[handleSend] 🚀 서버로 채팅 생성 API 호출 직전:", {
+      roomId: Number(roomId),
+      question: t,
+      parents: parentChatIds,
+      branch_id: branchId, // ✅ 계산된 branch_id
+      branch_name: branchName || null,
+      model: modelCode || "gpt-4o-mini",
+      useLlm: false,
+      "🔹 branch_id 타입": typeof branchId,
+      "🔹 branch_id 값": branchId,
+    });
+
     // 7) 백엔드에 새 채팅 생성 요청
     try {
       createChat.mutate(
@@ -1840,13 +2425,25 @@ export default function ChatFlowPage() {
         },
         {
           onSuccess: (res, vars) => {
+            // 🔥 서버 응답 전체 로그
+            console.log("[createChat onSuccess] 🔍 서버 응답 전체:", res);
+            console.log("[createChat onSuccess] 🔍 전송한 데이터:", vars);
+
             const room_id = res.roomId;
             const node_id = res.nodeId;
             const created_at = res.createdAt;
 
             const branch_id = vars.branch_id ?? res.branchId ?? null;
+            const branch_name_sent = vars.branch_name; // 전송한 branch_name
+            const branch_name_received = res.branchName; // 서버에서 받은 branch_name
             const parents = Array.isArray(vars.parents) ? vars.parents : [];
             const question = vars.question;
+
+            console.log("[createChat onSuccess] 📊 branch_name 비교:", {
+              "클라이언트가 보낸 값": branch_name_sent,
+              "서버가 반환한 값": branch_name_received,
+              "일치 여부": branch_name_sent === branch_name_received,
+            });
 
             console.log("[createChat onSuccess] fallback upsert", {
               room_id,
@@ -2320,6 +2917,17 @@ export default function ChatFlowPage() {
               included_edges: [],
             };
 
+            // 🔥 기존 branch_name이 있고 비어있지 않으면 덮어쓰지 않음
+            const existingBranchName = prevEntry.branch_name || "";
+            const shouldKeepExisting = existingBranchName.trim() !== "";
+
+            console.log("[ROOM_SHORT_SUMMARY] branch_name 처리:", {
+              branch_id,
+              existingBranchName,
+              short_summary,
+              shouldKeepExisting,
+            });
+
             nextBranchViews = {
               ...prevBV,
               chat_room_id: Number(room_id) || prevBV.chat_room_id || 0,
@@ -2331,7 +2939,10 @@ export default function ChatFlowPage() {
                 ...prevBranches,
                 [String(branch_id)]: {
                   ...prevEntry,
-                  branch_name: short_summary,
+                  // 🔥 기존 branch_name이 있으면 유지, 없으면 short_summary 사용
+                  branch_name: shouldKeepExisting
+                    ? existingBranchName
+                    : short_summary,
                 },
               },
               last_updated: updated_at || prevBV.last_updated,
@@ -2349,7 +2960,7 @@ export default function ChatFlowPage() {
               }));
 
               const enriched = attachParentChildren(next);
-              persistBoth(enriched, nextBranchViews);
+              persistBoth(enriched, nextBranchViews, "SSE_ROOM_SHORT_SUMMARY_chatId있음");
               return enriched;
             });
           } else {
@@ -2360,7 +2971,7 @@ export default function ChatFlowPage() {
                 enriched,
                 nextBranchViews
               );
-              persistBoth(enriched, nextBranchViews);
+              persistBoth(enriched, nextBranchViews, "SSE_ROOM_SHORT_SUMMARY_chatId없음");
             }
           }
         } catch (e) {
@@ -2403,7 +3014,18 @@ export default function ChatFlowPage() {
         ? new Set(previewChatIds.map((v) => Number(v)))
         : null;
 
+    console.log("[serverMessages] 🔶 previewChatIds 상태:", {
+      previewChatIds,
+      previewSet: previewSet ? Array.from(previewSet) : null,
+      hasPreviewSet: !!previewSet,
+    });
+
     const ordered = orderedNodesByGraph(messageGraph);
+    console.log("[serverMessages] messageGraph 노드:", {
+      totalNodes: messageGraph?.nodes?.length ?? 0,
+      orderedCount: ordered.length,
+      nodeIds: ordered.map(n => n?.chat_id ?? n?.id ?? n?.node_id),
+    });
     const result = [];
 
     ordered.forEach((n) => {
@@ -2413,7 +3035,16 @@ export default function ChatFlowPage() {
       const cid = cidRaw != null ? Number(cidRaw) : null;
       const nodeType = raw.type ?? data.type ?? null;
 
+      console.log("[serverMessages] 🔍 노드 처리:", {
+        cid,
+        nodeType,
+        hasQuestion: !!(raw.question ?? data.question ?? raw.label ?? data.label),
+        hasAnswer: !!(raw.answer ?? raw.short_summary ?? raw.summary ?? data.answer ?? data.short_summary ?? data.summary),
+        raw: { ...raw },
+      });
+
       if (previewSet && (cid == null || !previewSet.has(cid))) {
+        console.log("[serverMessages] ⚠️ previewSet 필터링으로 스킵:", cid);
         return;
       }
 
@@ -2463,6 +3094,7 @@ export default function ChatFlowPage() {
         createdTs;
 
       if (question) {
+        console.log("[serverMessages] ✅ 질문 메시지 추가:", { cid, question: question.substring(0, 30) });
         result.push({
           id: `q-${cid ?? Math.random()}`,
           role: "user",
@@ -2470,9 +3102,12 @@ export default function ChatFlowPage() {
           ts: createdTs,
           chatId: cid,
         });
+      } else {
+        console.log("[serverMessages] ⚠️ 질문 없음, 메시지 미추가:", cid);
       }
 
       if (answer) {
+        console.log("[serverMessages] ✅ 답변 메시지 추가:", { cid, answer: answer.substring(0, 30) });
         result.push({
           id: `a-${cid ?? Math.random()}`,
           role: "assistant",
@@ -2480,7 +3115,19 @@ export default function ChatFlowPage() {
           ts: updatedTs,
           chatId: cid,
         });
+      } else {
+        console.log("[serverMessages] ⚠️ 답변 없음, 메시지 미추가:", cid);
       }
+    });
+
+    console.log("[serverMessages] 🟣 최종 메시지 변환 결과:", {
+      총메시지수: result.length,
+      메시지들: result.map(m => ({
+        id: m.id,
+        role: m.role,
+        chatId: m.chatId,
+        contentPreview: m.content?.substring(0, 30),
+      })),
     });
 
     return result;
@@ -2504,6 +3151,19 @@ export default function ChatFlowPage() {
         streaming: true,
       });
     }
+
+    console.log("[uiMessages] 🔵 ChatContent에 전달할 최종 메시지:", {
+      총메시지수: base.length,
+      serverMessagesCount: serverMessages.length,
+      localMessagesCount: messages.length,
+      streamingCount: Object.keys(streamRef.current).length,
+      메시지들: base.map(m => ({
+        id: m.id,
+        role: m.role,
+        chatId: m.chatId,
+        streaming: m.streaming,
+      })),
+    });
 
     return base;
   }, [serverMessages, messages, streamTick, visibleChatIdSet]);
@@ -2708,20 +3368,32 @@ export default function ChatFlowPage() {
 
   function confirmBranchModal() {
     const name = branchNameInput.trim();
-    if (!name) return;
 
+    console.log("[confirmBranchModal] 📝 모달 확인 버튼 클릭:", {
+      "입력값(raw)": branchNameInput,
+      "입력값(trimmed)": name,
+      isEmpty: !name,
+      target: branchNameTargetRef.current,
+    });
+
+    // 🔥 빈 문자열도 허용 (handleSend에서 체크하도록)
     // ✅ 1) 어떤 노드에 대한 이름인지 꺼내기
     const target = branchNameTargetRef.current;
-    if (target && target.newNodeId != null) {
-      // 로컬스토리지에 "노드 -> 브랜치명" 매핑 저장
+    if (target && target.newNodeId != null && name) {
+      // 로컬스토리지에 "노드 -> 브랜치명" 매핑 저장 (이름이 있을 때만)
       handleBranchSaved(target.newNodeId, target.parentId ?? null, name);
+      console.log("[confirmBranchModal] 💾 로컬스토리지 저장:", {
+        nodeId: target.newNodeId,
+        branchName: name,
+      });
     }
 
     // ✅ 2) 모달 닫고, FlowCanvas 쪽 Promise resolve
     setBranchModalOpen(false);
     if (branchPromptResolverRef.current) {
-      branchPromptResolverRef.current(name);
+      branchPromptResolverRef.current(name); // 빈 문자열도 resolve
       branchPromptResolverRef.current = null;
+      console.log("[confirmBranchModal] ✅ Promise resolved with:", name || "(빈 문자열)");
     }
   }
 

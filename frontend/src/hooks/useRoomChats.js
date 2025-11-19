@@ -79,8 +79,8 @@ export function useCreateChat() {
 
 /** ✅ 채팅 검색: GET /api/v1/chats?k=&k=&page=&size= */
 export function useSearchChats(keywords = [], page = 0, size = 20) {
-  const enabled = Array.isArray(keywords) && keywords.length > 0;
-  console.log("useSearchChats called with:", { keywords, page, size, enabled });
+  // 🔹 keywords가 없어도 API 호출 허용 (전체 조회)
+  console.log("useSearchChats called with:", { keywords, page, size });
   return useQuery({
     queryKey: rk.search(keywords, page, size),
     queryFn: async () => {
@@ -93,7 +93,7 @@ export function useSearchChats(keywords = [], page = 0, size = 20) {
         json?.data?.reason || json?.message || "검색 요청에 실패했습니다.";
       throw new Error(reason);
     },
-    enabled,
+    enabled: true, // 🔹 항상 활성화
     staleTime: 30_000,
   });
 }
