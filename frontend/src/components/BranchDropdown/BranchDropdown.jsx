@@ -7,6 +7,7 @@ export default function BranchDropdown({
   setOpen,
   onSelect,
 }) {
+  console.log("BranchDropDown Items", items);
   return (
     <Wrap>
       <Title onClick={() => setOpen((v) => !v)}>{label}</Title>

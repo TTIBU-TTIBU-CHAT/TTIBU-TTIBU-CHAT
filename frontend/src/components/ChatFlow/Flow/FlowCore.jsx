@@ -96,11 +96,13 @@ const FlowCore = forwardRef(function FlowCore(
   const [edges, setEdges, onEdgesChange] = useEdgesState(
     initialEdges.map(stripRuntimeEdge)
   );
+
   const removeEdgeById = useCallback(
     (edgeId) => setEdges((eds) => eds.filter((e) => e.id !== edgeId)),
     [setEdges]
   );
-  /* 🔥 props → 내부 nodes 동기화 (변경 있을 때만) */
+
+  /* 🔥 props → 내부 nodes 동기화 */
   useEffect(() => {
     const normalized = withHandlesByRoot(
       (propNodes ?? []).map((n) => ({
@@ -113,15 +115,11 @@ const FlowCore = forwardRef(function FlowCore(
       propEdges ?? []
     );
 
-    setNodes((prev) => {
-      const prevSer = serializeNodes(prev ?? []);
-      const nextSer = serializeNodes(normalized ?? []);
-      if (prevSer === nextSer) return prev; // ✅ 동일하면 업데이트 안 함
-      return normalized;
-    });
+    // ✅ 핵심 수정: serialize 비교를 제거하고, 부모에서 내려준 상태를 그대로 반영
+    setNodes(normalized);
   }, [propNodes, propEdges, setNodes]);
 
-  /* 🔥 props → 내부 edges 동기화 (변경 있을 때만) */
+  /* 🔥 props → 내부 edges 동기화 */
   useEffect(() => {
     const normalized = (propEdges ?? []).map((e) => ({
       ...e,
@@ -130,12 +128,8 @@ const FlowCore = forwardRef(function FlowCore(
       data: { ...(e.data || {}), onRemove: (id) => removeEdgeById(id) },
     }));
 
-    setEdges((prev) => {
-      const prevSer = serializeEdges(prev ?? []);
-      const nextSer = serializeEdges(normalized ?? []);
-      if (prevSer === nextSer) return prev; // ✅ 동일하면 업데이트 안 함
-      return normalized;
-    });
+    // ✅ 핵심 수정: 마찬가지로 serialize 비교 제거
+    setEdges(normalized);
   }, [propEdges, setEdges, removeEdgeById]);
 
   const [selectedNodes, setSelectedNodes] = useState([]);
@@ -185,21 +179,59 @@ const FlowCore = forwardRef(function FlowCore(
       const childEdges = nextEdges.filter((e) => String(e.source) === parentId);
       const childCount = childEdges.length;
 
-      // 4) 브랜치명 입력 조건:
-      //    - 부모 자식 수가 2개 이상 (이번에 분기 생김)
-      //    - askBranchName 콜백이 존재
-      if (childCount >= 2 && typeof askBranchName === "function") {
-        // 자식 노드에 이미 branch가 있으면 또 안 물어봐도 됨
-        const targetNode = nodes.find((n) => n.id === childId);
-        const alreadyBranch =
-          targetNode?.data?.branch ?? targetNode?.data?.branch_name;
-        if (alreadyBranch) return;
+      console.log("[onConnect] 엣지 연결:", {
+        parentId,
+        childId,
+        childCount,
+        description: childCount === 1 ? "첫 번째 자식 - 부모 브랜치 상속" : "두 번째 이후 자식 - 새 브랜치 생성"
+      });
+
+      // 4) 브랜치 처리
+      const targetNode = nodes.find((n) => n.id === childId);
+      const alreadyBranch =
+        targetNode?.data?.branch ?? targetNode?.data?.branch_name;
+
+      if (alreadyBranch) {
+        console.log("[onConnect] 이미 브랜치가 설정된 노드:", alreadyBranch);
+        return;
+      }
+
+      if (childCount === 1) {
+        // ✅ 첫 번째 자식 → 부모 branch 상속
+        const parentNode = nodes.find((n) => n.id === parentId);
+        const parentBranch = parentNode?.data?.branch ?? parentNode?.data?.branch_id;
+
+        console.log("[onConnect] 첫 번째 자식 - 부모 브랜치 상속:", {
+          parentId,
+          parentBranch,
+          childId
+        });
+
+        if (parentBranch) {
+          setNodes((nds) =>
+            nds.map((n) =>
+              n.id === childId
+                ? { ...n, data: { ...(n.data || {}), branch: parentBranch } }
+                : n
+            )
+          );
+        }
+      } else if (childCount >= 2 && typeof askBranchName === "function") {
+        // ✅ 두 번째 이후 자식 → 새 브랜치 생성 + 브랜치명 입력
+        console.log("[onConnect] 두 번째 이후 자식 - 브랜치명 입력 모달 호출");
 
         const name = await askBranchName(parentId, childId);
-        if (!name || !name.trim()) return;
-        const trimmed = name.trim();
 
-        // 5) 자식 노드 data.branch에 반영
+        if (!name || !name.trim()) {
+          console.log("[onConnect] 브랜치명 입력 취소 - 엣지 제거");
+          // 사용자가 취소하면 방금 추가한 엣지 제거
+          setEdges((eds) => eds.filter((e) => !(String(e.source) === parentId && String(e.target) === childId)));
+          return;
+        }
+
+        const trimmed = name.trim();
+        console.log("[onConnect] 브랜치명 입력 완료:", trimmed);
+
         setNodes((nds) =>
           nds.map((n) =>
             n.id === childId
@@ -208,7 +240,6 @@ const FlowCore = forwardRef(function FlowCore(
           )
         );
 
-        // 6) ChatFlowPage 쪽 로컬 저장 (LS_BRANCH_BY_NODE)
         onBranchSaved?.(childId, parentId, trimmed);
       }
     },
@@ -229,7 +260,7 @@ const FlowCore = forwardRef(function FlowCore(
       setLastSelectedId(null);
       onSelectionCountChange?.(0, false, []);
     }
-  }, [editMode]);
+  }, [editMode, onSelectionCountChange]);
 
   const handleSelectionChange = useCallback(
     ({ nodes: selNodes }) => {
@@ -278,7 +309,7 @@ const FlowCore = forwardRef(function FlowCore(
     if (!lastSelectedId) return;
     const base = nodes.find((n) => n.id === lastSelectedId);
     if (!base) return;
-    console.log("isEmaptyNode 이전", isEmptyNode(base));
+
     if (isEmptyNode(base)) {
       const msg =
         "현재 노드에 내용이 없습니다. 내용을 채운 뒤에 새 분기를 추가하세요.";
@@ -456,7 +487,6 @@ const FlowCore = forwardRef(function FlowCore(
         nds.map((n) => {
           if (n.id !== id) return n;
 
-          // 🔥 __temp 플래그 제거
           const { __temp, ...restData } = n.data || {};
 
           return {
@@ -487,6 +517,18 @@ const FlowCore = forwardRef(function FlowCore(
     [setNodes, setEdges]
   );
 
+  // 🔥 임시 노드뿐만 아니라 일반 노드도 제거 (DnD placeholder 제거용)
+  const removeNode = useCallback(
+    (nodeId) => {
+      if (!nodeId) return;
+      setNodes((nds) => nds.filter((n) => n.id !== nodeId));
+      setEdges((eds) =>
+        eds.filter((e) => e.source !== nodeId && e.target !== nodeId)
+      );
+    },
+    [setNodes, setEdges]
+  );
+
   const applyContentToNode = useCallback(
     (nodeId, payload) => {
       if (!nodeId || !payload) return;
@@ -495,14 +537,15 @@ const FlowCore = forwardRef(function FlowCore(
         type: payload.type,
         color: payload.color,
       });
+
       setNodes((nds) =>
         nds.map((n) => {
           if (n.id !== nodeId) return n;
 
-          // GROUP 콘텐츠
+          // ✅ mutation 대신 새 data 객체 생성
           const { __temp, ...restData } = n.data ?? {};
-          n.data = restData;
-          console.log("applyContentToNode", n);
+
+          // GROUP 콘텐츠
           if (payload.type === "group" || payload.type === "GROUP") {
             const g = payload.graph ?? { nodes: [], edges: [] };
             const color = payload.color || null;
@@ -513,10 +556,9 @@ const FlowCore = forwardRef(function FlowCore(
                 ...(color ? { background: color } : {}),
               },
               data: {
-                ...n.data,
-                // 🔥 GroupContent → GROUP
+                ...restData,
                 type: "GROUP",
-                label: payload.title || n.data?.label || "Group",
+                label: payload.title || restData.label || "Group",
                 summary: payload.summary || "",
                 group: g,
                 color,
@@ -529,8 +571,7 @@ const FlowCore = forwardRef(function FlowCore(
             ...n,
             style: nodeStyle,
             data: {
-              ...n.data,
-              // 🔥 SearchContent → CHAT
+              ...restData,
               type: "CHAT",
               label: payload.label || payload.question || "질문",
               summary: (payload.answer || "").slice(0, 140),
@@ -566,7 +607,6 @@ const FlowCore = forwardRef(function FlowCore(
   const getSnapshot = useCallback(() => {
     const snapNodes = (nodes ?? []).map((n) => ({
       id: n.id,
-      // ReactFlow 쪽 좌표 → ChatFlowPage에서 쓰기 쉽도록 x/y/position 모두 넘겨줌
       x: n.position?.x ?? 0,
       y: n.position?.y ?? 0,
       position: {
@@ -585,7 +625,6 @@ const FlowCore = forwardRef(function FlowCore(
     const snap = { nodes: snapNodes, edges: snapEdges };
 
     if (DEBUG_FLOW_CORE) {
-      // eslint-disable-next-line no-console
       console.log("[FLOW_CORE_DEBUG] snapshot:", snap);
     }
     return snap;
@@ -599,14 +638,16 @@ const FlowCore = forwardRef(function FlowCore(
       updateNodeLabel,
       applyContentToNode,
       discardTempNode,
+      removeNode,
       validateForSave,
-      getSnapshot, // ✅ 여기서 배열 기반 스냅샷을 넘겨줌
+      getSnapshot,
     }),
     [
       reset,
       updateNodeLabel,
       applyContentToNode,
       discardTempNode,
+      removeNode,
       validateForSave,
       getSnapshot,
     ]
@@ -621,29 +662,6 @@ const FlowCore = forwardRef(function FlowCore(
     const changed = now.nodes !== base.nodes || now.edges !== base.edges;
     onCanResetChange?.(changed);
   }, [nodes, edges, onCanResetChange]);
-
-  // const visibleNodes = useMemo(() => {
-  //   if (activeBranch === "전체") return nodes;
-
-  //   const targetId = Number(activeBranch);
-  //   return nodes.filter((n) => {
-  //     const raw = n?.data?.branch_id ?? n?.data?.branchId ?? null;
-  //     if (raw == null) return false;
-  //     return Number(raw) === targetId;
-  //   });
-  // }, [nodes, activeBranch]);
-
-  // const visibleIdSet = useMemo(
-  //   () => new Set(visibleNodes.map((n) => n.id)),
-  //   [visibleNodes]
-  // );
-
-  // const visibleEdges = useMemo(() => {
-  //   if (activeBranch === "전체") return edges;
-  //   return edges.filter(
-  //     (e) => visibleIdSet.has(e.source) && visibleIdSet.has(e.target)
-  //   );
-  // }, [edges, activeBranch, visibleIdSet]);
 
   const rfInteractivity = useMemo(
     () => ({
@@ -687,7 +705,6 @@ const FlowCore = forwardRef(function FlowCore(
           type: "qa",
           position: { x, y },
           data: {
-            // 🔥 GroupContent → GROUP
             type: "GROUP",
             label: payload.title,
             summary,
@@ -715,7 +732,6 @@ const FlowCore = forwardRef(function FlowCore(
         position: { x, y },
         data: {
           branch: activeBranch !== "전체" ? activeBranch : undefined,
-          // 🔥 SearchContent → CHAT
           type: "CHAT",
           label: payload.label || payload.question || "질문",
           summary: (payload.answer || "").slice(0, 140),

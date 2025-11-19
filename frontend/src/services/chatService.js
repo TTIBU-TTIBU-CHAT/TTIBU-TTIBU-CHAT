@@ -74,15 +74,19 @@ export const chatService = {
 
   /** ✅ GET /api/v1/chats?k=&k=&page=&size= (JSESSIONID 쿠키 필요) */
   async searchChats({ keywords, page = 0, size = 20 }) {
-    if (!Array.isArray(keywords) || keywords.length === 0) {
-      throw new Error("검색할 키워드가 없습니다.");
-    }
-    if (keywords.length > 10) {
+    // 🔹 keywords가 없어도 허용 (전체 조회)
+    if (Array.isArray(keywords) && keywords.length > 10) {
       throw new Error("검색할 키워드가 10개 초과입니다.");
     }
 
     const params = new URLSearchParams();
-    keywords.forEach((k) => params.append("k", k));
+    // 🔹 keywords가 있을 때만 k 파라미터 추가
+    if (Array.isArray(keywords) && keywords.length > 0) {
+      keywords.forEach((k) => params.append("k", k));
+    }else{
+      params.set("k","");
+    }
+
     params.set("page", String(page));
     params.set("size", String(size));
 
