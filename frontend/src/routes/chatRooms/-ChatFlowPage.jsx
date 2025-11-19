@@ -43,7 +43,22 @@ import {
 /* ======================================================================= */
 /* 🔧 디버그 플래그 */
 const DEBUG_FLOW = true;
+function jitterPosition(basePos, seed) {
+  if (!basePos) basePos = { x: 0, y: 0 };
+  const n = Number(seed ?? 0);
+  if (Number.isNaN(n)) return basePos;
 
+  // 너무 많이 안 튀게 작은 진폭만
+  const AMP = 16; // 최대 ±16px 정도
+  // 간단한 pseudo-random
+  const xOffset = ((n * 53) % AMP) - AMP / 2; // -8 ~ +7
+  const yOffset = ((n * 97) % AMP) - AMP / 2; // -8 ~ +7
+
+  return {
+    x: basePos.x + xOffset,
+    y: basePos.y + yOffset,
+  };
+}
 /* ======================================================================= */
 /* 🔧 parent 체인 수집 (chat_id 기준)                                       */
 function collectAncestorsFromGraph(nodes, startChatId, limit = 5) {
@@ -127,7 +142,7 @@ export default function ChatFlowPage() {
   const [branchModalOpen, setBranchModalOpen] = useState(false);
   const [branchNameInput, setBranchNameInput] = useState("");
   const branchPromptResolverRef = useRef(null);
-
+  const branchNameTargetRef = useRef({ parentId: null, newNodeId: null });
   // ✅ 여러 노드를 순차적으로 pending 처리하기 위한 스택
   // [{ nodeId, source: "plus" | "emptyClick" | "dnd" ... }]
   const [pendingNodes, setPendingNodes] = useState([]);
@@ -296,7 +311,6 @@ export default function ChatFlowPage() {
       let nextNodes;
 
       if (placeholderIndex >= 0) {
-        // 2-A) placeholder 승격
         const old = prevNodes[placeholderIndex];
         const parentNode =
           parentId != null
@@ -306,21 +320,30 @@ export default function ChatFlowPage() {
               )
             : null;
 
-        const basePos = old.position ?? parentNode?.position ?? { x: 0, y: 0 };
+        // ✅ 부모가 있으면 부모 기준으로 오른쪽으로 일정 간격 띄우기
+        const basePos = parentNode?.position ?? old.position ?? { x: 0, y: 0 };
+
+        const OFFSET_X = 260; // 추측입니다: FlowCore H_SPACING과 비슷한 값으로 설정
+        const posRightOfParent = parentNode
+          ? { x: basePos.x + OFFSET_X, y: basePos.y }
+          : basePos;
+
+        const jitteredPos = jitterPosition(posRightOfParent, nodeIdNum);
+
         nextNodes = [
           ...prevNodes.slice(0, placeholderIndex),
           {
             ...old,
-            chat_id: nodeIdNum, // 🔥 여기에서 chat_id 확정
+            chat_id: nodeIdNum,
             parent: parentId,
             parents: parents ?? [],
             branch_id: branch_id ?? old.branch_id ?? null,
             question: question || old.question || "",
             created_at:
               created_at ?? old.created_at ?? new Date().toISOString(),
-            pending: true, // 답변이 아직 안 왔으니 true 유지
+            pending: true,
             type: old.type ?? "CHAT",
-            position: basePos,
+            position: jitteredPos,
           },
           ...prevNodes.slice(placeholderIndex + 1),
         ];
@@ -343,11 +366,18 @@ export default function ChatFlowPage() {
 
         const basePos = parentNode?.position ?? { x: 0, y: 0 };
 
-        // 🔥 간단한 트리 레이아웃
-        const pos = {
-          x: basePos.x + 280,
-          y: basePos.y + siblingCount * 160,
-        };
+        const OFFSET_X = 260; // 추측입니다: 원하는 간격에 맞게 조정 가능
+        const OFFSET_Y = 120; // 추측입니다: 형제 노드들 세로로 조금씩 벌리기
+
+        const posBase = parentNode
+          ? {
+              x: basePos.x + OFFSET_X,
+              y: basePos.y + siblingCount * OFFSET_Y,
+            }
+          : basePos;
+
+        const pos = jitterPosition(posBase, nodeIdNum);
+
         nextNodes = [
           ...prevNodes,
           {
@@ -746,7 +776,16 @@ export default function ChatFlowPage() {
           let parentChatId = null;
           if (parentEdge) {
             const parentFlowId = String(parentEdge.source);
-            parentChatId = flowIdToChatId.get(parentFlowId) ?? null;
+            const parentChatId = flowIdToChatId.get(parentFlowId) ?? null;
+            if (parentChatId != null) {
+              // shadowing 피하려고 이름 변경
+            }
+          }
+
+          let parentChatId2 = null;
+          if (parentEdge) {
+            const parentFlowId = String(parentEdge.source);
+            parentChatId2 = flowIdToChatId.get(parentFlowId) ?? null;
           }
 
           // 형제 edge들 (부모가 이미 다른 자식들을 갖고 있는지)
@@ -778,9 +817,9 @@ export default function ChatFlowPage() {
           let baseBranchId =
             baseNode?.branch_id ??
             baseNode?.branchId ??
-            (parentChatId
+            (parentChatId2
               ? prevNodes.find(
-                  (n) => Number(n.chat_id) === Number(parentChatId)
+                  (n) => Number(n.chat_id) === Number(parentChatId2)
                 )?.branch_id
               : null);
 
@@ -805,7 +844,7 @@ export default function ChatFlowPage() {
             const currentMax =
               allIds.length > 0
                 ? Math.max(...allIds)
-                : (prevBV?.max_branch_number ?? 0);
+                : prevBV?.max_branch_number ?? 0;
 
             branchId = currentMax + 1;
           }
@@ -813,7 +852,7 @@ export default function ChatFlowPage() {
           const newNode = {
             ...baseNode,
             chat_id: Number(copyId),
-            parent: parentChatId ?? null,
+            parent: parentChatId2 ?? null,
             position: { x: pos.x, y: pos.y },
             branch_id: branchId ?? baseNode?.branch_id ?? null,
             created_at: new Date().toISOString(),
@@ -821,15 +860,15 @@ export default function ChatFlowPage() {
 
           const nextEdges = [...prevEdges];
 
-          if (parentChatId != null) {
+          if (parentChatId2 != null) {
             const already = nextEdges.some(
               (e) =>
-                Number(e.source) === Number(parentChatId) &&
+                Number(e.source) === Number(parentChatId2) &&
                 Number(e.target) === Number(copyId)
             );
             if (!already) {
               nextEdges.push({
-                source: Number(parentChatId),
+                source: Number(parentChatId2),
                 target: Number(copyId),
               });
             }
@@ -950,7 +989,7 @@ export default function ChatFlowPage() {
             const currentMax =
               allIds.length > 0
                 ? Math.max(...allIds)
-                : (prevBV?.max_branch_number ?? 0);
+                : prevBV?.max_branch_number ?? 0;
 
             branchId = currentMax + 1;
           }
@@ -1358,6 +1397,7 @@ export default function ChatFlowPage() {
     // 최종적으로 서버에 보낼 값
     let parentChatIds = [];
     let branchId = null;
+    let branchName = null; // ★ 브랜치명 같이 보내기 위해 추가
 
     const isExistingDomainNode =
       flowNodeId != null &&
@@ -1481,7 +1521,7 @@ export default function ChatFlowPage() {
             const currentMax =
               allIds.length > 0
                 ? Math.max(...allIds)
-                : (prevBV?.max_branch_number ?? 0);
+                : prevBV?.max_branch_number ?? 0;
 
             branchId = currentMax + 1;
             createdNewBranch = true;
@@ -1655,6 +1695,30 @@ export default function ChatFlowPage() {
       }
     }
 
+    // ★ 3-2) 최종 branchName 계산 (API에 같이 보내기 위함)
+    if (branchId != null) {
+      // 1순위: 노드별 로컬 스토리지 매핑
+      if (flowNodeId != null) {
+        const branchMap = loadJSON(LS_BRANCH_BY_NODE, {});
+        const raw = branchMap[String(flowNodeId)];
+        if (raw && typeof raw === "string" && raw.trim()) {
+          branchName = raw.trim();
+        }
+      }
+
+      // 2순위: branchViews / latestBranchViewsRef 에 있는 branch_name
+      if (!branchName) {
+        const bv = latestBranchViewsRef.current || branchViews;
+        const entry =
+          bv?.branches?.[String(branchId)] ??
+          branchViews?.branches?.[String(branchId)];
+        const raw = entry?.branch_name;
+        if (raw && typeof raw === "string" && raw.trim()) {
+          branchName = raw.trim();
+        }
+      }
+    }
+
     // 4) 도메인 그래프에 pending 노드 심기 (UI용)
     if (flowNodeId) {
       const parentId =
@@ -1758,7 +1822,8 @@ export default function ChatFlowPage() {
       t,
       parentChatIds,
       branchId,
-      modelCode
+      modelCode,
+      branchName // ★ 디버그용 로그
     );
 
     // 7) 백엔드에 새 채팅 생성 요청
@@ -1769,6 +1834,7 @@ export default function ChatFlowPage() {
           question: t,
           parents: parentChatIds,
           branch_id: branchId,
+          branch_name: branchName || null, // ★ 서버로 브랜치명 함께 전송
           model: modelCode || "gpt-4o-mini",
           useLlm: false,
         },
@@ -2444,6 +2510,7 @@ export default function ChatFlowPage() {
 
   /* ---------------------- 브랜치명 입력 / 저장 콜백 ---------------------- */
   const askBranchName = useCallback((parentId, newNodeId) => {
+    branchNameTargetRef.current = { parentId, newNodeId };
     // 1) parentId 기준으로 조상들 모아서 path 계산
     if (parentId != null) {
       const nodes = chatViewsRef.current?.nodes ?? [];
@@ -2642,6 +2709,15 @@ export default function ChatFlowPage() {
   function confirmBranchModal() {
     const name = branchNameInput.trim();
     if (!name) return;
+
+    // ✅ 1) 어떤 노드에 대한 이름인지 꺼내기
+    const target = branchNameTargetRef.current;
+    if (target && target.newNodeId != null) {
+      // 로컬스토리지에 "노드 -> 브랜치명" 매핑 저장
+      handleBranchSaved(target.newNodeId, target.parentId ?? null, name);
+    }
+
+    // ✅ 2) 모달 닫고, FlowCanvas 쪽 Promise resolve
     setBranchModalOpen(false);
     if (branchPromptResolverRef.current) {
       branchPromptResolverRef.current(name);
