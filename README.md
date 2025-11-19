@@ -5,7 +5,6 @@
     <b>그래프 기반 LLM 대화 제어 & 시각화 플랫폼</b><br>
     대화의 흐름을 자유롭게 <b>분기(Branching)</b>하고, <b>병합(Merging)</b>하며 실험하세요.
   </p>
-
   <p align="center">
     <!-- FE -->
     <img src="https://img.shields.io/badge/React-61DAFB?style=for-the-badge&logo=React&logoColor=white">
@@ -28,11 +27,22 @@
 
 ---
 
+<br>
+<div align="center">
+
+  [🚀 빠른 시작](#-빠른-시작) | [💡 주요 기능](#-주요-기능) | [💻 로컬 개발 환경](#-로컬-개발-환경)
+
+</div>
+<br>
+
+---
+
 # 🧭 개요
 
 **TTIBU-TTIBU-CHAT**은 기존의 선형적인(Linear) 채팅 인터페이스를 탈피하여, **그래프(Graph)** 형태로 LLM과의 대화를 시각화하고 조작하는 **한국어 특화 오픈소스 플랫폼**입니다.
 
 개발자와 프롬프트 엔지니어는 대화의 특정 시점으로 돌아가 **가지치기(Branching)** 를 하거나, 서로 다른 대화 맥락을 **이어 붙이는(Linking)** 등 직관적인 실험이 가능합니다. **LiteLLM**을 통해 다양한 LLM Provider를 손쉽게 통합하여 사용할 수 있습니다.
+<br><br>
 
 ---
 
@@ -40,23 +50,28 @@
 
 ### 🔗 **채팅 붙이기**
 두 개의 서로 다른 메시지 노드를 연결하여 대화 흐름을 병합합니다. 문맥을 재구성할 때 유용합니다.
-  <img src="" align="center" width="600"/>
+  <!-- <img src="" align="center" width="600"/> -->
 
 ### ✂️ **채팅 떼기**
 잘못 연결되거나 불필요한 대화 흐름을 끊어내어 노이즈를 제거하고 새로운 흐름을 만듭니다.
-  <img src="" align="center" width="600"/>
+  <!-- <img src="" align="center" width="600"/> -->
 
 ### 🗂️ **채팅 그룹화**
 복잡해진 그래프 노드들을 주제별로 묶어 정리하고, 가시성을 확보합니다.
-  <img src="" align="center" width="600"/>
+  <!-- <img src="" align="center" width="600"/> -->
 
 ### 🌿 **대화 분기**
 특정 메시지에서 새로운 가지(Branch)를 생성하여 여러 프롬프트 전략을 동시에 실험합니다.
-  <img src="" align="center" width="600"/>
+  <!-- <img src="" align="center" width="600"/> -->
+
+### 🧠 LLM Provider 통합(LiteLLM)
+OpenAI · Anthropic · Google · DeepSeek 등  
+다양한 LLM Provider를 **하나의 통합 API**로 사용합니다.
+<br><br>
 
 ---
 
-# 🚀 시작
+# 🚀 빠른 시작
 
 ### 1. 사전 요구사항
 프로젝트를 실행하기 위해 다음 도구들이 설치되어 있어야 합니다.
@@ -71,6 +86,7 @@ git clone https://github.com/TTIBU-TTIBU-CHAT/TTIBU-TTIBU-CHAT.git
 cd TTIBU-TTIBU-CHAT
 docker compose up -d
 ```
+<br>
 
 ---
 
@@ -88,7 +104,7 @@ graph TD
 
     subgraph Backend
         B["Core API (Spring Boot)"]
-        C["Summary & Keyword Worker (FastAPI)"]
+        C["Summary API (FastAPI)"]
         D["LiteLLM Gateway"]
     end
 
@@ -103,6 +119,7 @@ graph TD
     B -- Data Persist --> DB
     B -- Caching --> Cache
 ```
+<br>
 
 ---
 
@@ -111,10 +128,35 @@ graph TD
 | 영역 | 기술 |
 |------|------|
 | **Frontend** | React 19, React Flow, Vite |
-| **Backend** | Java 17, Spring Boot 3.5.7, JPA, Spring Security |
+| **Backend** | Java 17, Spring Boot 3.5.7, JPA, Spring Security, SSE |
 | **Worker** | Python 3.11, FastAPI 0.121.0, [LiteLLM](https://github.com/BerriAI/litellm) |
 | **Database** | PostgreSQL 15, Redis 7 |
 | **Infra** | Docker, Docker Compose |
+<br>
+
+---
+
+# 💻 로컬 개발 환경
+
+### Core API
+```bash
+cd core-api
+./gradlew bootrun
+```
+
+### Summary API (Worker)
+```bash
+cd summary-api
+uvicorn app.main:app --reload --port 8001
+```
+
+### Frontend
+```bash
+cd frontend
+npm install
+npm run dev
+```
+<br>
 
 ---
 
@@ -141,10 +183,11 @@ graph TD
 <a href="https://github.com/TTIBU-TTIBU-CHAT/TTIBU-TTIBU-CHAT/graphs/contributors">
   <img src="https://contrib.rocks/image?repo=TTIBU-TTIBU-CHAT/TTIBU-TTIBU-CHAT" width="200"/>
 </a>
+<br><br>
 
 ---
 
-# 📜 라이선스
+# 📜 라이선스 <img src="https://img.shields.io/badge/License-MIT-blue.svg">
 
 **TTIBU-TTIBU-CHAT**은 MIT 라이선스에 따라 배포됩니다. <br>
 자세한 내용은 프로젝트의 LICENSE 파일을 참고하세요.
