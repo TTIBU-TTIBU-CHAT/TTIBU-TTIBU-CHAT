@@ -35,8 +35,8 @@ services:
   # Spring Boot Core API
   core-api:
     build:
-      context: .
-      dockerfile: ./core-api/Dockerfile
+      context: ./core-api
+      dockerfile: Dockerfile
     container_name: ttibu-core-api
     environment:
       SPRING_PROFILES_ACTIVE: docker

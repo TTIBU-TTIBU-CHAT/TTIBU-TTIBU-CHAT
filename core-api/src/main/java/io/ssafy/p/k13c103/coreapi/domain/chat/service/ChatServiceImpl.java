@@ -9,6 +9,7 @@ import io.ssafy.p.k13c103.coreapi.common.sse.SseEmitterManager;
 import io.ssafy.p.k13c103.coreapi.config.properties.AiProcessingProperties;
 import io.ssafy.p.k13c103.coreapi.domain.catalog.entity.ProviderCatalog;
 import io.ssafy.p.k13c103.coreapi.domain.catalog.repository.ProviderCatalogRepository;
+import io.ssafy.p.k13c103.coreapi.domain.chat.dto.CachedPageDto;
 import io.ssafy.p.k13c103.coreapi.domain.chat.dto.ChatRequestDto;
 import io.ssafy.p.k13c103.coreapi.domain.chat.dto.ChatResponseDto;
 import io.ssafy.p.k13c103.coreapi.domain.chat.dto.ChatSseEvent;
@@ -26,13 +27,16 @@ import io.ssafy.p.k13c103.coreapi.domain.room.repository.RoomRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 import reactor.core.publisher.Flux;
 
+import java.time.Duration;
 import java.util.*;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
@@ -55,6 +59,7 @@ public class ChatServiceImpl implements ChatService {
     private final ObjectMapper objectMapper;
     private final Executor aiTaskExecutor;  // 동일 스레드풀 명시적으로 주입
     private final AiProcessingProperties aiProcessingProperties;
+    private final RedisTemplate<String, String> redisTemplate;
 
     @Override
     @Transactional(readOnly = true)
@@ -62,17 +67,39 @@ public class ChatServiceImpl implements ChatService {
         if (!memberRepository.existsById(memberUid))
             throw new ApiException(ErrorCode.MEMBER_NOT_FOUND);
 
+        // 키워드가 없는 경우 전체 조회, 5개 초과인 경우 error
         if (keywords == null || keywords.isEmpty()) {
             Page<Chat> page = chatRepository.findAllChats(memberUid, pageable);
             return page.map(chat -> new ChatResponseDto.SearchedResultInfo(chat));
         } else if (keywords.size() > 5)
             throw new ApiException(ErrorCode.TOO_MANY_SEARCH_KEYWORD);
 
+        // 캐시 조회 후 hit이면 읽어오기
+        String key = chatKey(memberUid, keywords);
+        String cached = redisTemplate.opsForValue().get(key);
+        if (cached != null) {
+            try {
+                CachedPageDto cachedPage = objectMapper.readValue(cached, CachedPageDto.class);
+                List<ChatResponseDto.SearchedResultInfo> content = cachedPage.getContent();
+                return new PageImpl<>(content, pageable, cachedPage.getTotal());
+            } catch (Exception e) { // ignored
+            }
+        }
+
+        // DB에서 조회
         String[] array = convertToArray(keywords);
-
         Page<Chat> page = chatRepository.searchByAllKeywords(memberUid, array, pageable);
+        Page<ChatResponseDto.SearchedResultInfo> result = page.map(ChatResponseDto.SearchedResultInfo::new);
 
-        return page.map(chat -> new ChatResponseDto.SearchedResultInfo(chat));
+        // 캐시에 저장
+        try {
+            CachedPageDto cacheObj = new CachedPageDto(result.getContent(), result.getTotalElements());
+            String json = objectMapper.writeValueAsString(cacheObj);
+            redisTemplate.opsForValue().set(key, json, Duration.ofSeconds(30));
+        } catch (Exception e) { // ignored
+        }
+
+        return result;
     }
 
     @Override
@@ -112,12 +139,19 @@ public class ChatServiceImpl implements ChatService {
         Room room = roomRepository.findById(roomId)
                 .orElseThrow(() -> new ApiException(ErrorCode.ROOM_NOT_FOUND));
 
-        log.info("[ASYNC] Chat {} -> 비동기 AI 처리 시작", chatId);
+        String safeContext = contextPrompt;
+        if (safeContext != null && safeContext.length() > 2000) {
+            safeContext = safeContext.substring(safeContext.length() - 2000);
+            log.debug("[ASYNC] contextPrompt 길이 초과 → 뒤에서 2000자만 사용");
+        }
+
+        log.info("[ASYNC] Chat {} -> 비동기 AI 처리 시작 (model={}, provider={}, useLlm={}, ctxLen={})",
+                chatId, model, provider, useLlm, safeContext == null ? 0 : safeContext.length());
 
         // 1. 답변 생성
         // message 구성: LLM API 규격에 맞춰 user 질문으로 변환
         List<Map<String, String>> messages = new ArrayList<>();
-        if (contextPrompt != null && !contextPrompt.isBlank()) {
+        if (safeContext != null && !safeContext.isBlank()) {
             messages.add(Map.of(
                     "role", "system",
                     "content",
@@ -126,7 +160,7 @@ public class ChatServiceImpl implements ChatService {
                             아래의 대화 내용을 참고해 맥락을 유지한 자연스러운 답변을 생성하세요.
                             
                             [이전 대화 요약 또는 내용]
-                            """ + contextPrompt
+                            """ + safeContext
             ));
         }
         messages.add(Map.of("role", "user", "content", chat.getQuestion()));
@@ -151,47 +185,51 @@ public class ChatServiceImpl implements ChatService {
                 // 스트림 구독: 청크 단위로 처리
                 stream
                         .doOnNext(chunk -> {
-                            JsonNode usageNode = llmStreamParser.extractUsage(provider, chunk);
-                            if (usageNode != null) {
-                                usageRef.set(usageNode);
-                            }
+                            try {
+                                JsonNode usageNode = llmStreamParser.extractUsage(provider, chunk);
+                                if (usageNode != null) {
+                                    usageRef.set(usageNode);
+                                }
 
-                            String delta = llmStreamParser.extractDeltaContent(provider, chunk);
-                            if (delta != null && !delta.isBlank()) {
-                                accumulatedAnswer.append(delta);
+                                String delta = llmStreamParser.extractDeltaContent(provider, chunk);
+                                if (delta != null && !delta.isBlank()) {
+                                    accumulatedAnswer.append(delta);
 
-                                Map<String, Object> payload = new LinkedHashMap<>();
-                                payload.put("chat_id", chat.getChatUid());
-                                payload.put("delta", delta);
+                                    Map<String, Object> payload = new LinkedHashMap<>();
+                                    payload.put("chat_id", chat.getChatUid());
+                                    payload.put("delta", delta);
 
-                                sseEmitterManager.sendEvent(
-                                        room.getRoomUid(),
-                                        new ChatSseEvent<>(ChatSseEventType.CHAT_STREAM, payload)
-                                );
-                            }
+                                    sseEmitterManager.sendEvent(
+                                            room.getRoomUid(),
+                                            new ChatSseEvent<>(ChatSseEventType.CHAT_STREAM, payload)
+                                    );
+                                }
 
-                            // [DONE] 감지 시 DB 업데이트 + SSE 완료 이벤트 전송
-                            if (!doneEmitted[0] && llmStreamParser.isDoneChunk(provider, chunk)) {
-                                doneEmitted[0] = true;
+                                // [DONE] 감지 시 DB 업데이트 + SSE 완료 이벤트 전송
+                                if (!doneEmitted[0] && llmStreamParser.isDoneChunk(provider, chunk)) {
+                                    doneEmitted[0] = true;
 
-                                chat.updateAnswer(accumulatedAnswer.toString());
+                                    chat.updateAnswer(accumulatedAnswer.toString());
 
-                                applyTokenUsageIfPresent(room, provider, usageRef.get());
+                                    applyTokenUsageIfPresent(room, provider, usageRef.get());
 
-                                chatRepository.save(chat);
+                                    chatRepository.save(chat);
 
-                                Map<String, Object> payload = new LinkedHashMap<>();
-                                payload.put("chat_id", chat.getChatUid());
-                                payload.put("answer", accumulatedAnswer.toString());
-                                payload.put("answered_at", chat.getAnsweredAt());
+                                    Map<String, Object> payload = new LinkedHashMap<>();
+                                    payload.put("chat_id", chat.getChatUid());
+                                    payload.put("answer", accumulatedAnswer.toString());
+                                    payload.put("answered_at", chat.getAnsweredAt());
 
-                                sseEmitterManager.sendEvent(
-                                        room.getRoomUid(),
-                                        new ChatSseEvent<>(ChatSseEventType.CHAT_DONE, payload)
-                                );
+                                    sseEmitterManager.sendEvent(
+                                            room.getRoomUid(),
+                                            new ChatSseEvent<>(ChatSseEventType.CHAT_DONE, payload)
+                                    );
 
-                                log.info("[STREAM] Chat {} 스트리밍 종료 (provider={}, model={})",
-                                        chat.getChatUid(), provider, model);
+                                    log.info("[STREAM] Chat {} 스트리밍 종료 (provider={}, model={})",
+                                            chat.getChatUid(), provider, model);
+                                }
+                            } catch (Exception e) {
+                                log.error("[STREAM] 청크 파싱 에러: {}", e.getMessage());
                             }
                         })
                         .doOnError(error -> {
@@ -240,6 +278,12 @@ public class ChatServiceImpl implements ChatService {
                         aiAsyncClient.shortSummaryAsync(aiAnswer)
                                 .thenAccept(result -> {
                                     try {
+                                        if (result == null) {
+                                            log.warn("[STEP 2] 짧은 요약 결과가 null 입니다. roomId={}, chatId={}",
+                                                    roomId, chat.getChatUid());
+                                            return;
+                                        }
+
                                         log.info("[STEP 2] 짧은 요약 생성 완료: {}", result.getTitle());
 
                                         // 방 이름 업데이트
@@ -273,8 +317,21 @@ public class ChatServiceImpl implements ChatService {
                         aiAsyncClient.summarizeAsync(aiAnswer)
                                 .thenAccept(aiResult -> {
                                     try {
+                                        if (aiResult == null) {
+                                            log.warn("[STEP 3] 긴 요약 결과가 null 입니다. roomId={}, chatId={}",
+                                                    roomId, chat.getChatUid());
+                                            return;
+                                        }
+
                                         log.info("[STEP 3] 긴 요약 + 키워드 처리 시작");
-                                        chat.updateSummaryAndKeywords(aiResult.getSummary(), convertToJson(aiResult.getKeywords()));
+                                        String summary = aiResult.getSummary();
+                                        List<String> keywords = aiResult.getKeywords();
+
+                                        if (summary == null || summary.isBlank()) {
+                                            summary = buildFallbackSummary(keywords, aiAnswer);
+                                        }
+
+                                        chat.updateSummaryAndKeywords(summary, convertToJson(keywords));
                                         chatRepository.save(chat);
 
                                         Map<String, Object> payload = new LinkedHashMap<>();
@@ -282,8 +339,8 @@ public class ChatServiceImpl implements ChatService {
                                         payload.put("branch_id", branchId);
                                         payload.put("updated_at", chat.getUpdatedAt());
                                         payload.put("chat_id", chat.getChatUid());
-                                        payload.put("summary", aiResult.getSummary());
-                                        payload.put("keywords", aiResult.getKeywords());
+                                        payload.put("summary", summary);
+                                        payload.put("keywords", keywords);
 
                                         sseEmitterManager.sendEvent(
                                                 roomId,
@@ -344,7 +401,7 @@ public class ChatServiceImpl implements ChatService {
     private void applyTokenUsageIfPresent(Room room, String provider, JsonNode usageNode) {
         if (usageNode == null) return;
 
-        // ✅ OpenAI / LiteLLM 스타일 (usage.prompt_tokens / completion_tokens)
+        // OpenAI / LiteLLM 스타일 (usage.prompt_tokens / completion_tokens)
         int prompt = 0;
         int completion = 0;
         int total = 0;
@@ -356,7 +413,7 @@ public class ChatServiceImpl implements ChatService {
             total = prompt + completion;
         }
 
-        // ✅ Gemini 스타일 (usageMetadata.*TokenCount)
+        // Gemini 스타일 (usageMetadata.*TokenCount)
         if (usageNode.has("promptTokenCount") || usageNode.has("candidatesTokenCount")) {
             int gPrompt = usageNode.path("promptTokenCount").asInt(0);
             int gCompletion = usageNode.path("candidatesTokenCount").asInt(0);
@@ -389,4 +446,29 @@ public class ChatServiceImpl implements ChatService {
                 room.getOwner().getMemberUid(), provider, total, prompt, completion);
     }
 
+    private String chatKey(Long memberUid, List<String> keywords) {
+        keywords.sort(String.CASE_INSENSITIVE_ORDER);
+        String joined = String.join("|", keywords);
+        int hash = joined.hashCode();
+        return "chat-search:" + memberUid + ":" + hash;
+    }
+
+    private String buildFallbackSummary(List<String> keywords, String originalText) {
+        if (keywords != null && !keywords.isEmpty()) {
+            List<String> top = keywords.stream()
+                    .filter(k -> k != null && !k.isBlank())
+                    .limit(3)
+                    .toList();
+
+            if (!top.isEmpty()) {
+                return String.join(", ", top) + " 관련 내용입니다.";
+            }
+        }
+
+        if (originalText != null && originalText.length() > 120) {
+            return originalText.substring(0, 120) + "...";
+        }
+
+        return originalText != null ? originalText : "요약 생성이 어려운 내용입니다.";
+    }
 }

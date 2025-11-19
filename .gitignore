@@ -1,6 +1,9 @@
 # Environment variables
 .env
 
+# claude
+.claude/
+
 # IDE
 .idea/
 *.iml

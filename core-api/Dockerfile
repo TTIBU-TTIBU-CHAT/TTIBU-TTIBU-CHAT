@@ -1,8 +1,8 @@
 # Build stage
 FROM gradle:8.5-jdk17 AS build
 WORKDIR /app
-COPY core-api/ .
-RUN ./gradlew clean build -x test
+COPY . .
+RUN chmod +x ./gradlew && ./gradlew clean build -x test
 
 # Runtime stage
 FROM eclipse-temurin:17-jre

@@ -1,6 +1,5 @@
 package io.ssafy.p.k13c103.coreapi.domain.room.service;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.ssafy.p.k13c103.coreapi.common.error.ApiException;
@@ -28,6 +27,7 @@ import io.ssafy.p.k13c103.coreapi.domain.room.entity.Room;
 import io.ssafy.p.k13c103.coreapi.domain.room.repository.RoomRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
@@ -58,6 +58,7 @@ public class RoomServiceImpl implements RoomService {
     private final TransactionTemplate txTemplate;
     private final Executor aiTaskExecutor;
     private final ObjectMapper objectMapper;
+    private final RedisTemplate<String, String> redisTemplate;
 
     /**
      * 새로운 채팅방 생성 및 첫 질문 등록
@@ -106,7 +107,7 @@ public class RoomServiceImpl implements RoomService {
                             createdChats.add(cloned);
 
                             String a = Optional.ofNullable(origin.getAnswer()).orElse("").trim();
-                            if (!a.isBlank()) contextParts.add(a);
+                            if (!a.isBlank()) contextParts.add(trimForContext(a));
 
                         } else if (node.getType() == ChatType.GROUP) {
                             log.info("[ROOM] 그룹 요약 노드 생성 요청 - groupId={}", node.getId());
@@ -121,7 +122,7 @@ public class RoomServiceImpl implements RoomService {
                             createdChats.add(snapshot);
 
                             String groupText = bestAvailableGroupText(originGroup.getGroupUid());
-                            if (!groupText.isBlank()) contextParts.add(groupText);
+                            if (!groupText.isBlank()) contextParts.add(trimForContext(groupText));
 
                             final Long snapshotId = snapshot.getChatUid();
                             final Long groupId = originGroup.getGroupUid();
@@ -172,18 +173,28 @@ public class RoomServiceImpl implements RoomService {
         TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
             @Override
             public void afterCommit() {
-                // sessionUuid → roomId로 emitter 이전
-                if (request.getSessionUuid() != null && !request.getSessionUuid().isBlank()) {
-                    sseEmitterManager.migrateSessionEmitterToRoom(request.getSessionUuid(), room.getRoomUid());
-                    log.info("[SSE] Session {} → Room {} emitter migration 완료",
-                            request.getSessionUuid(), room.getRoomUid());
+                try {
+                    if (request.getSessionUuid() != null && !request.getSessionUuid().isBlank()) {
+                        sseEmitterManager.migrateSessionEmitterToRoom(request.getSessionUuid(), room.getRoomUid());
+                    }
+
+                    sendRoomCreatedEvent(room, nodePayloads, request.getBranchId());
+
+                } catch (Exception e) {
+                    log.error("[ROOM_CREATE] afterCommit SSE 처리 실패: {}", e.getMessage());
                 }
 
-                // 1. 커밋 이후 ROOM_CREATED 이벤트 전송
-                sendRoomCreatedEvent(room, nodePayloads, request.getBranchId());
-
-                // 2. 커밋 이후 비동기 처리 시작
-                asyncChatProcessor.processAsync(newChat.getChatUid(), request, decryptedKey, providerCode, contextPrompt);
+                try {
+                    asyncChatProcessor.processAsync(
+                            newChat.getChatUid(),
+                            request,
+                            decryptedKey,
+                            providerCode,
+                            contextPrompt
+                    );
+                } catch (Exception e) {
+                    log.error("[ROOM_CREATE] afterCommit Async 처리 실패: {}", e.getMessage());
+                }
             }
         });
 
@@ -217,10 +228,18 @@ public class RoomServiceImpl implements RoomService {
 
         roomRepository.updateViews(roomUid, chatInfo, branchView);
 
-        return RoomResponseDto.ChatBranchUpdatedInfo.builder()
+        RoomResponseDto.ChatBranchUpdatedInfo response = RoomResponseDto.ChatBranchUpdatedInfo.builder()
                 .roomUid(roomUid)
                 .updatedAt(roomRepository.getUpdatedAtByRoomUid(roomUid))
                 .build();
+
+        String key = roomViewKey(roomUid);
+        try {
+            redisTemplate.delete(key);
+        } catch (Exception e) { // ignore
+        }
+
+        return response;
     }
 
     @Override
@@ -232,15 +251,33 @@ public class RoomServiceImpl implements RoomService {
         if (!roomRepository.existsByRoomUidAndOwner_MemberUid(roomUid, memberUid))
             throw new ApiException(ErrorCode.ROOM_NOT_FOUND);
 
+        // 캐시 조회 후 hit이면 읽어오기
+        String key = roomViewKey(roomUid);
+        String cached = redisTemplate.opsForValue().get(key);
+        if (cached != null) {
+            try {
+                return objectMapper.readValue(cached, RoomResponseDto.ChatBranchInfo.class);
+            } catch (Exception e) { // ignore
+            }
+        }
+
+        // 캐시 miss이면 DB 조회
         RoomRepository.RoomViewsRow info = roomRepository.findViewsByRoomUid(roomUid);
 
-        return RoomResponseDto.ChatBranchInfo.builder()
+        RoomResponseDto.ChatBranchInfo response = RoomResponseDto.ChatBranchInfo.builder()
                 .roomUid(roomUid)
                 .chatInfo(info.getChatInfo())
                 .branchView(info.getBranchView())
                 .build();
-    }
 
+        try {
+            String json = objectMapper.writeValueAsString(response);
+            redisTemplate.opsForValue().set(key, json);
+        } catch (Exception e) { // ignore
+        }
+
+        return response;
+    }
 
     @Override
     @Transactional
@@ -255,6 +292,10 @@ public class RoomServiceImpl implements RoomService {
         chatRepository.deleteChatsByRoom(roomUid);
 
         roomRepository.deleteByRoomUidAndOwner_MemberUid(roomUid, memberUid);
+        try {
+            redisTemplate.delete(roomViewKey(roomUid));
+        } catch (Exception e) { // ignore
+        }
     }
 
     @Override
@@ -417,7 +458,7 @@ public class RoomServiceImpl implements RoomService {
     private void fillSnapshotFromGroupAsync(Long groupId, Long snapshotChatId, Long roomId, Long branchId) {
         // "그룹 요약/키워드가 준비될 때까지" 기다렸다가 스냅샷을 채움
         CompletableFuture.runAsync(() -> {
-            final int maxRetry = 40;   // 총 20초 (40 * 500ms) 등, 필요에 맞게 조정
+            final int maxRetry = 100;   // 총 50초 (100 * 500ms), 필요에 맞게 조정
             final long sleepMs = 500L;
             int attempt = 0;
 
@@ -498,19 +539,18 @@ public class RoomServiceImpl implements RoomService {
         }
     }
 
-    /**
-     * 키워드 직렬화
-     */
-    private String convertToJson(List<String> keywords) {
-        try {
-            return objectMapper.writeValueAsString(keywords);
-        } catch (JsonProcessingException e) {
-            log.warn("[ChatService] 키워드 직렬화 실패: {}", e.getMessage());
-            return "[]";
-        }
+    private String roomViewKey(Long roomUid) {
+        return "room:view" + roomUid;
     }
 
     private boolean isBlank(String s) {
         return s == null || s.isBlank();
+    }
+
+    private String trimForContext(String text) {
+        if (text == null) return "";
+        text = text.trim();
+        if (text.length() <= 100) return text;
+        return text.substring(0, 100) + "...";
     }
 }

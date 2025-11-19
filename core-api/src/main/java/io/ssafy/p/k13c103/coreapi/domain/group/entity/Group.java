@@ -5,6 +5,8 @@ import io.ssafy.p.k13c103.coreapi.domain.member.entity.Member;
 import jakarta.persistence.*;
 import lombok.*;
 
+import java.time.LocalDateTime;
+
 @Entity
 @Table(name = "groups")
 @Getter
@@ -22,10 +24,10 @@ public class Group extends BaseTimeEntity {
     @JoinColumn(name = "owner_id", nullable = false)
     private Member owner;
 
-    @Column(nullable = false)
+    @Column(nullable = false, columnDefinition = "TEXT")
     private String name;
 
-    @Column
+    @Column(columnDefinition = "TEXT")
     private String summary;
 
     @Column(columnDefinition = "TEXT")
@@ -53,5 +55,6 @@ public class Group extends BaseTimeEntity {
     public void updateSummaryAndKeywords(String summary, String keywords) {
         this.summary = summary;
         this.keywords = keywords;
+        this.updatedAt = LocalDateTime.now();
     }
 }

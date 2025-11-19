@@ -28,6 +28,7 @@ public interface ChatRepository extends JpaRepository<Chat, Long> {
         FROM chat c
         JOIN room r ON r.room_uid = c.room_id
         WHERE r.owner_id = :memberId
+          AND c.group_id IS NULL
           AND c.status   = 'SUMMARY_KEYWORDS'
           AND c.is_chat  = 'CHAT'
           AND NOT EXISTS (
@@ -43,6 +44,7 @@ public interface ChatRepository extends JpaRepository<Chat, Long> {
           FROM chat c
           JOIN room r ON r.room_uid = c.room_id
           WHERE r.owner_id = :memberId
+            AND c.group_id IS NULL
             AND c.status   = 'SUMMARY_KEYWORDS'
             AND c.is_chat  = 'CHAT'
             AND NOT EXISTS (
@@ -79,6 +81,7 @@ public interface ChatRepository extends JpaRepository<Chat, Long> {
         FROM chat c
         WHERE c.status  = 'SUMMARY_KEYWORDS'
           AND c.is_chat = 'CHAT'
+          AND c.group_id IS NULL
           AND EXISTS (
               SELECT 1
               FROM room r
@@ -92,6 +95,7 @@ public interface ChatRepository extends JpaRepository<Chat, Long> {
         FROM chat c
         WHERE c.status  = 'SUMMARY_KEYWORDS'
           AND c.is_chat = 'CHAT'
+          AND c.group_id IS NULL
           AND EXISTS (
               SELECT 1
               FROM room r

@@ -48,7 +48,13 @@ public class GroupSummaryServiceImpl implements GroupSummaryService {
                         content = "";
                     }
 
-                    return content.trim();
+                    content = content.trim();
+
+                    if (content.length() > 100) { // ✔
+                        content = content.substring(0, 100); // ✔
+                    }
+
+                    return content;
                 })
                 .filter(text -> !text.isEmpty())
                 .collect(Collectors.joining("\n\n"));

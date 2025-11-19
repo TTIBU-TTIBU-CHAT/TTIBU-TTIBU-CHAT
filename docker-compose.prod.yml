@@ -1,0 +1,103 @@
+version: '3.8'
+
+services:
+  # Spring Boot Core API
+  core-api:
+    image: ${ECR_REGISTRY}/ttibu/core-api:latest
+    container_name: ttibu-core-api
+    environment:
+      SPRING_PROFILES_ACTIVE: prod
+      # Database (RDS)
+      DB_URL: jdbc:postgresql://${RDS_ENDPOINT}:5432/${RDS_DB_NAME}
+      DB_USERNAME: ${RDS_USERNAME}
+      DB_PASSWORD: ${RDS_PASSWORD}
+      # Redis (ElastiCache)
+      REDIS_HOST: ${REDIS_ENDPOINT}
+      REDIS_PORT: 6379
+      # LiteLLM
+      LITELLM_BASE_URL: http://litellm:4000
+      LITELLM_MASTER_KEY: ${LITELLM_MASTER_KEY}
+      LITELLM_MODEL: ${LITELLM_MODEL}
+      LITELLM_CONFIG_PATH: file:/app/litellm-config.yaml
+      # Summary API
+      SUMMARY_API_BASE_URL: http://summary-api:8001
+      SUMMARY_API_TIMEOUT_MS: ${SUMMARY_API_TIMEOUT_MS:-10000}
+      # GMS
+      GMS_BASE_URL: ${GMS_BASE_URL}
+      # TTIBU
+      TTIBU_CRYPTO_SECRET: ${TTIBU_CRYPTO_SECRET}
+      LITELLM_POLL_MS: ${LITELLM_POLL_MS:-30000}
+    ports:
+      - "8080:8080"
+    volumes:
+      - /home/ubuntu/litellm-config.yaml:/app/litellm-config.yaml:ro
+    depends_on:
+      - litellm
+      - summary-api
+    networks:
+      - ttibu-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/actuator/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+
+  # LiteLLM Proxy
+  litellm:
+    image: ghcr.io/berriai/litellm:main-latest
+    container_name: ttibu-litellm
+    ports:
+      - "4000:4000"
+    environment:
+      - LITELLM_MASTER_KEY=${LITELLM_MASTER_KEY}
+      - LITELLM_LOG=INFO
+    volumes:
+      - /home/ubuntu/litellm-config.yaml:/app/config.yaml:ro
+    command: --config /app/config.yaml --port 4000
+    networks:
+      - ttibu-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:4000/health/liveliness"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # FastAPI Summary Service
+  summary-api:
+    image: ${ECR_REGISTRY}/ttibu/summary-api:latest
+    container_name: ttibu-summary-api
+    ports:
+      - "8001:8001"
+    networks:
+      - ttibu-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8001/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 120s
+
+  # React Frontend (Nginx)
+  frontend:
+    image: ${ECR_REGISTRY}/ttibu/frontend:latest
+    container_name: ttibu-frontend
+    ports:
+      - "80:80"
+    depends_on:
+      - core-api
+    networks:
+      - ttibu-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:80"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+networks:
+  ttibu-network:
+    driver: bridge

@@ -10,6 +10,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.reactive.function.client.WebClient;
 import reactor.core.publisher.Mono;
 
+import java.time.Duration;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
@@ -49,6 +50,7 @@ public class AiAsyncClient {
                 ))
                 .retrieve()
                 .bodyToMono(AiSummaryKeywordsResponseDto.class)
+                .timeout(Duration.ofMillis(summaryApiProperties.getTimeoutMs()))
                 .doOnSubscribe(sub -> log.info("[AiAsyncClient] FastAPI 요약 요청 시작"))
                 .doOnSuccess(res -> log.info("[AiAsyncClient] FastAPI 응답 수신 완료"))
                 .doOnError(e -> log.error("[AiAsyncClient] FastAPI 요청 실패: {}", e.getMessage()))
@@ -72,6 +74,7 @@ public class AiAsyncClient {
                 ))
                 .retrieve()
                 .bodyToMono(AiShortSummaryResponseDto.class)
+                .timeout(Duration.ofMillis(summaryApiProperties.getTimeoutMs()))
                 .doOnSubscribe(sub -> log.info("[AiAsyncClient] FastAPI 짧은 요약 요청 시작"))
                 .doOnSuccess(res -> log.info("[AiAsyncClient] 짧은 요약 응답 완료: {}", res.getTitle()))
                 .doOnError(e -> log.error("[AiAsyncClient] FastAPI 짧은 요약 요청 실패: {}", e.getMessage()))
@@ -85,7 +88,7 @@ public class AiAsyncClient {
     private AiSummaryKeywordsResponseDto fallbackResponse(Throwable e) {
         log.warn("[AiAsyncClient] Fallback 처리 - {}", e.getMessage());
         AiSummaryKeywordsResponseDto fallback = new AiSummaryKeywordsResponseDto();
-        fallback.setSummary("요약 생성 실패 (Fallback)");
+        fallback.setSummary(null);
         fallback.setKeywords(List.of());
         fallback.setProcessingTimeMs(0);
         return fallback;
@@ -97,7 +100,7 @@ public class AiAsyncClient {
     private AiShortSummaryResponseDto fallbackShortResponse(Throwable e) {
         log.warn("[AiAsyncClient] 짧은 요약 실패 Fallback - {}", e.getMessage());
         AiShortSummaryResponseDto fallback = new AiShortSummaryResponseDto();
-        fallback.setTitle("짧은 요약 생성 실패 (Fallback)");
+        fallback.setTitle(null);
         fallback.setProcessingTimeMs(0);
         return fallback;
     }

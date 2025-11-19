@@ -161,7 +161,8 @@ public class Chat extends BaseTimeEntity {
     }
 
     public void updateSearchContent() {
-        this.searchContent = String.join(" ", this.question, this.answer);
+        String q = (this.question == null) ? "" : this.question;
+        String a = (this.answer == null) ? "" : this.answer;
+        this.searchContent = (q + " " + a).trim();
     }
-
 }
