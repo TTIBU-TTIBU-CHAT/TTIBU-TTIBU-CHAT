@@ -36,7 +36,7 @@ export default function QaNode({ data = {}, sourcePosition, targetPosition }) {
     Array.isArray(keywordsArr) && keywordsArr.length > 0
       ? keywordsArr[0]
       : null;
-  // console.log("QaNode keywords", firstKeyword);
+  console.log("QaNode keywords", firstKeyword);
   const rawType = data?.type || data?.raw?.type;
   const isGroup =
     typeof rawType === "string" && rawType.toUpperCase() === "GROUP";
@@ -50,7 +50,7 @@ export default function QaNode({ data = {}, sourcePosition, targetPosition }) {
 
   const showFull = !isGroup && tier === "full";
   const displayTitle = question || label || firstKeyword || "제목 없음";
-  // console.log("QaNodekey",displayTitle);
+  console.log("QaNodekey",displayTitle);
   // 🔽 기존 렌더링 그대로 유지
   return (
     <NodeShell>
