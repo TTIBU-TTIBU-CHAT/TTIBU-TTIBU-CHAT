@@ -75,7 +75,7 @@ public class ChatServiceImpl implements ChatService {
             throw new ApiException(ErrorCode.TOO_MANY_SEARCH_KEYWORD);
 
         // 캐시 조회 후 hit이면 읽어오기
-        String key = chatKey(memberUid, keywords);
+        String key = chatKey(memberUid, keywords, pageable);
         String cached = redisTemplate.opsForValue().get(key);
         if (cached != null) {
             try {
@@ -95,7 +95,7 @@ public class ChatServiceImpl implements ChatService {
         try {
             CachedPageDto cacheObj = new CachedPageDto(result.getContent(), result.getTotalElements());
             String json = objectMapper.writeValueAsString(cacheObj);
-            redisTemplate.opsForValue().set(key, json, Duration.ofSeconds(30));
+            redisTemplate.opsForValue().set(key, json, Duration.ofSeconds(60));
         } catch (Exception e) { // ignored
         }
 
@@ -446,11 +446,18 @@ public class ChatServiceImpl implements ChatService {
                 room.getOwner().getMemberUid(), provider, total, prompt, completion);
     }
 
-    private String chatKey(Long memberUid, List<String> keywords) {
-        keywords.sort(String.CASE_INSENSITIVE_ORDER);
+    private String chatKey(Long memberUid, List<String> keywords, Pageable pageable) {
+        keywords.sort(String.CASE_INSENSITIVE_ORDER); // 대소문자 무시
         String joined = String.join("|", keywords);
-        int hash = joined.hashCode();
-        return "chat-search:" + memberUid + ":" + hash;
+
+        String sort = pageable.getSort().isSorted()
+                ? pageable.getSort().toString()
+                : "UNSORTED";
+
+        String raw = memberUid + ":" + joined + ":" + pageable.getPageNumber() + ":" + pageable.getPageSize() + ":" + sort;
+
+        int hash = raw.hashCode();
+        return "chat-search:" + hash;
     }
 
     private String buildFallbackSummary(List<String> keywords, String originalText) {
