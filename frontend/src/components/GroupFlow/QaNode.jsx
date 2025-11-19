@@ -15,14 +15,33 @@ function useZoomTier() {
 export default function QaNode({ data = {}, sourcePosition, targetPosition }) {
   const { tier: baseTier } = useZoomTier();
 
+  // 🔥 raw 데이터 통합
+  const raw = data?.raw || data;
+  const pendingFlag = raw.pending ?? data.pending ?? raw.data?.pending ?? false;
+
+  const answerText =
+    raw.answer ??
+    raw.short_summary ??
+    raw.summary ??
+    data.answer ??
+    data.short_summary ??
+    data.summary;
+
+  // 🔥 답변/요약이 생기면 pending 이 true여도 "생성중..."을 안 띄움
+  const isPending = !!pendingFlag && !answerText;
+
   const { label = "제목 없음", summary, question, answer, date } = data;
-  // console.log("QaNode data:", data, sourcePosition, targetPosition);
-  // ✅ 그룹 노드는 2단계: <1.0 => label / >=1.0 => summary
-  
+  const keywordsArr = raw.keywords ?? data.keywords ?? raw.data?.keywords ?? []; // 혹시 다른 위치에 있을 수도 있어 안전하게
+  const firstKeyword =
+    Array.isArray(keywordsArr) && keywordsArr.length > 0
+      ? keywordsArr[0]
+      : null;
+  console.log("QaNode keywords", firstKeyword);
   const rawType = data?.type || data?.raw?.type;
   const isGroup =
     typeof rawType === "string" && rawType.toUpperCase() === "GROUP";
-  const bgColor = data?.color||data?.raw?.color || (isGroup ? "#F4FAF7" : "#ffffff");
+  const bgColor =
+    data?.color || data?.raw?.color || (isGroup ? "#F4FAF7" : "#ffffff");
   const tier = isGroup
     ? baseTier === "label"
       ? "label"
@@ -30,25 +49,41 @@ export default function QaNode({ data = {}, sourcePosition, targetPosition }) {
     : baseTier;
 
   const showFull = !isGroup && tier === "full";
-
+  const displayTitle = question || label || firstKeyword || "제목 없음";
+  console.log("QaNodekey",displayTitle);
+  // 🔽 기존 렌더링 그대로 유지
   return (
     <NodeShell>
       {!showFull ? (
-        <LiteCard $group={isGroup} $bg={bgColor}>
+        <LiteCard $group={isGroup} $bg={bgColor} $isPending={isPending}>
           {tier === "label" ? (
-            <LiteTitle title={label}>{label}</LiteTitle>
+            <LiteTitle title={displayTitle}>
+              {isPending ? (
+                <LoadingText>생성 중...</LoadingText>
+              ) : (
+                displayTitle
+              )}
+            </LiteTitle>
           ) : (
             summary && <LiteSummary title={summary}>{summary}</LiteSummary>
           )}
         </LiteCard>
       ) : (
-        <FullCard $bg={bgColor}>
+        <FullCard $bg={bgColor} $isPending={isPending}>
+          {isPending && (
+            <LoadingOverlay>
+              <Spinner />
+              <LoadingText>답변 생성 중...</LoadingText>
+            </LoadingOverlay>
+          )}
           <HeadRow>
             <Badge tone="blue">QUESTION</Badge>
             {date && <MetaDate>{date}</MetaDate>}
           </HeadRow>
 
-          <OneLine title={question || label}>{question || label}</OneLine>
+          <OneLine title={displayTitle}>
+            {displayTitle}
+          </OneLine>
 
           <Divider />
 
@@ -57,11 +92,12 @@ export default function QaNode({ data = {}, sourcePosition, targetPosition }) {
             {date && <MetaDate>{date}</MetaDate>}
           </HeadRow>
 
-          <OneLineMuted title={answer}>{answer}</OneLineMuted>
+          <OneLineMuted title={answer}>
+            {isPending ? "답변 생성 중..." : answer}
+          </OneLineMuted>
         </FullCard>
       )}
 
-      {/* 좌/우 작은 핸들 */}
       <Handle
         type="target"
         position={targetPosition ?? Position.Left}
@@ -100,6 +136,8 @@ const LiteCard = styled.div`
   background: ${({ $bg, $group }) => $bg || ($group ? "#F4FAF7" : "#ffffff")};
   border: 1px solid ${({ $group }) => ($group ? "#BFEAD0" : "rgba(0,0,0,0.08)")};
   box-shadow: 0 6px 12px rgba(31, 41, 55, 0.06);
+  opacity: ${({ $isPending }) => ($isPending ? 0.6 : 1)};
+  transition: opacity 0.3s ease;
 `;
 const LiteTitle = styled.div`
   font-size: 18px;
@@ -135,11 +173,14 @@ const FullCard = styled.article`
   display: grid;
   grid-template-rows: auto auto auto auto 1fr;
   row-gap: 6px;
+  position: relative;
 
+  opacity: ${({ $isPending }) => ($isPending ? 0.7 : 1)};
   transition:
     transform 0.45s cubic-bezier(0.22, 1, 0.36, 1),
     border 0.3s ease,
-    box-shadow 0.45s ease;
+    box-shadow 0.45s ease,
+    opacity 0.3s ease;
 
   &:hover {
     transform: translateY(-6px);
@@ -200,4 +241,42 @@ const OneLineMuted = styled.div`
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+`;
+
+/* 로딩 관련 스타일 */
+const LoadingOverlay = styled.div`
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  background: rgba(255, 255, 255, 0.9);
+  border-radius: 16px;
+  z-index: 10;
+`;
+
+const Spinner = styled.div`
+  width: 24px;
+  height: 24px;
+  border: 3px solid #e5e7eb;
+  border-top-color: #406992;
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+
+  @keyframes spin {
+    to {
+      transform: rotate(360deg);
+    }
+  }
+`;
+
+const LoadingText = styled.div`
+  font-size: 12px;
+  font-weight: 600;
+  color: #6b7280;
 `;

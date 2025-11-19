@@ -16,11 +16,10 @@ export default function NewChat() {
   const navigatedRef = useRef(null);
   const [redirecting, setRedirecting] = useState(false);
 
-
   // ✅ 서버 모델 옵션 (항상 기본값이 내려오도록 훅에서 보장하지만, 여기서도 방어)
   const {
-    dropdownItems = [],        // [{ label: modelName, value: modelCode, uid, isDefault }]
-    defaultModelCode = "",     // 기본 modelCode
+    dropdownItems = [], // [{ label: modelName, value: modelCode, uid, isDefault }]
+    defaultModelCode = "", // 기본 modelCode
     modelsLoading = false,
     modelsError = null,
   } = useModels() ?? {};
@@ -44,7 +43,6 @@ export default function NewChat() {
   const targetRoomIdRef = useRef(null);
   const hookRoomIdRef = useRef(null); // useStartChat에서 내려오는 roomId 보관
 
-
   const getTargetRoomId = (payload) =>
     payload?.chat_id ??
     payload?.room_id ??
@@ -54,7 +52,6 @@ export default function NewChat() {
     hookRoomIdRef.current ??
     null;
 
-
   const maybeNavigate = () => {
     const { short, keywords } = flagsRef.current;
     if (!short || !keywords) return;
@@ -62,7 +59,6 @@ export default function NewChat() {
     if (!id) return;
     if (navigatedRef.current === id) return;
     navigatedRef.current = id;
-
 
     navigate({ to: `/chatrooms/${id}` });
   };
@@ -74,14 +70,17 @@ export default function NewChat() {
       if (!rid) return;
       if (navigatedRef.current === String(rid)) return;
       navigatedRef.current = String(rid);
-      data.model=selectedModel; // 선택된 모델 코드 추가
+      data.model = selectedModel; // 선택된 모델 코드 추가
       console.log("Room created data:", data);
       setRedirecting(true);
 
       navigate({
         to: "/chatrooms/$roomId",
         params: { roomId: String(rid) },
-        state: { roomInit: data },
+        state: {
+          roomInit: { ...data, model: selectedModel },
+          modelCode: selectedModel, // 🔥 명시적으로 전달
+        },
         replace: true,
       });
     },
@@ -108,7 +107,6 @@ export default function NewChat() {
     },
     onChatError: (d) => console.error("[CHAT_ERROR]", d),
   });
-
 
   useEffect(() => {
     if (roomId) hookRoomIdRef.current = roomId;
@@ -219,8 +217,6 @@ export default function NewChat() {
     return "모델 선택";
   })();
 
-
-
   return (
     <S.Container $collapsed={isCollapsed}>
       <S.TopLeftBar onClick={stop}>
@@ -274,7 +270,7 @@ export default function NewChat() {
             {selectedItems.map((item) => (
               <S.SelectedTag key={item.id} $type={item.type}>
                 {item.type === "group"
-                  ? item.title ?? item.label
+                  ? (item.title ?? item.label)
                   : item.label}
                 <button
                   style={{ padding: 5 }}

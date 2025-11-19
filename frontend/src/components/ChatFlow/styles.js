@@ -4,10 +4,10 @@ import { MarkerType } from "reactflow";
 /* 선택된 노드 강조: 내부 첫 번째 div(Box)를 타겟팅 */
 export const GlobalRFStyles = createGlobalStyle`
   .react-flow__node.selected > div {
-    border-color: #48b17a !important;
+    border-color: #006e35ff !important;
     box-shadow:
-      0 0 0 3px rgba(72, 177, 122, .15),
-      0 6px 12px rgba(0, 0, 0, .08) !important;
+      0 0 0 3px #3367d9;
+    border-radius: 5px;
   }
 
   /* 엣지 색감 기본 */

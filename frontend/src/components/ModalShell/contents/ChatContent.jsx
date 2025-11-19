@@ -62,6 +62,24 @@ export function ChatContent({
               <S.GroupTagRow>
                 <S.GroupTag>{msg.content}</S.GroupTag>
               </S.GroupTagRow>
+            ) : msg.pending ? (
+              // 🔥 pending 상태: "생성 중…" + 로딩 아이콘 버블
+              <S.Bubble $me={false}>
+                <span>
+                  {msg.content && msg.content.trim().length > 0
+                    ? msg.content
+                    : "답변을 생성하고 있습니다…"}
+                </span>
+                <span
+                  style={{
+                    opacity: 0.6,
+                    marginLeft: 8,
+                    display: "inline-block",
+                  }}
+                >
+                  ▋
+                </span>
+              </S.Bubble>
             ) : (
               <>
                 <S.Bubble $me={msg.role === "user"}>

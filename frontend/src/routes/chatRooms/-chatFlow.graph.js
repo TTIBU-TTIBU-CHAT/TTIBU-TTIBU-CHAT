@@ -1,34 +1,27 @@
 // src/routes/chatrooms/-chatFlow.graph.js
-import {
-  LS_BRANCH_BY_NODE,
-  loadJSON,
-  saveJSON,
-} from "./-chatFlow.storage";
+import { LS_BRANCH_BY_NODE, loadJSON, saveJSON } from "./-chatFlow.storage";
 
 /* ======================================================================= */
 /* 🔥 parent 체인 따라 올라가면서 최대 limit 개수만큼 조상 chat_id 수집 */
 /* ======================================================================= */
-export function collectAncestorChatIds(chatViews, startChatId, limit = 5) {
-  if (!chatViews || !startChatId || Number.isNaN(Number(startChatId)))
-    return [];
+export function collectAncestorChatIds(nodes, startChatId, limit = 5) {
+  if (!startChatId) return [];
 
-  const nodes = chatViews.nodes ?? [];
-  const byId = new Map(
-    nodes.map((n) => [Number(n.chat_id ?? n.id ?? n.node_id), n])
-  );
+  const parentMap = {};
+  for (const n of nodes) {
+    if (n.chat_id && n.parent_chat_id) {
+      parentMap[n.chat_id] = n.parent_chat_id;
+    }
+  }
 
   const result = [];
-  let cur = Number(startChatId);
+  let cur = startChatId;
 
   while (result.length < limit) {
-    const node = byId.get(cur);
-    if (!node || node.parent == null) break;
-
-    const parentId = Number(node.parent);
-    if (Number.isNaN(parentId)) break;
-
-    result.push(parentId); // 부모부터 위로 추가
-    cur = parentId;
+    const parent = parentMap[cur];
+    if (!parent) break; // 부모 없으면 종료
+    result.push(parent);
+    cur = parent;
   }
 
   return result;
@@ -243,71 +236,99 @@ export function rebuildBranchViewsFromNodes(
 }
 
 /* ======================================================================= */
-/* 🧠 ReactFlow snapshot 기준으로 chatViews / branchViews 재구성            */
+/* 🧠 ReactFlow snapshot 기준으로 chatViews / branchViews "부분" 재구성    */
+/*      - 기존 도메인 그래프(prevChatViews)는 유지                         */
+/*      - snapshot에 있는 노드들에 대해서만 position 을 갱신                */
+/*      - ignoreRfIds 는 "도메인에 아직 없는 임시 노드"로 취급            */
 /* ======================================================================= */
 export function rebuildFromSnapshot(
   prevChatViews,
   prevBranchViews,
   snapshot,
-  roomId
+  roomId,
+  options = {}
 ) {
-  const prevNodes = prevChatViews?.nodes ?? [];
-  const prevEdges = prevChatViews?.edges ?? [];
-
-  const prevById = new Map(
-    prevNodes.map((n) => [Number(n.chat_id ?? n.id ?? n.node_id), n])
+  const ignoreSet = new Set(
+    (options.ignoreRfIds ?? []).map((id) => String(id))
   );
 
-  const snapNodes = Array.isArray(snapshot?.nodes) ? snapshot.nodes : [];
+  const prevNodes = prevChatViews?.nodes ?? [];
+
+  const snapNodesRaw = Array.isArray(snapshot?.nodes) ? snapshot.nodes : [];
+
+  // ✅ 1) ignore 대상이 아닌 RF 노드만 사용해서 position 맵 구성
+  const snapNodes = snapNodesRaw.filter((n) => !ignoreSet.has(String(n.id)));
+
+  const posMap = new Map();
+  snapNodes.forEach((n) => {
+    // ReactFlow id 는 도메인 chat_id 와 동일하다고 가정
+    const cid = Number(n.id);
+    if (Number.isNaN(cid)) return;
+
+    const x = n.position?.x ?? n.x ?? 0;
+    const y = n.position?.y ?? n.y ?? 0;
+    posMap.set(cid, { x, y });
+  });
+
+  // ✅ 2) 기존 도메인 노드들을 베이스로 두고,
+  //       snapshot 에 있는 노드만 유지하면서 position 갱신
+  //       🔥 snapshot에 없는 노드는 삭제된 것으로 간주하여 제외
+  const rebuiltNodes = prevNodes
+    .filter((n) => {
+      const cidRaw = n.chat_id ?? n.id ?? n.node_id;
+      const cid = cidRaw != null ? Number(cidRaw) : NaN;
+      if (Number.isNaN(cid)) {
+        return false; // 유효하지 않은 노드 제거
+      }
+      // 🔥 snapshot에 있는 노드만 유지 (없으면 삭제된 것으로 간주)
+      return posMap.has(cid);
+    })
+    .map((n) => {
+      const cidRaw = n.chat_id ?? n.id ?? n.node_id;
+      const cid = Number(cidRaw);
+      const pos = posMap.get(cid);
+
+      return {
+        ...n,
+        position: {
+          ...(n.position ?? {}),
+          ...pos,
+        },
+      };
+    });
+
+  // ✅ 3) snapshot의 엣지를 기준으로 재구성
+  //       🔥 노드 삭제 시 ReactFlow에서 재연결된 엣지를 반영하기 위해
+  //       snapshot의 엣지를 우선 사용하되, 유효한 노드만 연결
   const snapEdges = Array.isArray(snapshot?.edges) ? snapshot.edges : [];
 
-  // snapshot에서 "도메인 노드(chat_id 기반)"로 볼 수 있는 id set 수집
-  const domainIdSet = new Set();
-
-  snapNodes.forEach((n) => {
-    const cid = Number(n.id);
-    if (!Number.isNaN(cid)) {
-      domainIdSet.add(cid);
-    }
-  });
-
-  snapEdges.forEach((e) => {
-    const s = Number(e.source);
-    const t = Number(e.target);
-    if (!Number.isNaN(s)) domainIdSet.add(s);
-    if (!Number.isNaN(t)) domainIdSet.add(t);
-  });
-
-  // 도메인 노드들만 재구성 (기존 도메인 데이터는 그대로 유지)
-  const rebuiltNodes = Array.from(domainIdSet).map((cid) => {
-    const prev = prevById.get(cid) || {};
-    const snapNode = snapNodes.find((n) => Number(n.id) === cid);
-
-    const pos = snapNode
-      ? {
-          x: snapNode.position?.x ?? snapNode.x ?? prev.position?.x ?? 0,
-          y: snapNode.position?.y ?? snapNode.y ?? prev.position?.y ?? 0,
-        }
-      : prev.position ?? { x: 0, y: 0 };
-
-    return {
-      ...prev,
-      chat_id: cid,
-      position: pos,
-    };
-  });
-
-  // 도메인 엣지만 재구성 (source/target 둘 다 숫자인 것만)
+  // snapshot 엣지 중 ignore 대상이 아니고, 양쪽 노드가 모두 존재하는 것만 사용
   const rebuiltEdges = snapEdges
-    .map((e) => {
-      const s = Number(e.source);
-      const t = Number(e.target);
-      if (Number.isNaN(s) || Number.isNaN(t)) return null;
-      return { source: s, target: t };
-    })
-    .filter(Boolean);
+    .filter((e) => {
+      const sourceStr = String(e.source);
+      const targetStr = String(e.target);
 
-  // parent / children 부착
+      // ignore 대상 제외
+      if (ignoreSet.has(sourceStr) || ignoreSet.has(targetStr)) {
+        return false;
+      }
+
+      const sourceId = Number(e.source);
+      const targetId = Number(e.target);
+
+      // 양쪽 노드가 모두 snapshot에 있는 엣지만 유지
+      return posMap.has(sourceId) && posMap.has(targetId);
+    })
+    .map((e) => ({
+      source: Number(e.source),
+      target: Number(e.target),
+      // 기타 엣지 속성 유지
+      ...(e.id && { id: e.id }),
+      ...(e.type && { type: e.type }),
+      ...(e.data && { data: e.data }),
+    }));
+
+  // ✅ 4) parent / children 부착
   const chatInfo = attachParentChildren({
     chat_room_id: Number(roomId),
     ...(prevChatViews ?? {}),
@@ -316,7 +337,7 @@ export function rebuildFromSnapshot(
     last_updated: new Date().toISOString(),
   });
 
-  // branchViews 재구성 (branch_name은 가능한 유지)
+  // ✅ 5) branchViews 재구성 (branch_name 은 prevBranchViews 를 최대한 유지)
   const branchView = rebuildBranchViewsFromNodes(
     chatInfo.nodes ?? [],
     chatInfo.edges ?? [],
@@ -349,7 +370,11 @@ export function applyLocalBranchNames(
     if (!name) continue;
 
     // 1) ReactFlow node id → 도메인 chat_id 찾기
-    const chatIdFromMap = flowIdToChatId?.get(String(rfId));
+    const chatIdFromMap =
+      typeof flowIdToChatId?.get === "function"
+        ? flowIdToChatId.get(String(rfId))
+        : flowIdToChatId?.[String(rfId)];
+
     const numericRfId = Number(rfId);
     const chatId =
       chatIdFromMap ?? (!Number.isNaN(numericRfId) ? numericRfId : null);
@@ -381,7 +406,7 @@ export function applyLocalBranchNames(
     };
   }
 
-  // 5) 한 번 반영했으면 localStorage 비워도 됨(선택사항)
+  // 필요하면 여기서 localStorage 비워줄 수도 있음
   // saveJSON(LS_BRANCH_BY_NODE, {});
 
   return {

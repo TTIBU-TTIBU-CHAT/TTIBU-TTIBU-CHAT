@@ -46,8 +46,17 @@ export const chatRoomService = {
     console.log("SSE 연결 URL:", url);
     return new EventSource(url, { withCredentials: true });
   },
+  openChatStream: (roomId) => {
+    if (!roomId) throw new Error("openStream requires sessionUuid");
+    const base = import.meta.env.VITE_API_BASE_URL ?? "/api/v1";
+    const url = `${base}/chats/stream/${roomId}`;
+    console.log("SSE 연결 URL:", url);
+    return new EventSource(url, { withCredentials: true });
+  },
 
   // 선택: 서버가 종료 API 제공하면 사용
   closeStreamBySession: (sessionUuid) =>
     api.delete(`/chats/stream/session/${sessionUuid}`),
+  closeStreamByChat: (roomId) =>
+    api.delete(`/chats/stream/${roomId}`),
 };
