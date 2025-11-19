@@ -296,7 +296,6 @@ export function rebuildFromSnapshot(
   });
 
   // ✅ 3) 엣지는 우선 기존 도메인 엣지를 그대로 사용
-  //    (ReactFlow 에서 "삭제" 기능까지 구현하면, 그 때 삭제 로직을 추가)
   const rebuiltEdges = [...prevEdges];
 
   // ✅ 4) parent / children 부착
@@ -341,7 +340,11 @@ export function applyLocalBranchNames(
     if (!name) continue;
 
     // 1) ReactFlow node id → 도메인 chat_id 찾기
-    const chatIdFromMap = flowIdToChatId?.get(String(rfId));
+    const chatIdFromMap =
+      typeof flowIdToChatId?.get === "function"
+        ? flowIdToChatId.get(String(rfId))
+        : flowIdToChatId?.[String(rfId)];
+
     const numericRfId = Number(rfId);
     const chatId =
       chatIdFromMap ?? (!Number.isNaN(numericRfId) ? numericRfId : null);
@@ -373,7 +376,7 @@ export function applyLocalBranchNames(
     };
   }
 
-  // 5) 한 번 반영했으면 localStorage 비워도 됨(선택사항)
+  // 필요하면 여기서 localStorage 비워줄 수도 있음
   // saveJSON(LS_BRANCH_BY_NODE, {});
 
   return {

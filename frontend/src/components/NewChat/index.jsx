@@ -78,10 +78,8 @@ export default function NewChat() {
         to: "/chatrooms/$roomId",
         params: { roomId: String(rid) },
         state: {
-          mode: "new-room", // ✅ 새 방에서 들어왔다는 정보
-          roomInit: data, // ✅ 초기 방/그래프 데이터 (있으면 사용)
-          startBranchKey: "전체", // ✅ 처음엔 전체 브랜치 기준
-          startChatId: null, // ✅ 필요하면 첫 질문 chat_id로 교체 가능
+          roomInit: { ...data, model: selectedModel },
+          modelCode: selectedModel, // 🔥 명시적으로 전달
         },
         replace: true,
       });

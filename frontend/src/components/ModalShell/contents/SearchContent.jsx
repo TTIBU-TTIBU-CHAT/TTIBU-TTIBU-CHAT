@@ -49,7 +49,7 @@ function normalizeResult(raw) {
 export function SearchContent({ onPick }) {
   // 검색 입력 + 태그 칩
   const [query, setQuery] = useState("");
-  const [chips, setChips] = useState(["알고리즘"]);
+  const [chips, setChips] = useState([]);
 
   // 페이지네이션
   const [page, setPage] = useState(0);
