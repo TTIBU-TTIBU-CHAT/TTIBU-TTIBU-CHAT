@@ -31,7 +31,6 @@ import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.scheduling.annotation.Async;
-import org.springframework.security.core.parameters.P;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
@@ -332,7 +331,7 @@ public class ChatServiceImpl implements ChatService {
                                             summary = buildFallbackSummary(keywords, aiAnswer);
                                         }
 
-                                        chat.updateSummaryAndKeywords(aiResult.getSummary(), convertToJson(aiResult.getKeywords()));
+                                        chat.updateSummaryAndKeywords(summary, convertToJson(keywords));
                                         chatRepository.save(chat);
 
                                         Map<String, Object> payload = new LinkedHashMap<>();
