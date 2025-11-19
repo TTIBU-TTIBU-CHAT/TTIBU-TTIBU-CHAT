@@ -37,8 +37,8 @@ import {
 import { getPayloadFromDT, DND_MIME_GROUP, DND_MIME_RESULT } from "./dnd";
 
 import { initialNodes, initialEdges } from "../initialData";
-import DeletableEdge from "../edges/DeletableEdge";
-import SelectionOverlay from "../overlays/SelectionOverlay";
+import DeletableEdge from "../Edges/DeletableEdge";
+import SelectionOverlay from "../Overlays/SelectionOverlay";
 import QaNode from "../../GroupFlow/QaNode";
 
 import {

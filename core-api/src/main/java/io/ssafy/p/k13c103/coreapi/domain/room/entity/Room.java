@@ -4,6 +4,8 @@ import io.ssafy.p.k13c103.coreapi.common.entity.BaseTimeEntity;
 import io.ssafy.p.k13c103.coreapi.domain.member.entity.Member;
 import jakarta.persistence.*;
 import lombok.*;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 
 @Entity
 @Table(name = "room")
@@ -25,9 +27,11 @@ public class Room extends BaseTimeEntity {
     @Column(nullable = false)
     private String name;
 
+    @JdbcTypeCode(SqlTypes.JSON)
     @Column(name = "branch_view", columnDefinition = "json", nullable = false)
     private String branchView;
 
+    @JdbcTypeCode(SqlTypes.JSON)
     @Column(name = "chat_info", columnDefinition = "json", nullable = false)
     private String chatInfo;
 
@@ -51,4 +55,4 @@ public class Room extends BaseTimeEntity {
             this.name = name;
         }
     }
-}
+}   
