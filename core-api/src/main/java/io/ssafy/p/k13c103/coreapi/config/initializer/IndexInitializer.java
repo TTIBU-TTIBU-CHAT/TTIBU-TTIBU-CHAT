@@ -38,9 +38,9 @@ public class IndexInitializer implements ApplicationRunner {
                 // ignore
             }
 
-            // 검색 인덱스 (GIN)
-            exec(st, "CREATE INDEX IF NOT EXISTS idx_chat_search_bigm " +
-                    "ON chat USING gin (search_content gin_bigm_ops)");
+//            // 검색 인덱스 (GIN)
+//            exec(st, "CREATE INDEX IF NOT EXISTS idx_chat_search_bigm " +
+//                    "ON chat USING gin (search_content gin_bigm_ops)");
 
             // 필터 + 정렬 인덱스
             exec(st, "CREATE INDEX IF NOT EXISTS idx_chat_room_status_type_created " +
