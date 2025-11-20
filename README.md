@@ -166,7 +166,17 @@ npm run dev
 
 ### .env
 ```env
-TTIBU_LITELLM_BASEURL=http://localhost:4000
+# LiteLLM Configuration
+LITELLM_MASTER_KEY=your-master-key
+LITELLM_BASE_URL=http://litellm:your-port
+LITELLM_MODEL=your-model
+
+# TTIBU Application Security
+TTIBU_CRYPTO_SECRET=your-custom-api-key-secret
+
+# FastAPI Summary Service
+SUMMARY_API_BASE_URL=http://summary-api:your-port
+SUMMARY_API_TIMEOUT_MS=30000
 ```
 <br>
 
