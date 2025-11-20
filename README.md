@@ -50,19 +50,20 @@
 
 ### 🔗 **채팅 붙이기**
 두 개의 서로 다른 메시지 노드를 연결하여 대화 흐름을 병합합니다. 문맥을 재구성할 때 유용합니다.
-  <!-- <img src="" align="center" width="600"/> -->
+  <img src="./docs/attach.gif" align="center" width="600"/>
 
 ### ✂️ **채팅 떼기**
 잘못 연결되거나 불필요한 대화 흐름을 끊어내어 노이즈를 제거하고 새로운 흐름을 만듭니다.
-  <!-- <img src="" align="center" width="600"/> -->
+  <img src="./docs/dettach.gif" align="center" width="600"/>
 
 ### 🗂️ **채팅 그룹화**
 복잡해진 그래프 노드들을 주제별로 묶어 정리하고, 가시성을 확보합니다.
-  <!-- <img src="" align="center" width="600"/> -->
+  <img src="./docs/group.gif" align="center" width="600"/><br><br>
+  <img src="./docs/group2.gif" align="center" width="600"/>
 
 ### 🌿 **대화 분기**
 특정 메시지에서 새로운 가지(Branch)를 생성하여 여러 프롬프트 전략을 동시에 실험합니다.
-  <!-- <img src="" align="center" width="600"/> -->
+  <img src="./docs/branch.gif" align="center" width="600"/>
 
 ### 🧠 LLM Provider 통합(LiteLLM)
 OpenAI · Anthropic · Google · DeepSeek 등  
