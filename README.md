@@ -120,6 +120,8 @@ graph TD
     B -- Data Persist --> DB
     B -- Caching --> Cache
 ```
+<img src="./docs/architecture.png" align="center" width="600"/>
+
 <br>
 
 ---
